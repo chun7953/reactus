@@ -4,7 +4,8 @@
 ![Discord.js](https://img.shields.io/badge/discord.js-v14-blue.svg)
 ![License](https://img.shields.io/badge/license-ISC-lightgrey.svg)
 
-Reactusは、Discordサーバーの運営を効率化し、コミュニティ活動を豊かにするための多機能ボットです。自動リアクションやアナウンスといった基本的な機能に加え、Googleカレンダーと連携した高度なイベント通知機能を備えています。
+Reactusは、Discordサーバーの運営を効率化し、コミュニティ活動を豊かにするための多機能ボットです。  
+自動リアクションやアナウンスといった基本的な機能に加え、Googleカレンダーと連携した高度なイベント通知機能を備えています。
 
 このプロジェクトは、メンテナンス性と拡張性を考慮したモダンな設計に基づいており、クラウドプラットフォーム（Railway）での24時間365日安定稼働を実現しています。
 
