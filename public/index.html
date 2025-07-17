@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reactus - Discordボット</title>
+    <meta name="description" content="Reactusは、Discordサーバーでの自動リアクションを簡単に管理するボットです。">
+    <link rel="stylesheet" href="/common/css/import_screen.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="icon" href="/images/favicon.ico">
+</head>
+<body>
+
+    <header class="site-header">
+        <div class="container">
+            <h1>Reactus</h1>
+            <p>A Discord bot that manages automatic reactions.</p>
+        </div>
+    </header>
+
+    <main>
+        <div class="hero-section">
+            <img src="/common/img/main_vis.png" alt="Reactus Bot Banner">
+        </div>
+
+        <div class="container content-wrapper">
+            <section class="content-section">
+                <h2>Reactusについて</h2>
+                <div class="card">
+                    <img src="/images/bot-icon.png" alt="Reactus Bot Icon" class="bot-icon">
+                    <p>
+                        Reactusは、Discordサーバーでの自動リアクションを簡単に管理するボットです！✨<br>
+                        特定のトリガーワードを含むメッセージが投稿されると、設定しておいた絵文字で、自動的にリアクションします！<br>
+                        ニッチな機能ですが、一部には刺さるかも？と思い、作りました！🎉
+                    </p>
+                </div>
+            </section>
+
+            <section class="content-section">
+                <h3>主な機能</h3>
+                <div class="card">
+                    <ul class="feature-list">
+                        <li><strong>自動リアクション設定:</strong> 特定のトリガーワードに応じて、指定した絵文字で自動的にリアクションを追加します！</li>
+                        <li><strong>リアクション管理:</strong> リアクション設定を簡単に追加、削除、表示できます！</li>
+                        <li><strong>アナウンス機能:</strong> 特定のメッセージを、常にそのチャンネルの最新メッセージとして表示し続けます！</li>
+                        <li><strong>CSV集計機能:</strong> リアクションの集計を、リアクションしたユーザーのリストとしてCSVファイルに出力します！</li>
+                        <li><strong>バックアップ機能:</strong> リアクションの設定をバックアップし、必要に応じて復元できます！</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section class="content-section">
+                <h2>使い方</h2>
+                <div class="card">
+                    <p>
+                        まずは、Reactusを管理しているサーバーに追加しましょう！<br>
+                        その後、以下のコマンドを利用して設定を行います。
+                    </p>
+                    <ul class="command-list">
+                        <li><code>/setreaction</code> - 自動リアクションを設定します。</li>
+                        <li><code>/removereaction</code> - 設定した自動リアクションを解除します。</li>
+                        <li><code>/listreactions</code> - 現在のリアクション設定を表示します。</li>
+                        <li><code>/poll</code> - 簡易投票を作成します。</li>
+                        <li><code>/backup</code> & <code>/restore</code> - 設定をバックアップ/復元します。</li>
+                    </ul>
+                </div>
+            </section>
+            
+            <section class="content-section cta-section">
+                <h2>Reactusを試してみる</h2>
+                <div class="card">
+                    <p>
+                        Reactusを導入する前に、機能を試してみたい方は、<br>以下のリンクから開発サーバーにご参加ください！
+                    </p>
+                    <a href="https://discord.gg/m6mFzzEQhr" class="join-button">Reactus開発室に参加する</a>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <footer class="site-footer">
+        <div class="container">
+            <p>&copy; 2024 Reactus. All rights reserved.</p>
+        </div>
+    </footer>
+
+</body>
+</html>
