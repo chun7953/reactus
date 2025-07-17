@@ -4,7 +4,7 @@
 ![Discord.js](https://img.shields.io/badge/discord.js-v14-blue.svg)
 ![License](https://img.shields.io/badge/license-ISC-lightgrey.svg)
 
-Reactusは、Discordサーバーの運営を効率化し、コミュニティ活動を豊かにするための多機能ボットです。  
+Reactusは、Discordサーバーの運営を効率化し、コミュニティ活動を豊かにするための多機能ボットです。
 自動リアクションやアナウンスといった基本的な機能に加え、Googleカレンダーと連携した高度なイベント通知機能を備えています。
 
 このプロジェクトは、メンテナンス性と拡張性を考慮したモダンな設計に基づいており、クラウドプラットフォーム（Railway）での24時間365日安定稼働を実現しています。
@@ -23,15 +23,35 @@ Reactusは、Discordサーバーの運営を効率化し、コミュニティ活
 
 ## 🚀 セットアップとデプロイ手順
 
-このボットを新しい環境で動かすための手順です。
-
 ### 1. 前提条件
 -   Node.js (v20.x)
 -   Git
 -   Railwayアカウント
 -   Google Cloud Platformアカウント
 
-### 2. ローカルでのセットアップ
+### 2. Google APIの準備
+
+1.  **Google Cloudプロジェクトの作成**: [Google Cloud Platform](https://console.cloud.google.com/) で新しいプロジェクトを作成します。
+2.  **APIの有効化**: 作成したプロジェクトで、以下の2つのAPIを有効にします。
+    -   **Google Sheets API**
+    -   **Google Calendar API**
+3.  **OAuth同意画面の設定**:
+    -   「APIとサービス」 > 「OAuth同意画面」に移動します。
+    -   `User Type` は 「**外部**」 を選択します。
+    -   アプリ名（例: `Reactus Bot`）やメールアドレスなど、必須項目を入力します。
+    -   「スコープ」の画面で、「スコープを追加または削除」をクリックし、以下の2つを追加して保存します。
+        -   `.../auth/spreadsheets`
+        -   `.../auth/calendar.readonly`
+    -   「テストユーザー」の画面で、「+ ADD USERS」をクリックし、**あなた自身のGoogleアカウントのメールアドレス**を追加します。
+4.  **OAuth 2.0 クライアント IDの作成**:
+    -   「APIとサービス」 > 「認証情報」に移動します。
+    -   「+ 認証情報を作成」 > 「OAuth 2.0 クライアント ID」を選択します。
+    -   アプリケーションの種類は「**ウェブ アプリケーション**」を選択します。
+    -   「承認済みのリダイレクトURI」に `http://localhost:3000/oauth2callback` を追加します。
+    -   作成後、**クライアントID**と**クライアントシークレット**をコピーしておきます。これらは後のステップで使います。
+
+### 3. ローカルでのセットアップとトークン取得
+
 1.  **リポジトリをクローン**:
     ```bash
     git clone [https://github.com/](https://github.com/)<あなたのユーザー名>/reactus.git
@@ -40,49 +60,46 @@ Reactusは、Discordサーバーの運営を効率化し、コミュニティ活
 2.  **依存関係をインストール**:
     ```bash
     npm install
+    npm install open # 一時的に利用
     ```
-3.  **環境変数を設定**:
-    プロジェクトのルートに`.env`ファイルを作成し、以下の内容を記述します。
+3.  **`.env`ファイルを作成**: プロジェクトのルートに`.env`ファイルを作成し、以下の内容を記述します。
     ```env
     # Discord Bot
     TOKEN=YOUR_DISCORD_BOT_TOKEN
     CLIENT_ID=YOUR_DISCORD_CLIENT_ID
 
-    # Google OAuth 2.0
+    # Google OAuth 2.0 (先ほど取得した値を入力)
     GOOGLE_CLIENT_ID=YOUR_GOOGLE_CLIENT_ID
     GOOGLE_CLIENT_SECRET=YOUR_GOOGLE_CLIENT_SECRET
-    GOOGLE_REFRESH_TOKEN=YOUR_GOOGLE_REFRESH_TOKEN
-
-    # Google Sheets
-    SPREADSHEET_ID=YOUR_SPREADSHEET_ID
     
-    # Railwayが提供するポート
-    PORT=8080 
+    # この時点では空でOK
+    GOOGLE_REFRESH_TOKEN=
     ```
-4.  **Google APIの準備**:
-    -   Google Cloud Platformで、**Google Sheets API**と**Google Calendar API**の両方を有効化します。
-    -   「OAuth 2.0 クライアント ID」を作成し、`GOOGLE_CLIENT_ID`と`GOOGLE_CLIENT_SECRET`を取得します。
-    -   `generateRefreshToken.js`（一時ファイル）を実行し、`GOOGLE_REFRESH_TOKEN`を取得します。
-5.  **ローカルで起動**:
-    ```bash
-    npm start
-    ```
+4.  **リフレッシュトークンを取得**:
+    - ターミナルで以下のコマンドを実行します。
+      ```bash
+      node generateRefreshToken.js
+      ```
+    - 自動でブラウザが開き、Googleの同意画面が表示されます。
+    - **必ず、カレンダーとスプレッドシートの両方の権限にチェックを入れて**「続行」をクリックしてください。
+    - 認証が成功すると、ターミナルに**新しいリフレッシュトークン**が表示されます。
+5.  **`.env`ファイルを更新**:
+    - ターミナルに表示されたリフレッシュトークンをコピーし、`.env`ファイルの `GOOGLE_REFRESH_TOKEN=` の部分に貼り付けます。
+6.  **一時ファイルを削除**: トークンは取得できたので、`generateRefreshToken.js` はもう不要です。削除して構いません。
 
-### 3. Railwayへのデプロイ
-1.  **GitHubにプッシュ**: 全てのコードをGitHubリポジトリにプッシュします。
+### 4. Railwayへのデプロイ
+1.  **GitHubにプッシュ**: 全てのコードをあなたのGitHubリポジトリにプッシュします。
 2.  **Railwayでプロジェクト作成**: Railwayのダッシュボードから`New Project` > `Deploy from GitHub repo`を選択し、このリポジトリを連携させます。
 3.  **PostgreSQLを追加**: プロジェクト内で`+ New` > `Database` > `Add PostgreSQL`を選択し、データベースを作成します。
 4.  **環境変数を設定**:
-    -   作成したボットのサービス（`reactus`など）の「Variables」タブに移動します。
+    -   作成したボットのサービスの「Variables」タブに移動します。
     -   `+ New Variable` > `Add from Database`で`PostgreSQL`を選択し、`DATABASE_URL`を自動で追加します。
-    -   `.env`ファイルに記載した他の全ての環境変数（`TOKEN`、`GOOGLE_CLIENT_ID`など）を手動で追加します。
+    -   `.env`ファイルに記載した**全て**の環境変数（`TOKEN`, `CLIENT_ID`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`）を手動で追加します。`SPREADSHEET_ID`もここで追加します。
 5.  **起動コマンドを設定**:
-    -   「Settings」タブの「Start Command」に、以下のコマンドを設定します。
-    ```
-    npm run railway-deploy
-    ```
+    -   「Settings」タブの「Start Command」に、`npm start` を設定します。（`railway-deploy`は不要になりました）
 6.  **コマンドを登録**:
-    -   デプロイが完了したら、サービスの「Settings」タブで、Start Commandを一時的に`npm run register-commands`に変更して再デプロイし、コマンドを登録します。（完了後、元の`npm run railway-deploy`に戻します）
+    -   デプロイが完了したら、サービスの「Settings」タブで、Start Commandを一時的に`npm run register-commands`に変更して再デプロイし、コマンドを登録します。（完了後、元の`npm start`に戻します）
+
 
 ## 🤖 コマンド一覧
 
