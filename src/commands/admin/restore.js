@@ -39,7 +39,14 @@ export default {
             // カレンダーモニター
             await pool.query('DELETE FROM calendar_monitors WHERE guild_id = $1', [guildId]);
             const monitorData = await getSheetData(sheets, auth, spreadsheetId, `CalendarMonitors_${guildId}!A2:E`);
-            for(const row of monitorData) {
+            for(let row of monitorData) { // ★★★ const を let に変更
+                // ★★★ここからが修正部分です★★★
+                // スプレッドシートから取得した行のデータが5列未満の場合、足りない分をnullで埋めます。
+                // これにより、メンションロールが設定されていない行でもエラーが発生しなくなります。
+                while (row.length < 5) {
+                    row.push(null);
+                }
+                // ★★★修正はここまでです★★★
                 await pool.query('INSERT INTO calendar_monitors (guild_id, channel_id, calendar_id, trigger_keyword, mention_role) VALUES ($1, $2, $3, $4, $5)', row);
                 counts.monitors++;
             }
@@ -48,7 +55,7 @@ export default {
             await pool.query('DELETE FROM guild_configs WHERE guild_id = $1', [guildId]);
             const configData = await getSheetData(sheets, auth, spreadsheetId, `MainCalendars_${guildId}!A2:B`);
             for(const row of configData) {
-                 await pool.query('INSERT INTO guild_configs (guild_id, main_calendar_id) VALUES ($1, $2) ON CONFLICT (guild_id) DO UPDATE SET main_calendar_id = $2', row);
+                 await pool.query('INSERT INTO guild_configs (guild_id, main_calendar_id) VALUES ($1, $2) ON CONFLICT (guild_id) DO UPDATE SET main_calendar_id = excluded.main_calendar_id', row);
                  counts.configs++;
             }
 
