@@ -1,4 +1,4 @@
-// /src/lib/calendarMonitor.js
+// src/lib/calendarMonitor.js
 
 import { google } from 'googleapis';
 import { initializeDatabase } from '../db/database.js';
@@ -46,8 +46,17 @@ async function checkCalendarEvents(client) {
                         const descriptionMentions = event.description?.match(/<@&[0-9]+>|<@[0-9]+>|<@everyone>|<@here>/g) || [];
                         mentionContent += (descriptionMentions || []).join(' ');
 
-                        const eventTime = new Date(event.start.dateTime || event.start.date).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-                        const message = `📢 **${triggerWithBrackets}**\n**${event.summary}**\n**開始時刻:** ${eventTime}\n\n${mentionContent.trim()}`;
+                        // ★★★ここからが修正部分です★★★
+                        let message = `**${event.summary || 'タイトルなし'}**`; // タイトル
+                        
+                        if (event.description) {
+                            message += `\n${event.description}`; // 詳細
+                        }
+
+                        if (mentionContent.trim()) {
+                            message += `\n\n${mentionContent.trim()}`; // メンション
+                        }
+                        // ★★★修正はここまでです★★★
                         
                         await channel.send(message);
                         notifiedEventIds.add(event.id);
