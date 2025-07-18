@@ -45,9 +45,6 @@ async function checkCalendarEvents(client) {
 
         const timeMinJST = formatToJST_RFC3339(jstNow);
         const timeMaxJST = formatToJST_RFC3339(jstFiveMinutesFromNow);
-
-        console.log(`[CalendarMonitor] 現在時刻 (JST): ${timeMinJST}`);
-        console.log(`[CalendarMonitor] 5分後 (JST): ${timeMaxJST}`);
         // ★★★修正はここまでです★★★
 
         for (const monitor of monitors) {
