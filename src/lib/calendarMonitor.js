@@ -58,7 +58,7 @@ async function checkCalendarEvents(client) {
                     timeMax: timeMaxJST, // JSTオフセット付きの時刻を使用
                     singleEvents: true,
                     orderBy: 'startTime',
-                    // timeZone: 'Asia/Tokyo', // timeMin/Maxにオフセットが含まれるため不要
+                    timeZone: 'Asia/Tokyo', // ★★★この行を追加★★★
                 });
 
                 if (!events.data.items) continue;
