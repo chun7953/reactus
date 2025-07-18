@@ -19,10 +19,8 @@ async function checkCalendarEvents(client) {
         const now = new Date();
         const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60000);
 
-        // ★★★ここからが追記部分です★★★
         console.log(`[CalendarMonitor] 現在時刻 (bot): ${now.toISOString()}`);
         console.log(`[CalendarMonitor] 5分後 (bot): ${fiveMinutesFromNow.toISOString()}`);
-        // ★★★追記はここまでです★★★
 
         for (const monitor of monitors) {
             try {
@@ -43,28 +41,44 @@ async function checkCalendarEvents(client) {
                     const triggerWithBrackets = `【${monitor.trigger_keyword}】`;
 
                     if (eventText.includes(triggerWithBrackets)) {
-                        // ★★★ここからが追記部分です★★★
                         console.log(`[CalendarMonitor] 検出イベント: ${event.summary} (ID: ${event.id})`);
                         console.log(`[CalendarMonitor] イベント開始時刻: ${event.start.dateTime || event.start.date}`);
-                        // ★★★追記はここまでです★★★
 
                         const channel = await client.channels.fetch(monitor.channel_id).catch(() => null);
                         if (!channel) continue;
                         
-                        let mentionContent = monitor.mention_role ? `<@&${monitor.mention_role}> ` : '';
-                        
-                        const descriptionMentions = event.description?.match(/<@&[0-9]+>|<@[0-9]+>|<@everyone>|<@here>/g) || [];
-                        mentionContent += (descriptionMentions || []).join(' ');
+                        // ★★★ここからが修正部分です★★★
+                        let allMentions = new Set(); // メンションを一意に管理するためのSet
 
-                        let message = `**${event.summary || 'タイトルなし'}**`; 
-                        
-                        if (event.description) {
-                            message += `\n${event.description}`; 
+                        // 1. setcalendarで設定されたロールメンションを追加
+                        if (monitor.mention_role) {
+                            allMentions.add(`<@&${monitor.mention_role}>`);
                         }
 
-                        if (mentionContent.trim()) {
-                            message += `\n\n${mentionContent.trim()}`; 
+                        // 2. イベント詳細からメンションを抽出し、詳細テキストからは削除
+                        let cleanedDescription = event.description || '';
+                        const descriptionMentionMatches = cleanedDescription.match(/<@&[0-9]+>|<@[0-9]+>|<@everyone>|<@here>/g);
+                        if (descriptionMentionMatches) {
+                            for (const match of descriptionMentionMatches) {
+                                allMentions.add(match); // 抽出したメンションをSetに追加
+                            }
+                            // メンションを詳細テキストから削除
+                            cleanedDescription = cleanedDescription.replace(/<@&[0-9]+>|<@[0-9]+>|<@everyone>|<@here>/g, '').trim();
                         }
+
+                        const finalMentionsContent = Array.from(allMentions).join(' '); // 重複を除いたメンション文字列
+
+                        // メッセージの構築
+                        let message = `**${event.summary || 'タイトルなし'}**`; // タイトル
+                        
+                        if (cleanedDescription) { // クリーンアップされた詳細テキストを使用
+                            message += `\n${cleanedDescription}`;
+                        }
+
+                        if (finalMentionsContent.trim()) { // 重複を除いたメンションを最後に一度だけ追加
+                            message += `\n\n${finalMentionsContent.trim()}`;
+                        }
+                        // ★★★修正はここまでです★★★
                         
                         await channel.send(message);
                         notifiedEventIds.add(event.id);
