@@ -1,4 +1,4 @@
-// src/lib/calendarMonitor.js
+// /src/lib/calendarMonitor.js
 
 import { google } from 'googleapis';
 import { initializeDatabase } from '../db/database.js';
@@ -19,6 +19,11 @@ async function checkCalendarEvents(client) {
         const now = new Date();
         const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60000);
 
+        // ★★★ここからが追記部分です★★★
+        console.log(`[CalendarMonitor] 現在時刻 (bot): ${now.toISOString()}`);
+        console.log(`[CalendarMonitor] 5分後 (bot): ${fiveMinutesFromNow.toISOString()}`);
+        // ★★★追記はここまでです★★★
+
         for (const monitor of monitors) {
             try {
                 const events = await calendar.events.list({
@@ -38,6 +43,11 @@ async function checkCalendarEvents(client) {
                     const triggerWithBrackets = `【${monitor.trigger_keyword}】`;
 
                     if (eventText.includes(triggerWithBrackets)) {
+                        // ★★★ここからが追記部分です★★★
+                        console.log(`[CalendarMonitor] 検出イベント: ${event.summary} (ID: ${event.id})`);
+                        console.log(`[CalendarMonitor] イベント開始時刻: ${event.start.dateTime || event.start.date}`);
+                        // ★★★追記はここまでです★★★
+
                         const channel = await client.channels.fetch(monitor.channel_id).catch(() => null);
                         if (!channel) continue;
                         
@@ -46,17 +56,15 @@ async function checkCalendarEvents(client) {
                         const descriptionMentions = event.description?.match(/<@&[0-9]+>|<@[0-9]+>|<@everyone>|<@here>/g) || [];
                         mentionContent += (descriptionMentions || []).join(' ');
 
-                        // ★★★ここからが修正部分です★★★
-                        let message = `**${event.summary || 'タイトルなし'}**`; // タイトル
+                        let message = `**${event.summary || 'タイトルなし'}**`; 
                         
                         if (event.description) {
-                            message += `\n${event.description}`; // 詳細
+                            message += `\n${event.description}`; 
                         }
 
                         if (mentionContent.trim()) {
-                            message += `\n\n${mentionContent.trim()}`; // メンション
+                            message += `\n\n${mentionContent.trim()}`; 
                         }
-                        // ★★★修正はここまでです★★★
                         
                         await channel.send(message);
                         notifiedEventIds.add(event.id);
