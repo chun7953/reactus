@@ -46,6 +46,7 @@ async function checkCalendarEvents(client) {
         const timeMinJST = formatToJST_RFC3339(jstNow);
         const timeMaxJST = formatToJST_RFC3339(jstFiveMinutesFromNow);
         // ★★★修正はここまでです★★★
+        const loggedExcludedEventIdsThisRun = new Set(); // 今回の実行でログに記録された除外イベントID
 
         for (const monitor of monitors) {
             try {
@@ -65,7 +66,13 @@ async function checkCalendarEvents(client) {
                     // クライアント側での最終チェック (APIフィルタリングの保険)
                     const eventStartTime = new Date(event.start.dateTime || event.start.date);
                     if (eventStartTime.getTime() < jstNow.getTime()) {
-                        console.log(`[CalendarMonitor] 過去のイベントを除外 (クライアント側): ${event.summary} (開始: ${eventStartTime.toISOString()})`);
+                        // ★★★ここからが修正部分です★★★
+                        // ログにまだ記録されていない場合のみログ出力
+                        if (!loggedExcludedEventIdsThisRun.has(event.id)) {
+                            console.log(`[CalendarMonitor] 過去のイベントを除外 (クライアント側): ${event.summary} (開始: ${eventStartTime.toISOString()})`);
+                            loggedExcludedEventIdsThisRun.add(event.id);
+                        }
+                        // ★★★修正はここまでです★★★
                         continue; // JSTで現在時刻より過去のイベントはスキップ
                     }
                     // ★★★追記はここまでです★★★
