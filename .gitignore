@@ -1,6 +1,7 @@
 .env
 sheetcredentials.json
 bot.log
+generateRefreshToken.js
 # 依存関係（node.jsプロジェクトでは必須）
 /node_modules
 
