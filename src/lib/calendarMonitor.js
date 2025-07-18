@@ -16,25 +16,63 @@ async function checkCalendarEvents(client) {
         const { auth } = await initializeSheetsAPI();
         const calendar = google.calendar({ version: 'v3', auth });
 
-        const now = new Date();
-        const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60000);
+        // ★★★ここからが修正部分です★★★
+        // 現在時刻をJSTで取得し、RFC3339形式 (+09:00オフセット) にフォーマット
+        const now = new Date(); // サーバーのローカル時間 (通常はUTC)
+        const jstOffsetMinutes = 9 * 60; // JSTはUTC+9時間
+        
+        // DateオブジェクトをJSTとして扱い、RFC3339形式にフォーマットするヘルパー関数
+        const formatToJST_RFC3339 = (dateObj) => {
+            const pad = (num) => num.toString().padStart(2, '0');
+            const year = dateObj.getFullYear();
+            const month = pad(dateObj.getMonth() + 1);
+            const day = pad(dateObj.getDate());
+            const hours = pad(dateObj.getHours());
+            const minutes = pad(dateObj.getMinutes());
+            const seconds = pad(dateObj.getSeconds());
+            const ms = dateObj.getMilliseconds().toString().padStart(3, '0');
+            return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${ms}+09:00`;
+        };
 
-        console.log(`[CalendarMonitor] 現在時刻 (bot): ${now.toISOString()}`);
-        console.log(`[CalendarMonitor] 5分後 (bot): ${fiveMinutesFromNow.toISOString()}`);
+        // DateオブジェクトをJSTに調整 (表示上のJST時刻のDateオブジェクトを作成)
+        // new Date()はサーバーのローカルタイムゾーンで作成されるため、UTCとJSTの差を考慮して調整
+        const serverUtcOffsetMs = now.getTimezoneOffset() * 60 * 1000; // サーバーのUTCからのオフセット (ミリ秒)
+        const jstOffsetMs = jstOffsetMinutes * 60 * 1000; // JSTのUTCからのオフセット (ミリ秒)
+        
+        // サーバーの現在時刻 (ローカル) をUTCに変換し、そこからJSTオフセットを適用
+        const jstNow = new Date(now.getTime() + serverUtcOffsetMs + jstOffsetMs);
+        const jstFiveMinutesFromNow = new Date(jstNow.getTime() + 5 * 60000); // JSTで5分後
+
+        const timeMinJST = formatToJST_RFC3339(jstNow);
+        const timeMaxJST = formatToJST_RFC3339(jstFiveMinutesFromNow);
+
+        console.log(`[CalendarMonitor] 現在時刻 (JST): ${timeMinJST}`);
+        console.log(`[CalendarMonitor] 5分後 (JST): ${timeMaxJST}`);
+        // ★★★修正はここまでです★★★
 
         for (const monitor of monitors) {
             try {
                 const events = await calendar.events.list({
                     calendarId: monitor.calendar_id,
-                    timeMin: now.toISOString(),
-                    timeMax: fiveMinutesFromNow.toISOString(),
+                    timeMin: timeMinJST, // JSTオフセット付きの時刻を使用
+                    timeMax: timeMaxJST, // JSTオフセット付きの時刻を使用
                     singleEvents: true,
                     orderBy: 'startTime',
+                    // timeZone: 'Asia/Tokyo', // timeMin/Maxにオフセットが含まれるため不要
                 });
 
                 if (!events.data.items) continue;
 
                 for (const event of events.data.items) {
+                    // ★★★ここからが追記部分です★★★
+                    // クライアント側での最終チェック (APIフィルタリングの保険)
+                    const eventStartTime = new Date(event.start.dateTime || event.start.date);
+                    if (eventStartTime.getTime() < jstNow.getTime()) {
+                        console.log(`[CalendarMonitor] 過去のイベントを除外 (クライアント側): ${event.summary} (開始: ${eventStartTime.toISOString()})`);
+                        continue; // JSTで現在時刻より過去のイベントはスキップ
+                    }
+                    // ★★★追記はここまでです★★★
+
                     if (notifiedEventIds.has(event.id)) continue;
 
                     const eventText = `${event.summary || ''} ${event.description || ''}`;
@@ -47,38 +85,32 @@ async function checkCalendarEvents(client) {
                         const channel = await client.channels.fetch(monitor.channel_id).catch(() => null);
                         if (!channel) continue;
                         
-                        // ★★★ここからが修正部分です★★★
-                        let allMentions = new Set(); // メンションを一意に管理するためのSet
+                        let allMentions = new Set(); 
 
-                        // 1. setcalendarで設定されたロールメンションを追加
                         if (monitor.mention_role) {
                             allMentions.add(`<@&${monitor.mention_role}>`);
                         }
 
-                        // 2. イベント詳細からメンションを抽出し、詳細テキストからは削除
                         let cleanedDescription = event.description || '';
                         const descriptionMentionMatches = cleanedDescription.match(/<@&[0-9]+>|<@[0-9]+>|<@everyone>|<@here>/g);
                         if (descriptionMentionMatches) {
                             for (const match of descriptionMentionMatches) {
-                                allMentions.add(match); // 抽出したメンションをSetに追加
+                                allMentions.add(match); 
                             }
-                            // メンションを詳細テキストから削除
                             cleanedDescription = cleanedDescription.replace(/<@&[0-9]+>|<@[0-9]+>|<@everyone>|<@here>/g, '').trim();
                         }
 
-                        const finalMentionsContent = Array.from(allMentions).join(' '); // 重複を除いたメンション文字列
+                        const finalMentionsContent = Array.from(allMentions).join(' '); 
 
-                        // メッセージの構築
-                        let message = `**${event.summary || 'タイトルなし'}**`; // タイトル
+                        let message = `**${event.summary || 'タイトルなし'}**`; 
                         
-                        if (cleanedDescription) { // クリーンアップされた詳細テキストを使用
+                        if (cleanedDescription) { 
                             message += `\n${cleanedDescription}`;
                         }
 
-                        if (finalMentionsContent.trim()) { // 重複を除いたメンションを最後に一度だけ追加
+                        if (finalMentionsContent.trim()) { 
                             message += `\n\n${finalMentionsContent.trim()}`;
                         }
-                        // ★★★修正はここまでです★★★
                         
                         await channel.send(message);
                         notifiedEventIds.add(event.id);
