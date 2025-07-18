@@ -6,7 +6,7 @@
     <meta name="google-site-verification" content="google11d2a72210faec9f" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Reactus - Discordボット</title>
-    <meta name="description" content="Reactusは、Discordサーバーでの自動リアクションを簡単に管理するボットです。">
+    <meta name="description" content="Reactusは、Discordサーバーの運営を効率化し、コミュニティ活動を豊かにするための多機能ボットです。">
     <link rel="stylesheet" href="/common/css/import_screen.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18,7 +18,7 @@
     <header class="site-header">
         <div class="container">
             <h1>Reactus</h1>
-            <p>A Discord bot that manages automatic reactions.</p>
+            <p>Discordサーバーの運営を効率化し、コミュニティ活動を豊かにする多機能ボット</p>
         </div>
     </header>
 
@@ -33,9 +33,8 @@
                 <div class="card">
                     <img src="/images/bot-icon.png" alt="Reactus Bot Icon" class="bot-icon">
                     <p>
-                        Reactusは、Discordサーバーでの自動リアクションを簡単に管理するボットです！✨<br>
-                        特定のトリガーワードを含むメッセージが投稿されると、設定しておいた絵文字で、自動的にリアクションします！<br>
-                        ニッチな機能ですが、一部には刺さるかも？と思い、作りました！🎉
+                        Reactusは、Discordサーバーの運営を効率化し、コミュニティ活動を豊かにするための多機能ボットです。✨<br>
+                        自動リアクションやアナウンスといった基本的な機能に加え、Googleカレンダーと連携した高度なイベント通知機能を備えています。🎉
                     </p>
                 </div>
             </section>
@@ -45,10 +44,10 @@
                 <div class="card">
                     <ul class="feature-list">
                         <li><strong>自動リアクション設定:</strong> 特定のトリガーワードに応じて、指定した絵文字で自動的にリアクションを追加します！</li>
-                        <li><strong>リアクション管理:</strong> リアクション設定を簡単に追加、削除、表示できます！</li>
-                        <li><strong>アナウンス機能:</strong> 特定のメッセージを、常にそのチャンネルの最新メッセージとして表示し続けます！</li>
+                        <li><strong>Googleカレンダー連携:</strong> Googleカレンダーの予定を監視し、特定のキーワードを含む予定が開始前にDiscordで自動通知されます！</li>
+                        <li><strong>自動アナウンス機能:</strong> 特定のメッセージを、常にそのチャンネルの最新メッセージとして表示し続けます！</li>
                         <li><strong>CSV集計機能:</strong> リアクションの集計を、リアクションしたユーザーのリストとしてCSVファイルに出力します！</li>
-                        <li><strong>バックアップ機能:</strong> リアクションの設定をバックアップし、必要に応じて復元できます！</li>
+                        <li><strong>バックアップ機能:</strong> 全ての設定（リアクション、アナウンス、カレンダー）をGoogleスプレッドシートにバックアップ・復元できます！</li>
                     </ul>
                 </div>
             </section>
@@ -63,8 +62,14 @@
                     <ul class="command-list">
                         <li><code>/setreaction</code> - 自動リアクションを設定します。</li>
                         <li><code>/removereaction</code> - 設定した自動リアクションを解除します。</li>
-                        <li><code>/listreactions</code> - 現在のリアクション設定を表示します。</li>
+                        <li><code>/setcalendar</code> - カレンダー通知を設定します。</li>
+                        <li><code>/removecalendar</code> - カレンダー通知設定を解除します。</li>
+                        <li><code>/register-main-calendar</code> - メインカレンダーを登録します。</li>
+                        <li><code>/listsettings</code> - 全ての自動設定（リアクション、カレンダー）の一覧を表示します。</li>
+                        <li><code>/startannounce</code> - 自動アナウンスを開始します。</li>
+                        <li><code>/stopannounce</code> - アナウンスを停止します。</li>
                         <li><code>/poll</code> - 簡易投票を作成します。</li>
+                        <li><code>/csvreactions</code> - リアクションをCSVで集計します。</li>
                         <li><code>/backup</code> & <code>/restore</code> - 設定をバックアップ/復元します。</li>
                     </ul>
                 </div>
