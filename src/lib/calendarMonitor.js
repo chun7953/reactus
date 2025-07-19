@@ -1,4 +1,4 @@
-// /src/lib/calendarMonitor.js (全体修正案)
+// /src/lib/calendarMonitor.js (修正案)
 
 import { google } from 'googleapis';
 import { initializeDatabase } from '../db/database.js';
@@ -28,16 +28,15 @@ async function cleanupNotifiedEvents(pool) {
  */
 async function checkCalendarEvents(client) {
     if (isChecking) {
-        console.log('[CalendarMonitor] 既にチェック処理が進行中です。スキップします。');
+        // 既にチェック中の場合はログを出さずに静かに終了
         return;
     }
     isChecking = true;
-    console.log('[CalendarMonitor] カレンダーイベントのチェックを開始します。');
+    // console.log('[CalendarMonitor] カレンダーイベントのチェックを開始します。'); // この行をコメントアウト
 
     try {
         const pool = await initializeDatabase();
         
-        // ★★★ 古い通知履歴の削除処理をここに追加 ★★★
         await cleanupNotifiedEvents(pool);
 
         const res = await pool.query('SELECT * FROM calendar_monitors');
@@ -64,17 +63,15 @@ async function checkCalendarEvents(client) {
                 if (!events.data.items) continue;
 
                 for (const event of events.data.items) {
-                    // ★★★ データベースで重複チェックを行う ★★★
                     const notifiedCheck = await pool.query('SELECT 1 FROM notified_events WHERE event_id = $1', [event.id]);
                     if (notifiedCheck.rows.length > 0) {
-                        continue; // DBに記録があれば通知済みなのでスキップ
+                        continue;
                     }
 
                     const eventText = `${event.summary || ''} ${event.description || ''}`;
                     const triggerWithBrackets = `【${monitor.trigger_keyword}】`;
 
                     if (eventText.includes(triggerWithBrackets)) {
-                        // ★★★ 検出後、すぐにDBに通知済みとして記録する ★★★
                         await pool.query('INSERT INTO notified_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING', [event.id]);
 
                         console.log(`[CalendarMonitor] 検出イベント: ${event.summary} (ID: ${event.id})`);
@@ -85,7 +82,6 @@ async function checkCalendarEvents(client) {
                             continue;
                         }
                         
-                        // --- 通知メッセージの組み立て (変更なし) ---
                         let allMentions = new Set();
                         if (monitor.mention_role) allMentions.add(`<@&${monitor.mention_role}>`);
                         let cleanedDescription = event.description || '';
@@ -110,7 +106,7 @@ async function checkCalendarEvents(client) {
         console.error('カレンダーチェック処理のメインブロックでエラー:', error);
     } finally {
         isChecking = false;
-        console.log('[CalendarMonitor] カレンダーイベントのチェックが完了しました。');
+        // console.log('[CalendarMonitor] カレンダーイベントのチェックが完了しました。'); // この行をコメントアウト
     }
 }
 
