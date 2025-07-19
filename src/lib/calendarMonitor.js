@@ -4,109 +4,113 @@ import { google } from 'googleapis';
 import { initializeDatabase } from '../db/database.js';
 import { initializeSheetsAPI } from './sheetsAPI.js';
 
-// 通知済みのイベントIDを一時的に保存するSet
-// (メモリリークを防ぐため、一定時間後に自動で削除する)
-let notifiedEventIds = new Set();
+let isChecking = false; // 処理の同時実行を防ぐロックフラグ
 
 /**
- * Googleカレンダーのイベントを定期的にチェックし、条件に一致するものを通知します。
+ * データベースに記録された古い通知履歴を削除し、テーブルの肥大化を防ぎます。
+ * @param {import('pg').Pool} pool データベース接続プール
+ */
+async function cleanupNotifiedEvents(pool) {
+    try {
+        // 6時間以上前に通知したイベントの記録を削除
+        const result = await pool.query("DELETE FROM notified_events WHERE notified_at < NOW() - INTERVAL '6 hours'");
+        if (result.rowCount > 0) {
+            console.log(`[CalendarMonitor] 古い通知履歴を${result.rowCount}件削除しました。`);
+        }
+    } catch (error) {
+        console.error('[CalendarMonitor] 通知履歴のクリーンアップ中にエラーが発生しました:', error);
+    }
+}
+
+/**
+ * 登録されている全てのカレンダー監視設定に基づき、イベントをチェックします。
  * @param {import('discord.js').Client} client Discordクライアント
  */
 async function checkCalendarEvents(client) {
+    if (isChecking) {
+        console.log('[CalendarMonitor] 既にチェック処理が進行中です。スキップします。');
+        return;
+    }
+    isChecking = true;
+    console.log('[CalendarMonitor] カレンダーイベントのチェックを開始します。');
+
     try {
         const pool = await initializeDatabase();
+        
+        // ★★★ 古い通知履歴の削除処理をここに追加 ★★★
+        await cleanupNotifiedEvents(pool);
+
         const res = await pool.query('SELECT * FROM calendar_monitors');
         const monitors = res.rows;
-
-        // 監視対象がなければ処理を終了
-        if (monitors.length === 0) {
-            return;
-        }
+        if (monitors.length === 0) return;
 
         const { auth } = await initializeSheetsAPI();
         const calendar = google.calendar({ version: 'v3', auth });
 
-        // --- ▼▼▼ ここからが修正部分です ▼▼▼ ---
-        // 現在時刻と5分後の時刻を、信頼性の高いUTCのISO文字列形式で取得します。
-        // これにより、サーバーのタイムゾーンに依存しない、一貫した時刻を扱うことができます。
         const timeMin = new Date().toISOString();
         const timeMax = new Date(Date.now() + 5 * 60 * 1000).toISOString();
-        // --- ▲▲▲ 修正はここまでです ▲▲▲ ---
 
         for (const monitor of monitors) {
             try {
                 const events = await calendar.events.list({
                     calendarId: monitor.calendar_id,
-                    timeMin: timeMin, // UTC時刻をそのまま使用
-                    timeMax: timeMax, // UTC時刻をそのまま使用
+                    timeMin,
+                    timeMax,
                     singleEvents: true,
                     orderBy: 'startTime',
-                    // timeZoneパラメータを指定することで、GoogleのAPI側で
-                    // timeMinとtimeMaxを日本時間として正しく解釈させます。
                     timeZone: 'Asia/Tokyo',
                 });
 
                 if (!events.data.items) continue;
 
                 for (const event of events.data.items) {
-                    // 既に通知済みのイベントはスキップ
-                    if (notifiedEventIds.has(event.id)) continue;
+                    // ★★★ データベースで重複チェックを行う ★★★
+                    const notifiedCheck = await pool.query('SELECT 1 FROM notified_events WHERE event_id = $1', [event.id]);
+                    if (notifiedCheck.rows.length > 0) {
+                        continue; // DBに記録があれば通知済みなのでスキップ
+                    }
 
-                    // イベントのタイトルと説明文を結合してキーワード検索の対象にする
                     const eventText = `${event.summary || ''} ${event.description || ''}`;
                     const triggerWithBrackets = `【${monitor.trigger_keyword}】`;
 
                     if (eventText.includes(triggerWithBrackets)) {
+                        // ★★★ 検出後、すぐにDBに通知済みとして記録する ★★★
+                        await pool.query('INSERT INTO notified_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING', [event.id]);
+
                         console.log(`[CalendarMonitor] 検出イベント: ${event.summary} (ID: ${event.id})`);
 
                         const channel = await client.channels.fetch(monitor.channel_id).catch(() => null);
                         if (!channel) {
-                            console.error(`[CalendarMonitor] チャンネル(ID: ${monitor.channel_id})が見つかりませんでした。`);
+                            console.error(`[CalendarMonitor] チャンネル(ID: ${monitor.channel_id})が見つかりません。`);
                             continue;
                         }
-
+                        
+                        // --- 通知メッセージの組み立て (変更なし) ---
                         let allMentions = new Set();
-
-                        // DBに登録されたロールをメンションに追加
-                        if (monitor.mention_role) {
-                            allMentions.add(`<@&${monitor.mention_role}>`);
-                        }
-
-                        // イベントの説明文に含まれるメンションを抽出して追加
+                        if (monitor.mention_role) allMentions.add(`<@&${monitor.mention_role}>`);
                         let cleanedDescription = event.description || '';
-                        const descriptionMentionMatches = cleanedDescription.match(/<@&[0-9]+>|<@[0-9]+>|<@everyone>|<@here>/g);
-                        if (descriptionMentionMatches) {
-                            for (const match of descriptionMentionMatches) {
-                                allMentions.add(match);
-                            }
-                            // 元の説明文からはメンションを削除しておく
+                        const mentionMatches = cleanedDescription.match(/<@&[0-9]+>|<@[0-9]+>|<@everyone>|<@here>/g);
+                        if (mentionMatches) {
+                            mentionMatches.forEach(m => allMentions.add(m));
                             cleanedDescription = cleanedDescription.replace(/<@&[0-9]+>|<@[0-9]+>|<@everyone>|<@here>/g, '').trim();
                         }
-
-                        const finalMentionsContent = Array.from(allMentions).join(' ');
-
-                        // 通知メッセージの組み立て
+                        const finalMentions = Array.from(allMentions).join(' ');
                         let message = `**${event.summary || 'タイトルなし'}**`;
-                        if (cleanedDescription) {
-                            message += `\n${cleanedDescription}`;
-                        }
-                        if (finalMentionsContent.trim()) {
-                            message += `\n\n${finalMentionsContent.trim()}`;
-                        }
-
+                        if (cleanedDescription) message += `\n${cleanedDescription}`;
+                        if (finalMentions.trim()) message += `\n\n${finalMentions.trim()}`;
+                        
                         await channel.send(message);
-                        notifiedEventIds.add(event.id);
-
-                        // 10分後に通知済みIDをSetから削除し、メモリリークを防ぐ
-                        setTimeout(() => notifiedEventIds.delete(event.id), 10 * 60 * 1000);
                     }
                 }
             } catch (calError) {
-                console.error(`カレンダー(ID: ${monitor.calendar_id})の取得中にエラーが発生しました:`, calError.message);
+                console.error(`カレンダー(ID: ${monitor.calendar_id})の取得中にエラー:`, calError.message);
             }
         }
     } catch (error) {
-        console.error('カレンダーイベントのチェック処理全体でエラーが発生しました:', error);
+        console.error('カレンダーチェック処理のメインブロックでエラー:', error);
+    } finally {
+        isChecking = false;
+        console.log('[CalendarMonitor] カレンダーイベントのチェックが完了しました。');
     }
 }
 
@@ -115,7 +119,17 @@ async function checkCalendarEvents(client) {
  * @param {import('discord.js').Client} client Discordクライアント
  */
 export function startMonitoring(client) {
-    // 5分(300000ミリ秒)ごとにイベントをチェック
-    setInterval(() => checkCalendarEvents(client), 300000);
+    const CHECK_INTERVAL_MS = 300000; // 5分
+
+    const runCheck = () => {
+        checkCalendarEvents(client)
+            .catch(err => console.error('[CalendarMonitor] ハンドルされないループエラー:', err))
+            .finally(() => {
+                setTimeout(runCheck, CHECK_INTERVAL_MS);
+            });
+    };
+
+    runCheck();
+    
     console.log('✅ Google Calendar monitoring service started.');
 }

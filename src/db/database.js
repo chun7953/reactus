@@ -74,7 +74,12 @@ async function createTables() {
             );
         `);
         // ★★★ここまでが追記部分です★★★
-
+await pool.query(`
+    CREATE TABLE IF NOT EXISTS notified_events (
+        event_id TEXT PRIMARY KEY,
+        notified_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
+    );
+`);
         console.log('✅ Tables checked/created successfully.');
     } catch (err) {
         console.error('Error creating tables:', err);
