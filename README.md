@@ -18,7 +18,7 @@ Reactusは、Discordサーバーの運営を効率化し、コミュニティ活
     -   特定のキーワードを含む予定が開始5分前になると、指定したチャンネルに、ロールメンション付きで自動で通知します。
     -   サーバーのメインカレンダーを登録し、普段の設定を簡略化できます。
 -   **投票作成**: リアクションを利用した投票を、コマンド一つで簡単に作成できます。
--   **CSVリアクション集計**: メッセージに付けられたリアクションを、ユーザーリスト付きのCSVファイルとして出力します。
+-   **CSVリアクション集計**: メッセージに付けられたリアクションを、ユーザーリスト付きのCSVファイルとして出力します。集計結果は、**全員に公開**するか、**自分だけに表示**するかを選べます。
 -   **Googleスプレッドシート連携**: 全ての設定（リアクション、アナウンス、カレンダー）を、コマンド一つで、または設定変更時に自動でGoogleスプレッドシートにバックアップ・復元できます。
 
 ## 🚀 セットアップとデプロイ手順
@@ -31,75 +31,44 @@ Reactusは、Discordサーバーの運営を効率化し、コミュニティ活
 
 ### 2. Google APIの準備
 
+(このセクションは変更ありません。以前の手順通りです)
+
 1.  **Google Cloudプロジェクトの作成**: [Google Cloud Platform](https://console.cloud.google.com/) で新しいプロジェクトを作成します。
 2.  **APIの有効化**: 作成したプロジェクトで、以下の2つのAPIを有効にします。
     -   **Google Sheets API**
     -   **Google Calendar API**
-3.  **OAuth同意画面の設定**:
-    -   「APIとサービス」 > 「OAuth同意画面」に移動します。
-    -   `User Type` は 「**外部**」 を選択します。
-    -   アプリ名（例: `Reactus Bot`）やメールアドレスなど、必須項目を入力します。
-    -   「スコープ」の画面で、「スコープを追加または削除」をクリックし、以下の2つを追加して保存します。
-        -   `.../auth/spreadsheets`
-        -   `.../auth/calendar.readonly`
-    -   「テストユーザー」の画面で、「+ ADD USERS」をクリックし、**あなた自身のGoogleアカウントのメールアドレス**を追加します。
-4.  **OAuth 2.0 クライアント IDの作成**:
-    -   「APIとサービス」 > 「認証情報」に移動します。
-    -   「+ 認証情報を作成」 > 「OAuth 2.0 クライアント ID」を選択します。
-    -   アプリケーションの種類は「**ウェブ アプリケーション**」を選択します。
-    -   「承認済みのリダイレクトURI」に `http://localhost:3000/oauth2callback` を追加します。
-    -   作成後、**クライアントID**と**クライアントシークレット**をコピーしておきます。これらは後のステップで使います。
+3.  **サービスアカウントの作成とキーの取得**:
+    - 「APIとサービス」 > 「認証情報」 > 「+ 認証情報を作成」 > 「サービスアカウント」を選択します。
+    - サービスアカウント名（例: `reactus-bot-service-account`）を入力し、作成して続行します。
+    - ロールは不要なので、何も選択せずに「完了」をクリックします。
+    - 作成したサービスアカウントのメールアドレス（`...@...iam.gserviceaccount.com`）をコピーしておきます。
+    - 作成したサービスアカウントをクリックし、「キー」タブ > 「鍵を追加」 > 「新しい鍵を作成」を選択します。
+    - キーのタイプは「**JSON**」を選んで作成すると、認証情報が記述されたJSONファイルがダウンロードされます。**このファイルは絶対に公開しないでください。**
+4. **Googleリソースの共有設定**:
+    - **Googleスプレッドシート**: バックアップ先のスプレッドシートを開き、右上の「共有」ボタンから、先ほどコピーしたサービスアカウントのメールアドレスを**編集者**として追加します。
+    - **Googleカレンダー**: 通知させたいGoogleカレンダーの設定を開き、「特定のユーザーとの共有」で、同様にサービスアカウントのメールアドレスを**閲覧者（すべての予定の詳細を閲覧）** として追加します。
+5.  **スプレッドシートIDの取得**:
+    - 共有したスプレッドシートのURL（`https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit`）から、`SPREADSHEET_ID`の部分をコピーしておきます。
 
-### 3. ローカルでのセットアップとトークン取得
+### 3. Railwayへのデプロイ
 
-1.  **リポジトリをクローン**:
-    ```bash
-    git clone [https://github.com/](https://github.com/)<あなたのユーザー名>/reactus.git
-    cd reactus
-    ```
-2.  **依存関係をインストール**:
-    ```bash
-    npm install
-    npm install open # 一時的に利用
-    ```
-3.  **`.env`ファイルを作成**: プロジェクトのルートに`.env`ファイルを作成し、以下の内容を記述します。
-    ```env
-    # Discord Bot
-    TOKEN=YOUR_DISCORD_BOT_TOKEN
-    CLIENT_ID=YOUR_DISCORD_CLIENT_ID
-
-    # Google OAuth 2.0 (先ほど取得した値を入力)
-    GOOGLE_CLIENT_ID=YOUR_GOOGLE_CLIENT_ID
-    GOOGLE_CLIENT_SECRET=YOUR_GOOGLE_CLIENT_SECRET
-    
-    # この時点では空でOK
-    GOOGLE_REFRESH_TOKEN=
-    ```
-4.  **リフレッシュトークンを取得**:
-    - ターミナルで以下のコマンドを実行します。
-      ```bash
-      node generateRefreshToken.js
-      ```
-    - 自動でブラウザが開き、Googleの同意画面が表示されます。
-    - **必ず、カレンダーとスプレッドシートの両方の権限にチェックを入れて**「続行」をクリックしてください。
-    - 認証が成功すると、ターミナルに**新しいリフレッシュトークン**が表示されます。
-5.  **`.env`ファイルを更新**:
-    - ターミナルに表示されたリフレッシュトークンをコピーし、`.env`ファイルの `GOOGLE_REFRESH_TOKEN=` の部分に貼り付けます。
-6.  **一時ファイルを削除**: トークンは取得できたので、`generateRefreshToken.js` はもう不要です。削除して構いません。
-
-### 4. Railwayへのデプロイ
-1.  **GitHubにプッシュ**: 全てのコードをあなたのGitHubリポジトリにプッシュします。
-2.  **Railwayでプロジェクト作成**: Railwayのダッシュボードから`New Project` > `Deploy from GitHub repo`を選択し、このリポジトリを連携させます。
+1.  **GitHubにリポジトリを準備**: このプロジェクトのコードを、ご自身のGitHubリポジトリにプッシュします。
+2.  **Railwayでプロジェクト作成**: Railwayのダッシュボードから`New Project` > `Deploy from GitHub repo`を選択し、準備したリポジトリを連携させます。
 3.  **PostgreSQLを追加**: プロジェクト内で`+ New` > `Database` > `Add PostgreSQL`を選択し、データベースを作成します。
 4.  **環境変数を設定**:
     -   作成したボットのサービスの「Variables」タブに移動します。
     -   `+ New Variable` > `Add from Database`で`PostgreSQL`を選択し、`DATABASE_URL`を自動で追加します。
-    -   `.env`ファイルに記載した**全て**の環境変数（`TOKEN`, `CLIENT_ID`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`）を手動で追加します。`SPREADSHEET_ID`もここで追加します。
-5.  **起動コマンドを設定**:
-    -   「Settings」タブの「Start Command」に、`npm start` を設定します。（`railway-deploy`は不要になりました）
-6.  **コマンドを登録**:
-    -   デプロイが完了したら、サービスの「Settings」タブで、Start Commandを一時的に`npm run register-commands`に変更して再デプロイし、コマンドを登録します。（完了後、元の`npm start`に戻します）
+    -   以下の変数を手動で追加します。
+        -   `TOKEN`: あなたのDiscordボットのトークン
+        -   `CLIENT_ID`: あなたのDiscordボットのクライアントID
+        -   `SPREADSHEET_ID`: 手順2-5で取得したスプレッドシートのID
+        -   `GOOGLE_SHEETS_CREDENTIALS`: 手順2-3でダウンロードした**JSONファイルの中身をすべてコピー＆ペースト**します。
+5.  **ビルドコマンドと起動コマンドを設定**:
+    -   サービスの「Settings」タブに移動します。
+    -   **Build Command** に `npm run register-commands` と入力します。
+    -   **Start Command** に `npm start` と入力します。
 
+これで、デプロイが行われるたびに、自動でスラッシュコマンドが登録され、その後ボットが起動するようになります。
 
 ## 🤖 コマンド一覧
 
@@ -118,8 +87,8 @@ Reactusは、Discordサーバーの運営を効率化し、コミュニティ活
 -   `/stopannounce`: アナウンスを停止します。
 
 ### ユーティリティ
--   `/poll`: 簡易投票を作成します。
--   `/csvreactions`: リアクションをCSVで集計します。
+-   `/poll`: 簡易投票を作成します。リアクション集計ボタン付きです。
+-   `/csvreactions`: 指定メッセージのリアクションをCSVで集計します。公開/非公開を選べます。
 -   `/listsettings`: リアクション、カレンダー通知、メインカレンダーの全ての設定を一覧表示します。
 -   `/help`: このヘルプメッセージを表示します。
 -   `/feedback`: 開発サーバーの招待リンクを表示します。
