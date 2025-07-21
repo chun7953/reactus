@@ -71,3 +71,6 @@ for (const file of eventFiles) {
         process.exit(1);
     }
 })();
+// ★★★ ここから4行を追記 ★★★
+process.on('SIGINT', () => process.exit());
+process.on('SIGTERM', () => process.exit());
