@@ -1,18 +1,12 @@
-// /src/lib/calendarMonitor.js (修正案)
-
 import { google } from 'googleapis';
 import { initializeDatabase } from '../db/database.js';
 import { initializeSheetsAPI } from './sheetsAPI.js';
+import { getMonitors } from './settingsCache.js';
 
-let isChecking = false; // 処理の同時実行を防ぐロックフラグ
+let isChecking = false;
 
-/**
- * データベースに記録された古い通知履歴を削除し、テーブルの肥大化を防ぎます。
- * @param {import('pg').Pool} pool データベース接続プール
- */
 async function cleanupNotifiedEvents(pool) {
     try {
-        // 6時間以上前に通知したイベントの記録を削除
         const result = await pool.query("DELETE FROM notified_events WHERE notified_at < NOW() - INTERVAL '6 hours'");
         if (result.rowCount > 0) {
             console.log(`[CalendarMonitor] 古い通知履歴を${result.rowCount}件削除しました。`);
@@ -22,32 +16,22 @@ async function cleanupNotifiedEvents(pool) {
     }
 }
 
-/**
- * 登録されている全てのカレンダー監視設定に基づき、イベントをチェックします。
- * @param {import('discord.js').Client} client Discordクライアント
- */
-async function checkCalendarEvents(client) {
-    if (isChecking) {
-        // 既にチェック中の場合はログを出さずに静かに終了
-        return;
-    }
+async function checkCalendarEvents(client, lookaheadMinutes) {
+    if (isChecking) return;
     isChecking = true;
-    // console.log('[CalendarMonitor] カレンダーイベントのチェックを開始します。'); // この行をコメントアウト
 
     try {
         const pool = await initializeDatabase();
-        
         await cleanupNotifiedEvents(pool);
-
-        const res = await pool.query('SELECT * FROM calendar_monitors');
-        const monitors = res.rows;
+        
+        const monitors = await getMonitors();
         if (monitors.length === 0) return;
 
         const { auth } = await initializeSheetsAPI();
         const calendar = google.calendar({ version: 'v3', auth });
 
         const timeMin = new Date().toISOString();
-        const timeMax = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+        const timeMax = new Date(Date.now() + lookaheadMinutes * 60 * 1000).toISOString();
 
         for (const monitor of monitors) {
             try {
@@ -64,18 +48,14 @@ async function checkCalendarEvents(client) {
 
                 for (const event of events.data.items) {
                     const notifiedCheck = await pool.query('SELECT 1 FROM notified_events WHERE event_id = $1', [event.id]);
-                    if (notifiedCheck.rows.length > 0) {
-                        continue;
-                    }
+                    if (notifiedCheck.rows.length > 0) continue;
 
                     const eventText = `${event.summary || ''} ${event.description || ''}`;
                     const triggerWithBrackets = `【${monitor.trigger_keyword}】`;
 
                     if (eventText.includes(triggerWithBrackets)) {
                         await pool.query('INSERT INTO notified_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING', [event.id]);
-
                         console.log(`[CalendarMonitor] 検出イベント: ${event.summary} (ID: ${event.id})`);
-
                         const channel = await client.channels.fetch(monitor.channel_id).catch(() => null);
                         if (!channel) {
                             console.error(`[CalendarMonitor] チャンネル(ID: ${monitor.channel_id})が見つかりません。`);
@@ -106,26 +86,21 @@ async function checkCalendarEvents(client) {
         console.error('カレンダーチェック処理のメインブロックでエラー:', error);
     } finally {
         isChecking = false;
-        // console.log('[CalendarMonitor] カレンダーイベントのチェックが完了しました。'); // この行をコメントアウト
     }
 }
 
-/**
- * カレンダー監視サービスを開始します。
- * @param {import('discord.js').Client} client Discordクライアント
- */
 export function startMonitoring(client) {
-    const CHECK_INTERVAL_MS = 300000; // 5分
+    const checkIntervalMinutes = 10;
+    const checkIntervalMs = checkIntervalMinutes * 60 * 1000;
 
     const runCheck = () => {
-        checkCalendarEvents(client)
+        checkCalendarEvents(client, checkIntervalMinutes)
             .catch(err => console.error('[CalendarMonitor] ハンドルされないループエラー:', err))
             .finally(() => {
-                setTimeout(runCheck, CHECK_INTERVAL_MS);
+                setTimeout(runCheck, checkIntervalMs);
             });
     };
 
     runCheck();
-    
     console.log('✅ Google Calendar monitoring service started.');
 }

@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
-import { addReactionSetting, findReactionSetting, getReactionSettingsCount } from '../../db/queries.js';
 import { triggerAutoBackup } from '../../lib/autoBackup.js';
+import { getReactionSettings, cacheDB } from '../../lib/settingsCache.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -27,17 +27,18 @@ export default {
         const trigger = options.getString('trigger');
 
         try {
-            const count = await getReactionSettingsCount(guildId);
+            const count = getReactionSettings(guildId).length;
             if (count >= 100) {
                 return interaction.editReply('このサーバーで設定できるリアクションの上限(100件)に達しました。');
             }
 
-            const existing = await findReactionSetting(guildId, channel.id, trigger);
+            const existing = getReactionSettings(guildId).find(s => s.channel_id === channel.id && s.trigger === trigger);
             if (existing) {
                 return interaction.editReply('そのトリガーは既に使用されています。 `/removereaction` で一度削除してください。');
             }
 
-            await addReactionSetting(guildId, channel.id, emojis, trigger);
+            const sql = 'INSERT INTO reactions (guild_id, channel_id, emojis, trigger) VALUES ($1, $2, $3, $4)';
+            await cacheDB.query(sql, [guildId, channel.id, emojis, trigger]);
 
             const backupSuccess = await triggerAutoBackup(guildId);
             const backupMessage = backupSuccess ? "設定は自動でバックアップされました。" : "注意: 設定のバックアップに失敗しました。";

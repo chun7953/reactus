@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
-import { removeReactionSetting } from '../../db/queries.js';
 import { triggerAutoBackup } from '../../lib/autoBackup.js';
+import { cacheDB } from '../../lib/settingsCache.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -22,9 +22,9 @@ export default {
         const trigger = options.getString('trigger');
 
         try {
-            const changes = await removeReactionSetting(guildId, channel.id, trigger);
+            const res = await cacheDB.query('DELETE FROM reactions WHERE guild_id = $1 AND channel_id = $2 AND trigger = $3', [guildId, channel.id, trigger]);
 
-            if (changes > 0) {
+            if (res.rowCount > 0) {
                 const backupSuccess = await triggerAutoBackup(guildId);
                 const backupMessage = backupSuccess ? "設定は自動でバックアップされました。" : "注意: 設定のバックアップに失敗しました。";
                 await interaction.editReply(`✅ **設定を解除しました**\nチャンネル: ${channel}\nトリガー: \`${trigger}\`\n${backupMessage}`);

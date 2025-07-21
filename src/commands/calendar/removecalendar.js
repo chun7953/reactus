@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
-import { initializeDatabase } from '../../db/database.js';
 import { triggerAutoBackup } from '../../lib/autoBackup.js';
+import { cacheDB } from '../../lib/settingsCache.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -17,9 +17,8 @@ export default {
         const { channelId, guildId } = interaction;
 
         try {
-            const pool = await initializeDatabase();
             const sql = 'DELETE FROM calendar_monitors WHERE guild_id = $1 AND channel_id = $2 AND trigger_keyword = $3';
-            const res = await pool.query(sql, [guildId, channelId, triggerKeyword]);
+            const res = await cacheDB.query(sql, [guildId, channelId, triggerKeyword]);
 
             if (res.rowCount > 0) {
                 const backupSuccess = await triggerAutoBackup(guildId);

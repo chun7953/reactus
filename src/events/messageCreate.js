@@ -1,9 +1,9 @@
 import { Events } from 'discord.js';
-import { listReactionSettings, getAnnouncement } from '../db/queries.js';
+import { getReactionSettings, getAnnouncement } from '../lib/settingsCache.js';
 
-async function handleAutoReaction(message, db) {
+async function handleAutoReaction(message) {
     try {
-        const settings = await listReactionSettings(message.guild.id);
+        const settings = getReactionSettings(message.guild.id);
         const relevantSetting = settings.find(s =>
             s.channel_id === message.channel.id && message.content.includes(s.trigger)
         );
@@ -19,12 +19,10 @@ async function handleAutoReaction(message, db) {
     }
 }
 
-async function handleAutoAnnounce(message, db) {
-    // 自分自身のメッセージはアナウンスの再投稿対象外
+async function handleAutoAnnounce(message) {
     if (message.author.id === message.client.user.id) return;
-
     try {
-        const announcement = await getAnnouncement(message.guild.id, message.channel.id);
+        const announcement = getAnnouncement(message.guild.id, message.channel.id);
         if (announcement) {
             const messages = await message.channel.messages.fetch({ limit: 20 });
             const oldAnnounce = messages.find(m => m.author.id === message.client.user.id && m.content === announcement.message);
@@ -40,15 +38,9 @@ async function handleAutoAnnounce(message, db) {
 
 export default {
     name: Events.MessageCreate,
-    async execute(message, db) {
-        // ★★★ここを修正しました！★★★
-        // ボット自身のメッセージを無視する条件を削除しました。
+    async execute(message) {
         if (!message.guild) return;
-
-        // これで、ボット自身のメッセージ(カレンダー投稿など)にも自動リアクションが付与されるようになります。
-        await handleAutoReaction(message, db);
-        
-        // handleAutoAnnounceは、関数内で自身のメッセージを無視するようになっているため、この変更による影響はありません。
-        await handleAutoAnnounce(message, db);
+        await handleAutoReaction(message);
+        await handleAutoAnnounce(message);
     },
 };

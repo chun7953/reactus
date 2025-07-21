@@ -1,8 +1,5 @@
-// /src/commands/utility/listsettings.js
-
 import { SlashCommandBuilder, PermissionsBitField, MessageFlags } from 'discord.js';
-import { listReactionSettings } from '../../db/queries.js';
-import { initializeDatabase } from '../../db/database.js';
+import { getReactionSettings, getMonitorsByGuild, getMainCalendar } from '../../lib/settingsCache.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -14,16 +11,15 @@ export default {
 
         try {
             let response = '### ⚙️ 現在のサーバー設定一覧\n';
-            const pool = await initializeDatabase();
-
-            const mainCalRes = await pool.query('SELECT main_calendar_id FROM guild_configs WHERE guild_id = $1', [guild.id]);
-            if (mainCalRes.rows.length > 0 && mainCalRes.rows[0].main_calendar_id) {
-                response += `**メインカレンダー**: \`${mainCalRes.rows[0].main_calendar_id}\`\n\n`;
+            
+            const mainCal = getMainCalendar(guild.id);
+            if (mainCal && mainCal.main_calendar_id) {
+                response += `**メインカレンダー**: \`${mainCal.main_calendar_id}\`\n\n`;
             } else {
                 response += '**メインカレンダー**: 未設定\n\n';
             }
 
-            const reactionSettings = await listReactionSettings(guild.id);
+            const reactionSettings = getReactionSettings(guild.id);
             const accessibleReactions = reactionSettings.filter(row => guild.channels.cache.get(row.channel_id)?.permissionsFor(user).has(PermissionsBitField.Flags.ViewChannel));
             if (accessibleReactions.length > 0) {
                 response += '**自動リアクション設定**\n';
@@ -32,8 +28,7 @@ export default {
                 });
             }
 
-            const calRes = await pool.query('SELECT * FROM calendar_monitors WHERE guild_id = $1', [guild.id]);
-            const calendarSettings = calRes.rows;
+            const calendarSettings = getMonitorsByGuild(guild.id);
             const accessibleCalendars = calendarSettings.filter(row => guild.channels.cache.get(row.channel_id)?.permissionsFor(user).has(PermissionsBitField.Flags.ViewChannel));
             if (accessibleCalendars.length > 0) {
                 response += '\n**カレンダー通知設定**\n';

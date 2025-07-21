@@ -1,8 +1,8 @@
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
-import { initializeDatabase } from '../../db/database.js';
 import { initializeSheetsAPI } from '../../lib/sheetsAPI.js';
 import { google } from 'googleapis';
 import { triggerAutoBackup } from '../../lib/autoBackup.js';
+import { cacheDB, getMainCalendar } from '../../lib/settingsCache.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -27,21 +27,17 @@ export default {
         const mentionRole = interaction.options.getRole('mention_role');
         const { channelId, guildId } = interaction;
         
-        const pool = await initializeDatabase();
-
         try {
             let targetCalendarId = calendarIdInput;
-
             if (!targetCalendarId) {
-                const res = await pool.query('SELECT main_calendar_id FROM guild_configs WHERE guild_id = $1', [guildId]);
-                if (res.rows.length > 0 && res.rows[0].main_calendar_id) {
-                    targetCalendarId = res.rows[0].main_calendar_id;
+                const mainCal = getMainCalendar(guildId);
+                if (mainCal && mainCal.main_calendar_id) {
+                    targetCalendarId = mainCal.main_calendar_id;
                 } else {
                     return interaction.editReply('エラー: カレンダーIDが指定されておらず、メインカレンダーも未登録です。\n`/register-main-calendar`で登録してください。');
                 }
             }
 
-            // アクセス権チェック
             try {
                 const { auth } = await initializeSheetsAPI();
                 const calendar = google.calendar({ version: 'v3', auth });
@@ -55,7 +51,7 @@ export default {
             }
 
             const sql = 'INSERT INTO calendar_monitors (guild_id, channel_id, calendar_id, trigger_keyword, mention_role) VALUES ($1, $2, $3, $4, $5)';
-            await pool.query(sql, [guildId, channelId, targetCalendarId, triggerKeyword, mentionRole ? mentionRole.id : null]);
+            await cacheDB.query(sql, [guildId, channelId, targetCalendarId, triggerKeyword, mentionRole ? mentionRole.id : null]);
             
             const backupSuccess = await triggerAutoBackup(guildId);
             const backupMessage = backupSuccess ? "設定は自動でバックアップされました。" : "注意: 設定のバックアップに失敗しました。";
