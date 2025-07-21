@@ -7,6 +7,7 @@ import { getGuildConfig } from './settingsCache.js';
  * @returns {boolean}
  */
 export function hasGiveawayPermission(interaction) {
+    if (!interaction.member) return false;
     // サーバー管理者かチェック
     if (interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
         return true;

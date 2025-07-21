@@ -60,7 +60,7 @@ export function getAnnouncement(guildId, channelId) { const a = announcementCach
 export function getMonitorsByGuild(guildId) { return monitorCache.get(guildId) || []; }
 export function getMonitors() { return Array.from(monitorCache.values()).flat(); }
 export function getMainCalendar(guildId) { return configCache.get(guildId); }
-export function getGuildConfig(guildId) { return configCache.get(guildId); }
+export function getGuildConfig(guildId) { return configCache.get(guildId); } // ★ 権限取得のために追加
 export function getActiveGiveaways(guildId) { return giveawayCache.get(guildId) || []; }
 export function getAllActiveGiveaways() { return Array.from(giveawayCache.values()).flat(); }
 export function getScheduledGiveaways(guildId) { return scheduledGiveawayCache.get(guildId) || []; }

@@ -36,7 +36,7 @@ export default {
             }
             managerRoles.add(role.id);
             await cacheDB.query(
-                'INSERT INTO guild_configs (guild_id, giveaway_manager_roles) VALUES ($1, $2) ON CONFLICT (guild_id) DO UPDATE SET giveaway_manager_roles = $2',
+                'INSERT INTO guild_configs (guild_id, giveaway_manager_roles) VALUES ($1, $2) ON CONFLICT (guild_id) DO UPDATE SET giveaway_manager_roles = EXCLUDED.giveaway_manager_roles',
                 [interaction.guildId, Array.from(managerRoles)]
             );
             await interaction.editReply(`✅ ロール ${role} にGiveawayの管理権限を付与しました。`);

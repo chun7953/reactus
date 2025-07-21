@@ -17,7 +17,8 @@ export default {
         .addSubcommand(subcommand => subcommand.setName('fix').setDescription('不具合のあるGiveawayを、参加者を引き継いで作り直します。').addStringOption(option => option.setName('message_id').setDescription('不具合のあるGiveawayのメッセージID').setRequired(true))),
     async execute(interaction) {
         if (!interaction.inGuild()) return;
-        if (!hasGiveawayPermission(interaction) && !['list'].includes(interaction.options.getSubcommand())) {
+        // listコマンド以外は権限チェックを行う
+        if (!['list'].includes(interaction.options.getSubcommand()) && !hasGiveawayPermission(interaction)) {
             return interaction.reply({ content: 'このコマンドを実行する権限がありません。', flags: [MessageFlags.Ephemeral] });
         }
         
@@ -143,7 +144,7 @@ export default {
             const giveaways = getActiveGiveaways(interaction.guildId);
             if (giveaways.length === 0) { return interaction.editReply('現在、このサーバーで進行中のGiveawayはありません。');}
             const embed = new EmbedBuilder().setTitle('🎁 進行中のGiveaway一覧').setColor(0x5865F2);
-            for (const g of giveaways) {
+            for (const g of giveaways.slice(0, 25)) { // Embedのフィールド数上限25
                 embed.addFields({ name: g.prize, value: `[メッセージに飛ぶ](https://discord.com/channels/${g.guild_id}/${g.channel_id}/${g.message_id})\n終了日時: <t:${Math.floor(new Date(g.end_time).getTime() / 1000)}:F>` });
             }
             await interaction.editReply({ embeds: [embed] });
@@ -167,11 +168,14 @@ export default {
                 const newRow = new ActionRowBuilder().addComponents(newButton);
                 
                 const newMessage = await channel.send({ content: '🔧 **抽選を再作成しました！** 🔧', embeds: [newEmbed], components: [newRow] });
+                
+                // 新しいGiveawayをDBに登録
                 const sql = 'INSERT INTO giveaways (message_id, guild_id, channel_id, prize, winner_count, end_time) VALUES ($1, $2, $3, $4, $5, $6)';
                 await cacheDB.query(sql, [newMessage.id, giveaway.guild_id, giveaway.channel_id, giveaway.prize, giveaway.winner_count, new Date(giveaway.end_time)]);
-
+                
+                // 参加者のリアクションを引き継ぎ
                 for (const userId of validParticipantIds) {
-                    await newMessage.react('🎉').catch(e => console.error(e));
+                    await newMessage.react('🎉').catch(e => console.error(`Failed to re-react for user ${userId}:`, e));
                 }
                 
                 await interaction.editReply(`✅ 抽選を作り直しました。${validParticipantIds.length}名の参加者を引き継いでいます。`);
