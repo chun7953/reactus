@@ -6,9 +6,12 @@ export class ReactionExporter {
         this.message = message;
     }
 
-    async execute(interaction) {
+    // 第2引数で公開・非公開を受け取る
+    async execute(interaction, isPublic = false) {
         try {
+            // 「処理中...」という一時的なメッセージを本人にだけ表示
             await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
             const csvData = await this.generateCSV();
             const channel = this.message.channel;
             const channelName = channel.name || 'unknown-channel';
@@ -18,8 +21,16 @@ export class ReactionExporter {
 
             const attachment = new AttachmentBuilder(Buffer.from(csvData, 'utf-8'), { name: `${channelName}_${formattedDate}.csv` });
 
-            await channel.send({ content: "集計結果", files: [attachment] });
-            await interaction.editReply({ content: "リアクションの集計が完了し、CSVファイルを送信しました。" });
+            if (isPublic) {
+                // public=trueならチャンネルに投稿
+                const questionTitle = this.message.embeds[0]?.title;
+                const content = questionTitle ? `**「${questionTitle}」の集計結果**` : '集計結果';
+                await channel.send({ content: content, files: [attachment] });
+                await interaction.editReply({ content: "リアクションの集計が完了し、チャンネルにCSVファイルを送信しました。" });
+            } else {
+                // public=falseなら本人にだけ見えるメッセージで返信
+                await interaction.editReply({ content: "リアクションの集計が完了しました。", files: [attachment] });
+            }
 
         } catch (error) {
             console.error("Error in ReactionExporter execute:", error);
