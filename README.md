@@ -31,8 +31,6 @@ Reactusは、Discordサーバーの運営を効率化し、コミュニティ活
 
 ### 2. Google APIの準備
 
-(このセクションは変更ありません。以前の手順通りです)
-
 1.  **Google Cloudプロジェクトの作成**: [Google Cloud Platform](https://console.cloud.google.com/) で新しいプロジェクトを作成します。
 2.  **APIの有効化**: 作成したプロジェクトで、以下の2つのAPIを有効にします。
     -   **Google Sheets API**
@@ -50,7 +48,7 @@ Reactusは、Discordサーバーの運営を効率化し、コミュニティ活
 5.  **スプレッドシートIDの取得**:
     - 共有したスプレッドシートのURL（`https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit`）から、`SPREADSHEET_ID`の部分をコピーしておきます。
 
-### 3. Railwayへのデプロイ
+### 3. Railwayへのデプロイと運用
 
 1.  **GitHubにリポジトリを準備**: このプロジェクトのコードを、ご自身のGitHubリポジトリにプッシュします。
 2.  **Railwayでプロジェクト作成**: Railwayのダッシュボードから`New Project` > `Deploy from GitHub repo`を選択し、準備したリポジトリを連携させます。
@@ -63,12 +61,17 @@ Reactusは、Discordサーバーの運営を効率化し、コミュニティ活
         -   `CLIENT_ID`: あなたのDiscordボットのクライアントID
         -   `SPREADSHEET_ID`: 手順2-5で取得したスプレッドシートのID
         -   `GOOGLE_SHEETS_CREDENTIALS`: 手順2-3でダウンロードした**JSONファイルの中身をすべてコピー＆ペースト**します。
-5.  **ビルドコマンドと起動コマンドを設定**:
-    -   サービスの「Settings」タブに移動します。
-    -   **Build Command** に `npm run register-commands` と入力します。
-    -   **Start Command** に `npm start` と入力します。
+5.  **起動コマンドを設定**:
+    -   サービスの「Settings」タブに移動し、**Start Command** に `npm start` と入力します。
 
-これで、デプロイが行われるたびに、自動でスラッシュコマンドが登録され、その後ボットが起動するようになります。
+### 4. スラッシュコマンドの登録・更新
+
+新しいコマンドを追加したり、既存コマンドの説明やオプションを変更した場合は、**手動でコマンド情報を再登録する**必要があります。
+
+1.  Railwayのサービスの「Settings」タブを開きます。
+2.  **Start Command** を、一時的に `npm run register-commands` に書き換えます。
+3.  自動で再デプロイが始まり、コマンド登録が実行されます（すぐに完了します）。
+4.  完了後、**Start Command** を忘れずに `npm start` に戻してください。ボットが正常に再起動します。
 
 ## 🤖 コマンド一覧
 
