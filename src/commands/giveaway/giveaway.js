@@ -8,7 +8,7 @@ export default {
     data: new SlashCommandBuilder()
         .setName('giveaway')
         .setDescription('Giveaway（抽選）を管理します。')
-        .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageMessages) // 親コマンドに基本的な権限を設定
+        .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageMessages)
         .addSubcommand(subcommand => subcommand.setName('start').setDescription('新しいGiveawayをすぐに開始します。').addStringOption(option => option.setName('prize').setDescription('賞品').setRequired(true)).addIntegerOption(option => option.setName('winners').setDescription('当選者数').setRequired(true)).addStringOption(option => option.setName('duration').setDescription('期間 (例: 10m, 1h, 2d)').setRequired(false)).addStringOption(option => option.setName('end_time').setDescription('終了日時 (例: 2025-07-22 21:00)').setRequired(false)))
         .addSubcommand(subcommand => subcommand.setName('schedule').setDescription('未来の指定した日時にGiveawayを開始するよう予約します。').addStringOption(option => option.setName('prize').setDescription('賞品').setRequired(true)).addIntegerOption(option => option.setName('winners').setDescription('当選者数').setRequired(true)).addStringOption(option => option.setName('start_time').setDescription('開始日時 (例: 2025-07-22 21:00)').setRequired(true)).addChannelOption(option => option.setName('channel').setDescription('抽選を投稿するチャンネル').addChannelTypes(ChannelType.GuildText).setRequired(true)).addStringOption(option => option.setName('duration').setDescription('期間 (例: 1h, 2d)').setRequired(false)).addStringOption(option => option.setName('end_time').setDescription('終了日時 (例: 2025-07-22 22:00)').setRequired(false)))
         .addSubcommand(subcommand => subcommand.setName('recurring').setDescription('定期的なGiveawayを設定します。').addStringOption(option => option.setName('prize').setDescription('賞品').setRequired(true)).addIntegerOption(option => option.setName('winners').setDescription('当選者数').setRequired(true)).addStringOption(option => option.setName('schedule').setDescription('スケジュール (cron形式: 分 時 日 月 週)').setRequired(true)).addStringOption(option => option.setName('duration').setDescription('期間 (例: 1h, 2d)').setRequired(true)).addChannelOption(option => option.setName('giveaway_channel').setDescription('抽選を投稿するチャンネル').addChannelTypes(ChannelType.GuildText).setRequired(true)).addChannelOption(option => option.setName('confirmation_channel').setDescription('開催確認を投稿するチャンネル').addChannelTypes(ChannelType.GuildText).setRequired(true)).addRoleOption(option => option.setName('confirmation_role').setDescription('開催を確認するロール').setRequired(true)))
@@ -19,8 +19,7 @@ export default {
     async execute(interaction) {
         if (!interaction.inGuild()) return;
 
-        // listコマンド以外は、全てのサブコマンドで統一された権限チェックを行う
-        if (interaction.options.getSubcommand() !== 'list' && !hasGiveawayPermission(interaction)) {
+        if (!hasGiveawayPermission(interaction)) {
             return interaction.reply({ content: 'このコマンドを実行する権限がありません。', flags: [MessageFlags.Ephemeral] });
         }
         
@@ -50,14 +49,19 @@ export default {
                 const minutes = roundedEndTime.getMinutes();
                 const roundedMinutes = (Math.floor(minutes / 10) + 1) * 10;
                 roundedEndTime.setMinutes(roundedMinutes, 0, 0);
-                const confirmationButton = new ButtonBuilder().setCustomId(`confirm_giveaway_time:${endTime.toISOString()}`).setLabel('このまま作成').setStyle(ButtonStyle.Primary);
-                const cancelButton = new ButtonBuilder().setCustomId('cancel_giveaway_time').setLabel('キャンセル').setStyle(ButtonStyle.Secondary);
+
+                const jstTimeOptions = { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit', second: '2-digit' };
+                const roundedTimeString = roundedEndTime.toLocaleTimeString('ja-JP', jstTimeOptions);
+
+                const confirmationButton = new ButtonBuilder().setCustomId(`confirm_giveaway_time:${endTime.toISOString()}`).setLabel('はい').setStyle(ButtonStyle.Primary);
+                const cancelButton = new ButtonBuilder().setCustomId('cancel_giveaway_time').setLabel('いいえ').setStyle(ButtonStyle.Secondary);
                 const row = new ActionRowBuilder().addComponents(confirmationButton, cancelButton);
+                
                 await interaction.editReply({
-                    content: `**【時間設定の確認】**\n指定された終了時刻 **${endTime.toLocaleTimeString('ja-JP')}** は、実際の抽選が行われる **${roundedEndTime.toLocaleTimeString('ja-JP')}** とズレが生じます。\nこのまま作成しますか？`,
+                    content: `Reactusの仕様上、抽選結果は **${roundedTimeString}** に出ますがよろしいですか？`,
                     components: [row]
                 });
-                return; 
+                return;
             }
             const giveawayEmbed = new EmbedBuilder().setTitle(`🎉 Giveaway: ${prize}`).setDescription(`リアクションを押して参加しよう！\n**終了日時: <t:${Math.floor(endTime.getTime() / 1000)}:F>**`).addFields({ name: '当選者数', value: `${winnerCount}名`, inline: true }, { name: '主催者', value: `${interaction.user}`, inline: true }).setColor(0x5865F2).setTimestamp(endTime);
             const participateButton = new ButtonBuilder().setCustomId('giveaway_participate').setLabel('参加する').setStyle(ButtonStyle.Primary).setEmoji('🎉');
@@ -141,7 +145,7 @@ export default {
             const giveaways = getActiveGiveaways(interaction.guildId);
             if (giveaways.length === 0) { return interaction.editReply('現在、このサーバーで進行中のGiveawayはありません。');}
             const embed = new EmbedBuilder().setTitle('🎁 進行中のGiveaway一覧').setColor(0x5865F2);
-            for (const g of giveaways.slice(0, 25)) { // Embedのフィールド数上限25
+            for (const g of giveaways.slice(0, 25)) {
                 embed.addFields({ name: g.prize, value: `[メッセージに飛ぶ](https://discord.com/channels/${g.guild_id}/${g.channel_id}/${g.message_id})\n終了日時: <t:${Math.floor(new Date(g.end_time).getTime() / 1000)}:F>` });
             }
             await interaction.editReply({ embeds: [embed] });
