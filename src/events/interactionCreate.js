@@ -54,8 +54,16 @@ export default {
                 }
             }
         }
-        // --- ボタン処理 (変更なし) ---
         else if (interaction.isButton()) {
+            // ★★★ ここからが追記部分です ★★★
+            if (interaction.customId === 'giveaway_participate') {
+                await interaction.message.react('🎉').catch(() => {}); // 参加者の代わりにリアクションを押す
+                await interaction.reply({ content: '✅ 抽選に参加しました！', flags: [MessageFlags.Ephemeral] });
+                return;
+            }
+            // ★★★ ここまでが追記部分です ★★★
+            
+            // CSV集計ボタンの処理 (変更なし)
             if (interaction.customId.startsWith('csvreactions_')) {
                 const messageId = interaction.customId.split('_')[1];
                 const row = new ActionRowBuilder()
