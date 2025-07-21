@@ -17,7 +17,6 @@ export default {
         .addSubcommand(subcommand => subcommand.setName('fix').setDescription('不具合のあるGiveawayを、参加者を引き継いで作り直します。').addStringOption(option => option.setName('message_id').setDescription('不具合のあるGiveawayのメッセージID').setRequired(true))),
     async execute(interaction) {
         if (!interaction.inGuild()) return;
-        // listコマンド以外は権限チェックを行う
         if (!['list'].includes(interaction.options.getSubcommand()) && !hasGiveawayPermission(interaction)) {
             return interaction.reply({ content: 'このコマンドを実行する権限がありません。', flags: [MessageFlags.Ephemeral] });
         }
@@ -48,19 +47,14 @@ export default {
                 const minutes = roundedEndTime.getMinutes();
                 const roundedMinutes = (Math.floor(minutes / 10) + 1) * 10;
                 roundedEndTime.setMinutes(roundedMinutes, 0, 0);
-                const confirmationButton = new ButtonBuilder().setCustomId('confirm_giveaway_time').setLabel('このまま作成').setStyle(ButtonStyle.Primary);
+                const confirmationButton = new ButtonBuilder().setCustomId(`confirm_giveaway_time:${endTime.toISOString()}`).setLabel('このまま作成').setStyle(ButtonStyle.Primary);
                 const cancelButton = new ButtonBuilder().setCustomId('cancel_giveaway_time').setLabel('キャンセル').setStyle(ButtonStyle.Secondary);
                 const row = new ActionRowBuilder().addComponents(confirmationButton, cancelButton);
                 await interaction.editReply({
                     content: `**【時間設定の確認】**\n指定された終了時刻 **${endTime.toLocaleTimeString('ja-JP')}** は、実際の抽選が行われる **${roundedEndTime.toLocaleTimeString('ja-JP')}** とズレが生じます。\nこのまま作成しますか？`,
                     components: [row]
                 });
-                try {
-                    const collectorFilter = i => i.user.id === interaction.user.id;
-                    const confirmation = await interaction.channel.awaitMessageComponent({ filter: collectorFilter, time: 60_000 });
-                    if (confirmation.customId === 'confirm_giveaway_time') { await confirmation.update({ content: '✅ Giveawayを作成します...', components: [] }); }
-                    else { return confirmation.update({ content: 'キャンセルしました。', components: [] }); }
-                } catch (e) { return interaction.editReply({ content: '60秒以内に応答がなかったため、キャンセルしました。', components: [] }); }
+                return; // ここで一旦終了し、ボタンの応答を待つ
             }
             const giveawayEmbed = new EmbedBuilder().setTitle(`🎉 Giveaway: ${prize}`).setDescription(`リアクションを押して参加しよう！\n**終了日時: <t:${Math.floor(endTime.getTime() / 1000)}:F>**`).addFields({ name: '当選者数', value: `${winnerCount}名`, inline: true }, { name: '主催者', value: `${interaction.user}`, inline: true }).setColor(0x5865F2).setTimestamp(endTime);
             const participateButton = new ButtonBuilder().setCustomId('giveaway_participate').setLabel('参加する').setStyle(ButtonStyle.Primary).setEmoji('🎉');
@@ -169,11 +163,9 @@ export default {
                 
                 const newMessage = await channel.send({ content: '🔧 **抽選を再作成しました！** 🔧', embeds: [newEmbed], components: [newRow] });
                 
-                // 新しいGiveawayをDBに登録
                 const sql = 'INSERT INTO giveaways (message_id, guild_id, channel_id, prize, winner_count, end_time) VALUES ($1, $2, $3, $4, $5, $6)';
                 await cacheDB.query(sql, [newMessage.id, giveaway.guild_id, giveaway.channel_id, giveaway.prize, giveaway.winner_count, new Date(giveaway.end_time)]);
                 
-                // 参加者のリアクションを引き継ぎ
                 for (const userId of validParticipantIds) {
                     await newMessage.react('🎉').catch(e => console.error(`Failed to re-react for user ${userId}:`, e));
                 }
