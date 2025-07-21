@@ -1,4 +1,4 @@
-import { SlashCommandBuilder } from 'discord.js';
+import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { ReactionExporter } from '../../lib/reactionExporter.js';
 
 export default {
@@ -15,11 +15,10 @@ export default {
         try {
             const message = await interaction.channel.messages.fetch(messageId);
             const exporter = new ReactionExporter(interaction.client, message);
-            // The exporter class handles the reply
             await exporter.execute(interaction);
         } catch (error) {
             console.error('CSV export command failed:', error);
-            await interaction.reply({ content: '指定されたメッセージIDが見つからないか、エラーが発生しました。', ephemeral: true });
+            await interaction.reply({ content: '指定されたメッセージIDが見つからないか、エラーが発生しました。', flags: [MessageFlags.Ephemeral] });
         }
     },
 };

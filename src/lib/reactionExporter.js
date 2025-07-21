@@ -1,4 +1,4 @@
-import { AttachmentBuilder } from 'discord.js';
+import { AttachmentBuilder, MessageFlags } from 'discord.js';
 
 export class ReactionExporter {
     constructor(client, message) {
@@ -8,7 +8,7 @@ export class ReactionExporter {
 
     async execute(interaction) {
         try {
-            await interaction.deferReply({ ephemeral: true });
+            await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
             const csvData = await this.generateCSV();
             const channel = this.message.channel;
             const channelName = channel.name || 'unknown-channel';
@@ -19,15 +19,15 @@ export class ReactionExporter {
             const attachment = new AttachmentBuilder(Buffer.from(csvData, 'utf-8'), { name: `${channelName}_${formattedDate}.csv` });
 
             await channel.send({ content: "集計結果", files: [attachment] });
-            await interaction.editReply({ content: "リアクションの集計が完了し、CSVファイルを送信しました。", ephemeral: true });
+            await interaction.editReply({ content: "リアクションの集計が完了し、CSVファイルを送信しました。" });
 
         } catch (error) {
             console.error("Error in ReactionExporter execute:", error);
             const errorMessage = "CSVファイルの生成中にエラーが発生しました。";
             if (interaction.replied || interaction.deferred) {
-                await interaction.editReply({ content: errorMessage, ephemeral: true });
+                await interaction.editReply({ content: errorMessage });
             } else {
-                await interaction.reply({ content: errorMessage, ephemeral: true });
+                await interaction.reply({ content: errorMessage, flags: [MessageFlags.Ephemeral] });
             }
         }
     }

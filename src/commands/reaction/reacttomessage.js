@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, PermissionsBitField } from 'discord.js';
+import { SlashCommandBuilder, PermissionsBitField, MessageFlags } from 'discord.js';
 import { listReactionSettings } from '../../db/queries.js';
 
 export default {
@@ -14,24 +14,20 @@ export default {
                 .setDescription('そのメッセージが存在するチャンネル（指定しない場合は現在のチャンネル）')
                 .setRequired(false)),
     async execute(interaction) {
-        await interaction.deferReply({ ephemeral: true });
+        await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
         const messageId = interaction.options.getString('message_id');
-        // If channel is not specified, use the current channel
         const targetChannel = interaction.options.getChannel('channel') || interaction.channel;
         const guildId = interaction.guild.id;
 
         try {
-            // Check if the bot can view the channel
             const botMember = await interaction.guild.members.fetch(interaction.client.user.id);
             if (!targetChannel.permissionsFor(botMember).has(PermissionsBitField.Flags.ViewChannel)) {
                 return interaction.editReply('指定されたチャンネルを閲覧する権限がありません。');
             }
 
-            // Fetch the target message
             const message = await targetChannel.messages.fetch(messageId);
 
-            // Get all reaction settings for the server
             const settings = await listReactionSettings(guildId);
             const relevantSetting = settings.find(s =>
                 s.channel_id === targetChannel.id && message.content.includes(s.trigger)
@@ -41,7 +37,6 @@ export default {
                 return interaction.editReply('このメッセージに適用できる自動リアクション設定（トリガーワード）が見つかりませんでした。');
             }
 
-            // Apply reactions
             const emojis = relevantSetting.emojis.split(',');
             let reactedCount = 0;
             for (const emoji of emojis) {

@@ -1,15 +1,14 @@
-import { Events } from 'discord.js';
+import { Events, MessageFlags } from 'discord.js';
 
 export default {
     name: Events.InteractionCreate,
     async execute(interaction) {
-        // Handle Chat Input Commands
         if (interaction.isChatInputCommand()) {
             const command = interaction.client.commands.get(interaction.commandName);
 
             if (!command) {
                 console.error(`No command matching ${interaction.commandName} was found.`);
-                await interaction.reply({ content: '存在しないコマンドです。', ephemeral: true });
+                await interaction.reply({ content: '存在しないコマンドです。', flags: [MessageFlags.Ephemeral] });
                 return;
             }
 
@@ -19,13 +18,12 @@ export default {
                 console.error(`Error executing ${interaction.commandName}:`, error);
                 const errorMessage = 'コマンドの実行中にエラーが発生しました！';
                 if (interaction.replied || interaction.deferred) {
-                    await interaction.followUp({ content: errorMessage, ephemeral: true });
+                    await interaction.followUp({ content: errorMessage, flags: [MessageFlags.Ephemeral] });
                 } else {
-                    await interaction.reply({ content: errorMessage, ephemeral: true });
+                    await interaction.reply({ content: errorMessage, flags: [MessageFlags.Ephemeral] });
                 }
             }
         }
-        // Handle Button Interactions
         else if (interaction.isButton()) {
             if (interaction.customId.startsWith('csvreactions_')) {
                 const messageId = interaction.customId.split('_')[1];
@@ -36,7 +34,7 @@ export default {
                     await exporter.execute(interaction);
                 } catch (error) {
                     console.error('Button interaction for CSV export failed:', error);
-                    await interaction.reply({ content: '集計対象のメッセージが見つからないか、エラーが発生しました。', ephemeral: true });
+                    await interaction.reply({ content: '集計対象のメッセージが見つからないか、エラーが発生しました。', flags: [MessageFlags.Ephemeral] });
                 }
             }
         }

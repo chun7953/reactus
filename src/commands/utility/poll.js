@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
+import { SlashCommandBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags } from 'discord.js';
 
 const DEFAULT_EMOJIS = Array.from({ length: 20 }, (_, i) => String.fromCodePoint(0x1F1E6 + i)); // Regional indicators A-T
 
@@ -19,7 +19,7 @@ export default {
                 .setDescription('通知するメンション（@everyone, @here, ロールIDなど）')
                 .setRequired(false)),
     async execute(interaction) {
-        await interaction.deferReply({ ephemeral: true });
+        await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
         const question = interaction.options.getString('question');
         const optionsString = interaction.options.getString('options');
@@ -70,7 +70,7 @@ export default {
             
             await pollMessage.edit({ components: [row] });
 
-            await interaction.editReply({ content: '投票を作成しました！', ephemeral: true });
+            await interaction.editReply({ content: '投票を作成しました！' });
 
         } catch (error) {
             console.error("Error creating poll:", error);

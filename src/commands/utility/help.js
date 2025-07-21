@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
+import { SlashCommandBuilder, EmbedBuilder, MessageFlags } from 'discord.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -15,7 +15,7 @@ export default {
                     value: '`/setreaction` - 自動リアクションを設定\n' +
                            '`/removereaction` - 設定を解除\n' +
                            '`/listreactions` - 設定一覧を表示\n' +
-                           '`/reacttomessage` - 既存メッセージにリアクションを適用' // ← この行を追加しました！
+                           '`/reacttomessage` - 既存メッセージにリアクションを適用'
                 },
                 { name: 'アナウンス機能', value: '`/startannounce` - 自動アナウンスを開始\n`/stopannounce` - アナウンスを停止' },
                 { name: 'ユーティリティ', value: '`/poll` - 投票を作成\n`/csvreactions` - リアクションをCSVで集計' },
@@ -24,6 +24,6 @@ export default {
             )
             .setFooter({ text: 'Reactus Bot' });
 
-        await interaction.reply({ embeds: [helpEmbed], ephemeral: true });
+        await interaction.reply({ embeds: [helpEmbed], flags: [MessageFlags.Ephemeral] });
     },
 };

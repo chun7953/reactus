@@ -1,4 +1,4 @@
-import { SlashCommandBuilder } from 'discord.js';
+import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -7,7 +7,7 @@ export default {
     async execute(interaction) {
         await interaction.reply({
             content: 'フィードバックやご要望は、開発サーバーまでお寄せください！\n[Reactus開発室](https://discord.gg/m6mFzzEQhr)',
-            ephemeral: true,
+            flags: [MessageFlags.Ephemeral],
         });
     },
 };
