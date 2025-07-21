@@ -4,7 +4,7 @@ import config from '../config.js';
 const { Pool } = pg;
 let pool;
 
-export function initializeDatabase() {
+export async function initializeDatabase() {
     if (pool) return pool;
 
     if (!config.database.connectionString) {
@@ -19,18 +19,18 @@ export function initializeDatabase() {
         }
     });
 
-    return new Promise((resolve, reject) => {
-        pool.connect((err, client, release) => {
-            if (err) {
-                console.error('PostgreSQL Connection Error:', err);
-                return reject(err);
-            }
-            console.log('✅ PostgreSQL Database connected successfully.');
-            client.release();
-            createTables();
-            resolve(pool);
-        });
-    });
+    try {
+        await pool.query('SELECT NOW()'); // 接続テスト
+        console.log('✅ PostgreSQL Database connected successfully.');
+        
+        // テーブル作成が完了するのを待ってから次に進むように修正
+        await createTables();
+        return pool;
+
+    } catch (err) {
+        console.error('PostgreSQL Connection Error:', err);
+        process.exit(1);
+    }
 }
 
 async function createTables() {
@@ -75,8 +75,6 @@ async function createTables() {
                 notified_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
             );
         `);
-
-        // ★★★ ここからがGiveaway用の新しいテーブルです ★★★
         await pool.query(`
             CREATE TABLE IF NOT EXISTS giveaways (
                 message_id TEXT PRIMARY KEY,
@@ -102,7 +100,6 @@ async function createTables() {
                 confirmation_role_id TEXT
             );
         `);
-        // ★★★ ここまでが追記部分です ★★★
 
         console.log('✅ Tables checked/created successfully.');
     } catch (err) {
