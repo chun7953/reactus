@@ -1,23 +1,21 @@
 import { google } from 'googleapis';
+import config from '../config.js'; // ★ configから直接読み込む
 
 let auth;
 let sheets;
 
 export async function initializeSheetsAPI() {
-    // 既に認証済みなら再利用
     if (auth && sheets) {
-        return { auth, sheets, spreadsheetId: process.env.SPREADSHEET_ID };
+        return { auth, sheets, spreadsheetId: config.sheets.spreadsheetId };
     }
 
-    // 環境変数からJSONキーファイルの内容を取得
-    const credentialsJson = process.env.GOOGLE_SHEETS_CREDENTIALS;
+    const credentialsJson = config.sheets.credentials;
     if (!credentialsJson) {
         throw new Error('GOOGLE_SHEETS_CREDENTIALS environment variable not set.');
     }
 
     const credentials = JSON.parse(credentialsJson);
 
-    // サービスアカウント情報を使って認証
     auth = new google.auth.GoogleAuth({
         credentials: {
             client_email: credentials.client_email,
@@ -32,10 +30,9 @@ export async function initializeSheetsAPI() {
     const authClient = await auth.getClient();
     sheets = google.sheets({ version: 'v4', auth: authClient });
     
-    // サービスアカウントには固定のメールアドレスがあるので、それをauthオブジェクトに格納しておく
     auth.email = credentials.client_email;
 
     console.log(`✅ Google Service Account authenticated successfully for ${auth.email}`);
 
-    return { auth, sheets, spreadsheetId: process.env.SPREADSHEET_ID };
+    return { auth, sheets, spreadsheetId: config.sheets.spreadsheetId };
 }
