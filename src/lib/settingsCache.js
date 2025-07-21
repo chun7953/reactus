@@ -5,6 +5,9 @@ const reactionCache = new Map();
 const announcementCache = new Map();
 const monitorCache = new Map();
 const configCache = new Map();
+// ★★★ Giveaway用のキャッシュを追加 ★★★
+const giveawayCache = new Map();
+const scheduledGiveawayCache = new Map();
 
 /**
  * ボット起動時に全てのサーバーの設定をDBから読み込み、メモリにキャッシュする
@@ -43,45 +46,61 @@ export async function initializeCache() {
     for (const c of configs) {
         configCache.set(c.guild_id, c);
     }
+
+    // ★★★ ここからがGiveaway用のキャッシュ処理です ★★★
+    // 進行中のGiveaway
+    const giveaways = (await pool.query("SELECT * FROM giveaways WHERE status = 'RUNNING'")).rows;
+    giveawayCache.clear();
+    for (const g of giveaways) {
+        if (!giveawayCache.has(g.guild_id)) giveawayCache.set(g.guild_id, []);
+        giveawayCache.get(g.guild_id).push(g);
+    }
     
-    console.log(`[Cache] キャッシュ完了 (リアクション: ${reactions.length}件, アナウンス: ${announcements.length}件, モニター: ${monitors.length}件, サーバー設定: ${configs.length}件)`);
+    // 予約・定期Giveaway
+    const scheduledGiveaways = (await pool.query('SELECT * FROM scheduled_giveaways')).rows;
+    scheduledGiveawayCache.clear();
+    for (const sg of scheduledGiveaways) {
+        if (!scheduledGiveawayCache.has(sg.guild_id)) scheduledGiveawayCache.set(sg.guild_id, []);
+        scheduledGiveawayCache.get(sg.guild_id).push(sg);
+    }
+    // ★★★ ここまでが追記部分です ★★★
+    
+    console.log(`[Cache] キャッシュ完了 (リアクション: ${reactions.length}件, アナウンス: ${announcements.length}件, モニター: ${monitors.length}件, サーバー設定: ${configs.length}件, 進行中Giveaway: ${giveaways.length}件, 予約Giveaway: ${scheduledGiveaways.length}件)`);
 }
 
-/**
- * ギルドのリアクション設定をキャッシュから取得
- */
-export function getReactionSettings(guildId) {
-    return reactionCache.get(guildId) || [];
-}
+// --- 既存のゲッター関数 (変更なし) ---
+export function getReactionSettings(guildId) { return reactionCache.get(guildId) || []; }
+export function getAnnouncement(guildId, channelId) { const a = announcementCache.get(guildId) || []; return a.find(x => x.channel_id === channelId); }
+export function getMonitorsByGuild(guildId) { return monitorCache.get(guildId) || []; }
+export function getMonitors() { return Array.from(monitorCache.values()).flat(); }
+export function getMainCalendar(guildId) { return configCache.get(guildId); }
 
+// ★★★ ここからがGiveaway用のゲッター関数です ★★★
 /**
- * チャンネルのアナウンス設定をキャッシュから取得
+ * ギルドの進行中Giveawayをキャッシュから取得
  */
-export function getAnnouncement(guildId, channelId) {
-    const guildAnnouncements = announcementCache.get(guildId) || [];
-    return guildAnnouncements.find(a => a.channel_id === channelId);
+export function getActiveGiveaways(guildId) {
+    return giveawayCache.get(guildId) || [];
 }
-
 /**
- * ギルドのカレンダーモニター設定をキャッシュから取得
+ * 全ての進行中Giveawayをキャッシュから取得
  */
-export function getMonitorsByGuild(guildId) {
-    return monitorCache.get(guildId) || [];
+export function getAllActiveGiveaways() {
+    return Array.from(giveawayCache.values()).flat();
 }
-
 /**
- * 全てのカレンダーモニター設定をキャッシュから取得
+ * ギルドの予約・定期Giveawayをキャッシュから取得
  */
-export function getMonitors() {
-    return Array.from(monitorCache.values()).flat();
+export function getScheduledGiveaways(guildId) {
+    return scheduledGiveawayCache.get(guildId) || [];
 }
-
 /**
- * ギルドのメインカレンダー設定をキャッシュから取得
+ * 全ての予約・定期Giveawayをキャッシュから取得
  */
-export function getMainCalendar(guildId) {
-    return configCache.get(guildId);
+export function getAllScheduledGiveaways() {
+    return Array.from(scheduledGiveawayCache.values()).flat();
 }
+// ★★★ ここまでが追記部分です ★★★
 
 // データベースへの書き込みと同時にキャッシュも更新する
 export const cacheDB = {
@@ -89,7 +108,6 @@ export const cacheDB = {
         const pool = await initializeDatabase();
         const result = await pool.query(sql, params);
         
-        // データ変更があった場合はキャッシュを再読み込みする
         if (result.rowCount > 0 && !sql.trim().toUpperCase().startsWith('SELECT')) {
             console.log('[Cache] データ変更を検知したため、キャッシュを更新します。');
             await initializeCache(); 

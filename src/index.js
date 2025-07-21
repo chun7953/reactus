@@ -5,8 +5,9 @@ import { fileURLToPath } from 'url';
 import config from './config.js';
 import { initializeDatabase } from './db/database.js';
 import { startServer } from './web/server.js';
-import { startMonitoring } from './lib/calendarMonitor.js';
-import { initializeCache } from './lib/settingsCache.js'; // ★ 追記
+// ★★★ 読み込み元を 'calendarMonitor.js' から 'taskMonitor.js' に変更 ★★★
+import { startMonitoring } from './lib/taskMonitor.js'; 
+import { initializeCache } from './lib/settingsCache.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
