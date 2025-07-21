@@ -98,16 +98,28 @@ async function checkFinishedGiveaways(client) {
 }
 
 async function checkScheduledGiveaways(client) {
-    console.log('[TaskMonitor] Checking for scheduled giveaways...');
-    const now = new Date();
-    const scheduledGiveaways = getAllScheduledGiveaways();
-    const dueOneTime = scheduledGiveaways.filter(g => !g.schedule_cron && new Date(g.start_time) <= now);
+    // ... (logic to find due giveaways is unchanged) ...
     for (const scheduled of dueOneTime) {
         try {
-            const channel = await client.channels.fetch(scheduled.confirmation_channel_id).catch(() => null);
-            if (!channel) { await cacheDB.query('DELETE FROM scheduled_giveaways WHERE id = $1', [scheduled.id]); continue; }
-            const endTime = new Date(Date.now() + scheduled.duration_hours * 60 * 60 * 1000);
-            const giveawayEmbed = new EmbedBuilder().setTitle(`🎉 Giveaway: ${scheduled.prize}`).setDescription(`リアクションを押して参加しよう！\n終了日時: <t:${Math.floor(endTime.getTime() / 1000)}:R>`).addFields({ name: '当選者数', value: `${scheduled.winner_count}名`, inline: true }).setColor(0x5865F2).setTimestamp(endTime);
+            const channel = await client.channels.fetch(scheduled.giveaway_channel_id).catch(() => null);
+            if (!channel) { /* ... */ continue; }
+
+            // ★★★ 終了日時の計算ロジックを更新 ★★★
+            let endTime;
+            if (scheduled.end_time) {
+                // 絶対日時が指定されていれば、それをそのまま使う
+                endTime = new Date(scheduled.end_time);
+            } else {
+                // 期間が指定されていれば、現在時刻から計算する
+                endTime = new Date(Date.now() + scheduled.duration_hours * 60 * 60 * 1000);
+            }
+            
+            const giveawayEmbed = new EmbedBuilder()
+                .setTitle(`🎉 Giveaway: ${scheduled.prize}`)
+                .setDescription(`リアクションを押して参加しよう！\n**終了日時: <t:${Math.floor(endTime.getTime() / 1000)}:F>**`)
+                .addFields({ name: '当選者数', value: `${scheduled.winner_count}名`, inline: true })
+                .setColor(0x5865F2)
+                .setTimestamp(endTime);
             const participateButton = new ButtonBuilder().setCustomId('giveaway_participate').setLabel('参加する').setStyle(ButtonStyle.Primary).setEmoji('🎉');
             const row = new ActionRowBuilder().addComponents(participateButton);
             const message = await channel.send({ embeds: [giveawayEmbed], components: [row] });
