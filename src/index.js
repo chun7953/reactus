@@ -30,6 +30,7 @@ const client = new Client({
 });
 
 client.commands = new Collection();
+client.cooldowns = new Collection(); // ★ この行を追記
 const commandFolders = fs.readdirSync(path.join(__dirname, 'commands'));
 for (const folder of commandFolders) {
     const commandFiles = fs.readdirSync(path.join(__dirname, 'commands', folder)).filter(file => file.endsWith('.js'));

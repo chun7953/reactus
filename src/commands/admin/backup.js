@@ -3,6 +3,7 @@ import { initializeSheetsAPI } from '../../lib/sheetsAPI.js';
 import { getReactionSettings, getMonitorsByGuild, getMainCalendar, cacheDB } from '../../lib/settingsCache.js';
 
 export default {
+        cooldown: 60, // ★ この行を追記 (単位は秒)
     data: new SlashCommandBuilder()
         .setName('backup')
         .setDescription('全てのサーバー設定をGoogle Sheetsにバックアップします。')
