@@ -48,8 +48,9 @@ async function createTables() {
                 prize TEXT NOT NULL,
                 winner_count INTEGER NOT NULL DEFAULT 1,
                 end_time TIMESTAMP WITH TIME ZONE NOT NULL,
-                status TEXT NOT NULL DEFAULT 'RUNNING', -- RUNNING, ENDED, CANCELLED, ERRORED
-                winners TEXT[]
+                status TEXT NOT NULL DEFAULT 'RUNNING',
+                winners TEXT[],
+                participants TEXT[] DEFAULT '{}'::TEXT[]
             );
         `);
         await pool.query(`

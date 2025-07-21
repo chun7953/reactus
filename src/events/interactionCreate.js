@@ -37,28 +37,28 @@ export default {
             }
         } 
         else if (interaction.isButton()) {
-            // --- Giveaway参加 / 取り消しボタン ---
-            if (interaction.customId === 'giveaway_participate') {
-                const reaction = interaction.message.reactions.cache.get('🎉');
-                const users = reaction ? await reaction.users.fetch() : new Map();
-                if (users.has(interaction.user.id)) {
-                    // 既に参加済みの場合、取り消し確認ボタンを提示
-                    const row = new ActionRowBuilder()
-                        .addComponents(
-                            new ButtonBuilder()
-                                .setCustomId(`giveaway_withdraw_${interaction.message.id}`)
-                                .setLabel('はい、参加を取り消します')
-                                .setStyle(ButtonStyle.Danger),
-                        );
-                    await interaction.reply({
-                        content: 'すでに応募済みです。参加を取り消しますか？',
-                        components: [row],
-                        flags: [MessageFlags.Ephemeral]
-                    });
+            if (interaction.customId.startsWith('giveaway_participate')) {
+                await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+                const result = await cacheDB.query("SELECT prize, participants, winner_count FROM giveaways WHERE message_id = $1", [interaction.message.id]);
+                const giveaway = result.rows[0];
+
+                if (!giveaway) return interaction.editReply('このGiveawayは終了またはキャンセルされました。');
+
+                const participants = new Set(giveaway.participants || []);
+                if (participants.has(interaction.user.id)) {
+                     // 既に参加済みの場合、取り消し
+                    participants.delete(interaction.user.id);
+                    await cacheDB.query("UPDATE giveaways SET participants = $1 WHERE message_id = $2", [Array.from(participants), interaction.message.id]);
+                    const newEmbed = EmbedBuilder.from(interaction.message.embeds[0]).setFields({ name: '当選者数', value: `${giveaway.winner_count}名`, inline: true }, { name: '参加者', value: `${participants.size}名`, inline: true }, { name: '主催者', value: interaction.message.embeds[0].fields[2].value });
+                    await interaction.message.edit({ embeds: [newEmbed] });
+                    await interaction.editReply('✅ 参加を取り消しました。');
                 } else {
                     // 新規参加の場合
-                    await interaction.message.react('🎉').catch(() => {});
-                    await interaction.reply({ content: '✅ 抽選に参加しました！', flags: [MessageFlags.Ephemeral] });
+                    participants.add(interaction.user.id);
+                    await cacheDB.query("UPDATE giveaways SET participants = $1 WHERE message_id = $2", [Array.from(participants), interaction.message.id]);
+                    const newEmbed = EmbedBuilder.from(interaction.message.embeds[0]).setFields({ name: '当選者数', value: `${giveaway.winner_count}名`, inline: true }, { name: '参加者', value: `${participants.size}名`, inline: true }, { name: '主催者', value: interaction.message.embeds[0].fields[2].value });
+                    await interaction.message.edit({ embeds: [newEmbed] });
+                    await interaction.editReply('✅ 抽選に参加しました！');
                 }
                 return;
             }

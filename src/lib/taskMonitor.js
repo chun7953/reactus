@@ -94,14 +94,16 @@ async function checkFinishedGiveaways(client) {
             if (!channel) { await cacheDB.query("UPDATE giveaways SET status = 'ERRORED' WHERE message_id = $1", [giveaway.message_id]); continue; }
             const message = await channel.messages.fetch(giveaway.message_id).catch(() => null);
             if (!message) { await cacheDB.query("UPDATE giveaways SET status = 'ERRORED' WHERE message_id = $1", [giveaway.message_id]); continue; }
-            const reaction = message.reactions.cache.get('🎉');
-            const participants = reaction ? await reaction.users.fetch() : new Map();
-            const validParticipants = participants.filter(user => !user.bot);
+            
+            const participantsResult = await cacheDB.query("SELECT participants FROM giveaways WHERE message_id = $1", [giveaway.message_id]);
+            const participants = participantsResult.rows[0]?.participants || [];
+            
             let winners = [];
-            if (validParticipants.size > 0) {
-                const winnerUsers = validParticipants.random(giveaway.winner_count);
-                winners = winnerUsers.map(user => user.id);
+            if (participants.length > 0) {
+                const shuffled = [...participants].sort(() => 0.5 - Math.random());
+                winners = shuffled.slice(0, giveaway.winner_count);
             }
+            
             const winnerMentions = winners.map(id => `<@${id}>`).join(' ');
             const resultEmbed = new EmbedBuilder().setTitle(`🎉 Giveaway終了: ${giveaway.prize}`).setColor(0x2ECC71).setTimestamp(new Date(giveaway.end_time));
             if (winners.length > 0) {
@@ -110,7 +112,7 @@ async function checkFinishedGiveaways(client) {
                 resultEmbed.setDescription('参加者がいなかったため、当選者はいません。');
             }
             await channel.send({ content: winnerMentions, embeds: [resultEmbed] });
-            const endedEmbed = EmbedBuilder.from(message.embeds[0]).setDescription(`**終了しました**\n当選者: ${winnerMentions || 'なし'}`).setColor(0x95A5A6);
+            const endedEmbed = EmbedBuilder.from(message.embeds[0]).setDescription(`**終了しました**\n参加者: ${participants.length}名\n当選者: ${winnerMentions || 'なし'}`).setColor(0x95A5A6);
             await message.edit({ embeds: [endedEmbed], components: [] });
             await cacheDB.query("UPDATE giveaways SET status = 'ENDED', winners = $1 WHERE message_id = $2", [winners, giveaway.message_id]);
             console.log(`Giveaway for "${giveaway.prize}" ended. Winners announced.`);
