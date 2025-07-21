@@ -42,13 +42,13 @@ export default {
     name: Events.MessageCreate,
     async execute(message, db) {
         // ★★★ここを修正しました！★★★
-        // 自分自身のメッセージだけを無視し、他のボットは無視しないようにします
-        if (!message.guild || message.author.id === message.client.user.id) return;
+        // ボット自身のメッセージを無視する条件を削除しました。
+        if (!message.guild) return;
 
-        // handleAutoReactionは自分自身以外のボットにも反応するように、このファイルの外で実行
+        // これで、ボット自身のメッセージ(カレンダー投稿など)にも自動リアクションが付与されるようになります。
         await handleAutoReaction(message, db);
         
-        // handleAutoAnnounceは自分以外の投稿にのみ反応する
+        // handleAutoAnnounceは、関数内で自身のメッセージを無視するようになっているため、この変更による影響はありません。
         await handleAutoAnnounce(message, db);
     },
 };
