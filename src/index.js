@@ -67,7 +67,7 @@ for (const file of eventFiles) {
         await initializeDatabase();
 
         // 2. Start Web Server
-       // startServer();
+        startServer();
 
         // 3. Start Calendar Monitoring
         startMonitoring(client); // ★★★この行を追記★★★
