@@ -23,7 +23,27 @@ export default {
                     option.setName('id')
                         .setDescription('削除したい予約/定期抽選のID')
                         .setRequired(true)))
-        .addSubcommand(subcommand => subcommand.setName('fix').setDescription('不具合のあるGiveawayを、参加者を引き継いで作り直します。').addStringOption(option => option.setName('message_id').setDescription('不具合のあるGiveawayのメッセージID').setRequired(true))),
+        .addSubcommand(subcommand => subcommand.setName('fix').setDescription('不具合のあるGiveawayを、参加者を引き継いで作り直します。').addStringOption(option => option.setName('message_id').setDescription('不具合のあるGiveawayのメッセージID').setRequired(true)))
+        .addSubcommand(subcommand => // Add new subcommand for editing
+            subcommand
+                .setName('edit')
+                .setDescription('進行中のGiveawayの情報を編集します。')
+                .addStringOption(option =>
+                    option.setName('message_id')
+                        .setDescription('編集したいGiveawayのメッセージID')
+                        .setRequired(true))
+                .addStringOption(option =>
+                    option.setName('prize')
+                        .setDescription('新しい賞品')
+                        .setRequired(false))
+                .addIntegerOption(option =>
+                    option.setName('winners')
+                        .setDescription('新しい当選者数')
+                        .setRequired(false))
+                .addStringOption(option =>
+                    option.setName('end_time')
+                        .setDescription('新しい終了日時 (例: 2025-07-22 21:00)')
+                        .setRequired(false))),
     async execute(interaction) {
         if (!interaction.inGuild()) return;
         if (!hasGiveawayPermission(interaction)) {
@@ -208,6 +228,76 @@ export default {
                 
                 await interaction.editReply(`✅ 抽選を作り直しました。${validParticipantIds.length}名の参加者を引き継いでいます。`);
             } catch (error) { console.error('Failed to fix giveaway:', error); await interaction.editReply('抽選の修復中にエラーが発生しました。'); }
+        } else if (subcommand === 'edit') { // New subcommand logic for editing
+            await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+            const messageId = interaction.options.getString('message_id');
+            const newPrize = interaction.options.getString('prize');
+            const newWinnerCount = interaction.options.getInteger('winners');
+            const newEndTimeStr = interaction.options.getString('end_time');
+
+            const giveawayResult = await cacheDB.query("SELECT * FROM giveaways WHERE message_id = $1 AND guild_id = $2 AND status = 'RUNNING'", [messageId, interaction.guildId]);
+            const giveaway = giveawayResult.rows[0];
+
+            if (!giveaway) {
+                return interaction.editReply('エラー: 指定されたIDの進行中Giveawayが見つからないか、既に終了しています。');
+            }
+
+            let updateFields = [];
+            let updateValues = [];
+            let paramIndex = 1;
+
+            if (newPrize) {
+                updateFields.push(`prize = $${paramIndex++}`);
+                updateValues.push(newPrize);
+            }
+            if (newWinnerCount !== null) { // Check for null explicitly as 0 is a valid value
+                updateFields.push(`winner_count = $${paramIndex++}`);
+                updateValues.push(newWinnerCount);
+            }
+            if (newEndTimeStr) {
+                const newTime = new Date(newEndTimeStr.replace(/-/g, '/') + ' GMT+0900');
+                if (isNaN(newTime.getTime()) || newTime <= new Date()) {
+                    return interaction.editReply('エラー: 新しい終了日時は未来の正しい日時を指定してください。(例: 2025-07-22 21:00)');
+                }
+                updateFields.push(`end_time = $${paramIndex++}`);
+                updateValues.push(newTime);
+            }
+
+            if (updateFields.length === 0) {
+                return interaction.editReply('エラー: 更新する情報が指定されていません。');
+            }
+
+            const updateSql = `UPDATE giveaways SET ${updateFields.join(', ')} WHERE message_id = $${paramIndex}`;
+            updateValues.push(messageId);
+
+            await cacheDB.query(updateSql, updateValues);
+
+            // Fetch the updated giveaway to construct the embed
+            const updatedGiveawayResult = await cacheDB.query("SELECT * FROM giveaways WHERE message_id = $1", [messageId]);
+            const updatedGiveaway = updatedGiveawayResult.rows[0];
+
+            try {
+                const channel = await interaction.guild.channels.fetch(updatedGiveaway.channel_id);
+                const message = await channel.messages.fetch(messageId);
+
+                const currentParticipantsCount = updatedGiveaway.participants ? updatedGiveaway.participants.length : 0;
+                
+                const updatedEmbed = EmbedBuilder.from(message.embeds[0])
+                    .setTitle(`🎉 Giveaway: ${updatedGiveaway.prize}`)
+                    .setDescription(`下のボタンを押して参加しよう！\n**終了日時: <t:${Math.floor(new Date(updatedGiveaway.end_time).getTime() / 1000)}:F>**`)
+                    .setFields(
+                        { name: '当選者数', value: `${updatedGiveaway.winner_count}名`, inline: true },
+                        { name: '参加者', value: `${currentParticipantsCount}名`, inline: true },
+                        { name: '主催者', value: message.embeds[0].fields[2].value } // Keep original host
+                    )
+                    .setTimestamp(new Date(updatedGiveaway.end_time));
+
+                await message.edit({ embeds: [updatedEmbed] });
+                await interaction.editReply(`✅ Giveaway (ID: \`${messageId}\`) の情報を更新しました。`);
+            } catch (error) {
+                console.error('Failed to edit giveaway message:', error);
+                await interaction.editReply('Giveaway情報の更新中にエラーが発生しましたが、データベースは更新されました。メッセージの表示更新に失敗しました。');
+            }
         }
     },
 };

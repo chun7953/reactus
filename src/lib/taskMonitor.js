@@ -35,23 +35,74 @@ async function checkCalendarEvents(client) {
                         await pool.query('INSERT INTO notified_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING', [event.id]);
                         console.log(`[TaskMonitor] Giveaway event found: ${event.summary}`); // このログは残します
                         try {
-                            const prize = (event.summary || 'プレゼント').replace('【ラキショ】', '').trim();
-                            const description = event.description || '';
-                            const winnerCountMatch = description.match(/^(\d+)$/m);
-                            const winnerCount = winnerCountMatch ? parseInt(winnerCountMatch[1], 10) : 1;
+                            const descriptionLines = (event.description || '').split('\n').map(line => line.trim()).filter(line => line.length > 0);
+                            let prizesToCreate = [];
+                            let additionalMessage = [];
+                            let allMentions = new Set();
+
+                            for (const line of descriptionLines) {
+                                // 景品と当選者数のパターンを検出（例: 【景品A/10】）
+                                const prizeMatch = line.match(/^【(.+)\/(\d+)】$/);
+                                if (prizeMatch) {
+                                    prizesToCreate.push({
+                                        prize: prizeMatch[1].trim(),
+                                        winnerCount: parseInt(prizeMatch[2], 10)
+                                    });
+                                } else {
+                                    // メンションを抽出し、それ以外は追加メッセージとして扱う
+                                    const mentionMatches = line.match(/<@&[0-9]+>|<@[0-9]+>|<@everyone>|<@here>/g);
+                                    if (mentionMatches) {
+                                        mentionMatches.forEach(m => allMentions.add(m));
+                                        // メンション部分を削除して残りをメッセージとして追加
+                                        let cleanedLine = line.replace(/<@&[0-9]+>|<@[0-9]+>|<@everyone>|<@here>/g, '').trim();
+                                        if (cleanedLine) additionalMessage.push(cleanedLine);
+                                    } else {
+                                        additionalMessage.push(line);
+                                    }
+                                }
+                            }
+
+                            // 既存のメインキーワード以外のサマリーから賞品を抽出
+                            let mainSummaryPrize = (event.summary || 'プレゼント').replace('【ラキショ】', '').trim();
+                            if (mainSummaryPrize && prizesToCreate.length === 0) { // もしdescriptionから景品が抽出されなかった場合、summaryを使う
+                                prizesToCreate.push({ prize: mainSummaryPrize, winnerCount: 1 }); // デフォルト当選者数1
+                            } else if (prizesToCreate.length === 0) { // summaryからも景品が抽出されなかった場合の最終Fallback
+                                prizesToCreate.push({ prize: '素敵なプレゼント', winnerCount: 1 });
+                            }
+                            
                             const startTime = new Date(event.start.dateTime || event.start.date);
                             const endTime = new Date(event.end.dateTime || event.end.date);
+                            
+                            // メンションロールが設定されていれば追加
+                            if (monitor.mention_role) allMentions.add(`<@&${monitor.mention_role}>`);
+                            const finalMentions = Array.from(allMentions).join(' ').trim();
+                            const finalAdditionalMessage = additionalMessage.join('\n').trim();
 
-                            // Giveawayを作成するチャンネルは、カレンダー監視設定と同じチャンネルを使用
                             const giveawayChannel = await client.channels.fetch(monitor.channel_id).catch(() => null);
                             if (giveawayChannel) {
-                                const giveawayEmbed = new EmbedBuilder().setTitle(`🎉 Giveaway: ${prize}`).setDescription(`リアクションを押して参加しよう！\n**終了日時: <t:${Math.floor(endTime.getTime() / 1000)}:F>**`).addFields({ name: '当選者数', value: `${winnerCount}名`, inline: true }).setColor(0x5865F2).setTimestamp(endTime);
-                                const participateButton = new ButtonBuilder().setCustomId('giveaway_participate').setLabel('参加する').setStyle(ButtonStyle.Primary).setEmoji('🎉');
-                                const row = new ActionRowBuilder().addComponents(participateButton);
-                                const message = await giveawayChannel.send({ embeds: [giveawayEmbed], components: [row] });
-                                const sql = 'INSERT INTO giveaways (message_id, guild_id, channel_id, prize, winner_count, end_time) VALUES ($1, $2, $3, $4, $5, $6)';
-                                await cacheDB.query(sql, [message.id, monitor.guild_id, giveawayChannel.id, prize, winnerCount, endTime]);
-                                console.log(`Auto-created giveaway "${prize}" in channel ${giveawayChannel.id}.`); // このログは残します
+                                for (const prizeInfo of prizesToCreate) {
+                                    let descriptionText = `リアクションを押して参加しよう！\n**終了日時: <t:${Math.floor(endTime.getTime() / 1000)}:F>**`;
+                                    if (finalAdditionalMessage) {
+                                        descriptionText += `\n\n${finalAdditionalMessage}`;
+                                    }
+
+                                    const giveawayEmbed = new EmbedBuilder()
+                                        .setTitle(`🎉 Giveaway: ${prizeInfo.prize}`)
+                                        .setDescription(descriptionText)
+                                        .addFields({ name: '当選者数', value: `${prizeInfo.winnerCount}名`, inline: true })
+                                        .setColor(0x5865F2)
+                                        .setTimestamp(endTime);
+
+                                    const participateButton = new ButtonBuilder().setCustomId('giveaway_participate').setLabel('参加する').setStyle(ButtonStyle.Primary).setEmoji('🎉');
+                                    const row = new ActionRowBuilder().addComponents(participateButton);
+                                    
+                                    const messageContent = finalMentions ? `${finalMentions}` : '';
+                                    
+                                    const message = await giveawayChannel.send({ content: messageContent, embeds: [giveawayEmbed], components: [row] });
+                                    const sql = 'INSERT INTO giveaways (message_id, guild_id, channel_id, prize, winner_count, end_time) VALUES ($1, $2, $3, $4, $5, $6)';
+                                    await cacheDB.query(sql, [message.id, monitor.guild_id, giveawayChannel.id, prizeInfo.prize, prizeInfo.winnerCount, endTime]);
+                                    console.log(`Auto-created giveaway "${prizeInfo.prize}" in channel ${giveawayChannel.id}.`); // このログは残します
+                                }
                             }
                         } catch (e) { console.error(`Failed to auto-create giveaway from calendar event ${event.id}:`, e); }
                         continue; // Giveawayとして処理したので、通常の通知はしない
