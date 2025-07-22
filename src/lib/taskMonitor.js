@@ -1,4 +1,4 @@
-// src/lib/taskMonitor.js (自動メンテナンス機能 強化版)
+// src/lib/taskMonitor.js (自動巡回メンテナンス機能 強化版)
 
 import { google } from 'googleapis';
 import { initializeSheetsAPI } from './sheetsAPI.js';
@@ -184,18 +184,14 @@ async function checkFinishedGiveaways(client) {
     for (const giveaway of finishedGiveaways) {
         try {
             const channel = await client.channels.fetch(giveaway.channel_id).catch(() => null);
-            // ★ 修正: チャンネルが見つからない場合もエラーとして扱う
-            if (!channel) {
-                console.log(`[TaskMonitor] 抽選 ${giveaway.message_id} のチャンネルが見つからないため、エラーとして処理します。`);
-                await pool.query("UPDATE giveaways SET status = 'ERRORED' WHERE message_id = $1", [giveaway.message_id]);
-                cache.removeGiveaway(giveaway.guild_id, giveaway.message_id);
-                continue;
+            if (!channel) { 
+                await pool.query("UPDATE giveaways SET status = 'ERRORED' WHERE message_id = $1", [giveaway.message_id]); 
+                cache.removeGiveaway(giveaway.guild_id, giveaway.message_id); 
+                continue; 
             }
             
             const message = await channel.messages.fetch(giveaway.message_id).catch(() => null);
-            // ★ 修正: メッセージが手動で削除されていた場合、エラーとして記録し、キャッシュから消す
             if (!message) {
-                console.log(`[TaskMonitor] 抽選メッセージ ${giveaway.message_id} が見つからないため（手動削除の可能性）、エラーとして処理します。`);
                 await pool.query("UPDATE giveaways SET status = 'ERRORED' WHERE message_id = $1", [giveaway.message_id]);
                 cache.removeGiveaway(giveaway.guild_id, giveaway.message_id);
                 continue;
@@ -239,7 +235,6 @@ async function checkScheduledGiveaways(client) {
 
     for (const scheduled of dueGiveaways) {
         try {
-            // ★ 修正: 開始予定時刻から1時間以上経過していたら、自動でキャンセルする
             const startTime = new Date(scheduled.start_time);
             if (now.getTime() - startTime.getTime() > 60 * 60 * 1000) {
                 console.log(`[TaskMonitor] 予約抽選「${scheduled.prize}」(ID: ${scheduled.id})は開始時刻を1時間以上過ぎているため、自動的にキャンセルします。`);
@@ -300,12 +295,43 @@ async function cleanupGhostGiveaways() {
     }
 }
 
+// ★★★ ここからが新しい関数 ★★★
+async function validateActiveGiveaways(client) {
+    const activeGiveaways = get.allActiveGiveaways();
+    if (activeGiveaways.length === 0) return;
+
+    const pool = await getDBPool();
+    for (const giveaway of activeGiveaways) {
+        try {
+            const channel = await client.channels.fetch(giveaway.channel_id).catch(() => null);
+            if (!channel) {
+                console.log(`[TaskMonitor] 進行中抽選 ${giveaway.message_id} のチャンネルが見つからないため、ERRORED に設定します。`);
+                await pool.query("UPDATE giveaways SET status = 'ERRORED' WHERE message_id = $1", [giveaway.message_id]);
+                cache.removeGiveaway(giveaway.guild_id, giveaway.message_id);
+                continue;
+            }
+            // メッセージが存在するかどうかを確認
+            await channel.messages.fetch(giveaway.message_id);
+        } catch (error) {
+            // Discord APIエラーコード 10008 は「不明なメッセージ」= 削除済み
+            if (error.code === 10008) { 
+                console.log(`[TaskMonitor] 進行中抽選メッセージ ${giveaway.message_id} が見つからないため（手動削除）、ERRORED に設定します。`);
+                await pool.query("UPDATE giveaways SET status = 'ERRORED' WHERE message_id = $1", [giveaway.message_id]);
+                cache.removeGiveaway(giveaway.guild_id, giveaway.message_id);
+            } else {
+                console.error(`[TaskMonitor] 進行中抽選 ${giveaway.message_id} の検証中に予期せぬエラー:`, error.message);
+            }
+        }
+    }
+}
+
 let isRunning = false;
 async function runTasks(client) {
     if (isRunning) return;
     isRunning = true;
     try {
         await cleanupGhostGiveaways();
+        await validateActiveGiveaways(client); // ★ 新しい巡回チェックを追加
         await checkCalendarEvents(client);
         await checkFinishedGiveaways(client);
         await checkScheduledGiveaways(client);
