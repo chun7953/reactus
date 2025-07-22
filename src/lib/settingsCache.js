@@ -67,12 +67,13 @@ export function getScheduledGiveaways(guildId) { return scheduledGiveawayCache.g
 export function getAllScheduledGiveaways() { return Array.from(scheduledGiveawayCache.values()).flat(); }
 
 export const cacheDB = {
-    async query(sql, params) {
+    async query(sql, params, options = {}) {
         const pool = await initializeDatabase();
         const result = await pool.query(sql, params);
-        if (result.rowCount > 0 && !sql.trim().toUpperCase().startsWith('SELECT')) {
-            console.log('[Cache] データ変更を検知したため、キャッシュを更新します。');
-            await initializeCache(); 
+        // SELECT ステートメントではない、かつ noCacheRefresh オプションが true ではない場合にのみキャッシュを更新
+        if (result.rowCount > 0 && !sql.trim().toUpperCase().startsWith('SELECT') && !options.noCacheRefresh) {
+            // console.log('[Cache] データ変更を検知したため、キャッシュを更新します。'); // この行を削除
+            await initializeCache();
         }
         return result;
     }

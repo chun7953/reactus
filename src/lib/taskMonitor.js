@@ -1,3 +1,4 @@
+// src/lib/taskMonitor.js
 import { google } from 'googleapis';
 import { initializeDatabase } from '../db/database.js';
 import { initializeSheetsAPI } from './sheetsAPI.js';
@@ -6,7 +7,7 @@ import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'disc
 import cronParser from 'cron-parser';
 
 async function checkCalendarEvents(client) {
-    console.log('[TaskMonitor] Checking Google Calendar events...');
+    // console.log('[TaskMonitor] Checking Google Calendar events...'); // ログ削除
     const monitors = await getMonitors();
     if (monitors.length === 0) return;
     try {
@@ -32,7 +33,7 @@ async function checkCalendarEvents(client) {
                     // --- カレンダー連携Giveawayの自動作成 ---
                     if (eventText.includes('【ラキショ】')) {
                         await pool.query('INSERT INTO notified_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING', [event.id]);
-                        console.log(`[TaskMonitor] Giveaway event found: ${event.summary}`);
+                        console.log(`[TaskMonitor] Giveaway event found: ${event.summary}`); // このログは残します
                         try {
                             const prize = (event.summary || 'プレゼント').replace('【ラキショ】', '').trim();
                             const description = event.description || '';
@@ -50,7 +51,7 @@ async function checkCalendarEvents(client) {
                                 const message = await giveawayChannel.send({ embeds: [giveawayEmbed], components: [row] });
                                 const sql = 'INSERT INTO giveaways (message_id, guild_id, channel_id, prize, winner_count, end_time) VALUES ($1, $2, $3, $4, $5, $6)';
                                 await cacheDB.query(sql, [message.id, monitor.guild_id, giveawayChannel.id, prize, winnerCount, endTime]);
-                                console.log(`Auto-created giveaway "${prize}" in channel ${giveawayChannel.id}.`);
+                                console.log(`Auto-created giveaway "${prize}" in channel ${giveawayChannel.id}.`); // このログは残します
                             }
                         } catch (e) { console.error(`Failed to auto-create giveaway from calendar event ${event.id}:`, e); }
                         continue; // Giveawayとして処理したので、通常の通知はしない
@@ -59,7 +60,7 @@ async function checkCalendarEvents(client) {
                     // --- 通常のカレンダー通知 ---
                     if (eventText.includes(`【${monitor.trigger_keyword}】`)) {
                         await pool.query('INSERT INTO notified_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING', [event.id]);
-                        console.log(`[CalendarMonitor] 検出イベント: ${event.summary} (ID: ${event.id})`);
+                        // console.log(`[CalendarMonitor] 検出イベント: ${event.summary} (ID: ${event.id})`); // ログ削除
                         const channel = await client.channels.fetch(monitor.channel_id).catch(() => null);
                         if (!channel) continue;
                         let allMentions = new Set();
@@ -83,7 +84,7 @@ async function checkCalendarEvents(client) {
 }
 
 async function checkFinishedGiveaways(client) {
-    console.log('[TaskMonitor] Checking for finished giveaways...');
+    // console.log('[TaskMonitor] Checking for finished giveaways...'); // ログ削除
     const now = new Date();
     const activeGiveaways = getAllActiveGiveaways();
     const finishedGiveaways = activeGiveaways.filter(g => new Date(g.end_time) <= now);
@@ -115,7 +116,7 @@ async function checkFinishedGiveaways(client) {
             const endedEmbed = EmbedBuilder.from(message.embeds[0]).setDescription(`**終了しました**\n参加者: ${participants.length}名\n当選者: ${winnerMentions || 'なし'}`).setColor(0x95A5A6);
             await message.edit({ embeds: [endedEmbed], components: [] });
             await cacheDB.query("UPDATE giveaways SET status = 'ENDED', winners = $1 WHERE message_id = $2", [winners, giveaway.message_id]);
-            console.log(`Giveaway for "${giveaway.prize}" ended. Winners announced.`);
+            console.log(`Giveaway for "${giveaway.prize}" ended. Winners announced.`); // このログは残します
         } catch (error) {
             console.error(`Error processing giveaway ${giveaway.message_id}:`, error);
             await cacheDB.query("UPDATE giveaways SET status = 'ERRORED' WHERE message_id = $1", [giveaway.message_id]);
@@ -124,10 +125,14 @@ async function checkFinishedGiveaways(client) {
 }
 
 async function checkScheduledGiveaways(client) {
-    console.log('[TaskMonitor] Checking for scheduled giveaways...');
+    // console.log('[TaskMonitor] Checking for scheduled giveaways...'); // ログ削除
     const now = new Date();
     const scheduledGiveaways = getAllScheduledGiveaways();
+    
+    // 定期抽選 (schedule_cronがあるもの) は処理しないようにフィルタリング
     const dueOneTime = scheduledGiveaways.filter(g => !g.schedule_cron && new Date(g.start_time) <= now);
+    // const dueRecurring = scheduledGiveaways.filter(g => g.schedule_cron); // この行を削除、または以下のforループごと削除
+
     for (const scheduled of dueOneTime) {
         try {
             const channel = await client.channels.fetch(scheduled.giveaway_channel_id).catch(() => null);
@@ -145,27 +150,11 @@ async function checkScheduledGiveaways(client) {
             const sql = 'INSERT INTO giveaways (message_id, guild_id, channel_id, prize, winner_count, end_time) VALUES ($1, $2, $3, $4, $5, $6)';
             await cacheDB.query(sql, [message.id, scheduled.guild_id, channel.id, scheduled.prize, scheduled.winner_count, endTime]);
             await cacheDB.query('DELETE FROM scheduled_giveaways WHERE id = $1', [scheduled.id]);
-            console.log(`Scheduled giveaway "${scheduled.prize}" has been started in channel ${channel.id}.`);
+            console.log(`Scheduled giveaway "${scheduled.prize}" has been started in channel ${channel.id}.`); // このログは残します
         } catch (error) { console.error(`Error processing scheduled giveaway ${scheduled.id}:`, error); }
     }
-    const dueRecurring = scheduledGiveaways.filter(g => g.schedule_cron);
-    for (const scheduled of dueRecurring) {
-        try {
-            const options = { currentDate: new Date(now.getTime() - 10 * 60 * 1000), endDate: now, iterator: true, tz: 'Asia/Tokyo' };
-            const interval = cronParser.parseExpression(scheduled.schedule_cron, options);
-            if (interval.hasNext()) {
-                const confirmationChannel = await client.channels.fetch(scheduled.confirmation_channel_id).catch(() => null);
-                if (!confirmationChannel) { await cacheDB.query('DELETE FROM scheduled_giveaways WHERE id = $1', [scheduled.id]); continue; }
-                const scheduleText = getScheduleText(scheduled.schedule_cron);
-                const confirmEmbed = new EmbedBuilder().setTitle('🎁 定期抽選の開催確認').setDescription(`**${scheduleText}**の定期抽選 **「${scheduled.prize}」** を開始しますか？`).setColor(0xFFA500);
-                const confirmButton = new ButtonBuilder().setCustomId(`giveaway_confirm_start_${scheduled.id}`).setLabel('はい、開始します').setStyle(ButtonStyle.Success);
-                const skipButton = new ButtonBuilder().setCustomId(`giveaway_confirm_skip_${scheduled.id}`).setLabel('いいえ、スキップします').setStyle(ButtonStyle.Danger);
-                const row = new ActionRowBuilder().addComponents(confirmButton, skipButton);
-                await confirmationChannel.send({ content: `<@&${scheduled.confirmation_role_id}>`, embeds: [confirmEmbed], components: [row] });
-                console.log(`Sent confirmation request for recurring giveaway ${scheduled.id}`);
-            }
-        } catch (error) { console.error(`Error processing recurring giveaway ${scheduled.id}:`, error); }
-    }
+    // for (const scheduled of dueRecurring) { ... } // このブロックを削除
+    // console.log(`Sent confirmation request for recurring giveaway ${scheduled.id}`); // ログ削除
 }
 
 function getScheduleText(cron) {
@@ -198,7 +187,7 @@ export function startMonitoring(client) {
         const nextRunTime = new Date(now);
         nextRunTime.setMinutes(nextRunMinute, 0, 0);
         const delay = nextRunTime.getTime() - now.getTime();
-        console.log(`[TaskMonitor] Next run scheduled for ${nextRunTime.toLocaleString('ja-JP')} (in ${Math.round(delay/1000)}s)`);
+        // console.log(`[TaskMonitor] Next run scheduled for ${nextRunTime.toLocaleString('ja-JP')} (in ${Math.round(delay/1000)}s)`); // ログ削除
         setTimeout(() => {
             const runAndSchedule = () => runTasks(client);
             runAndSchedule();
