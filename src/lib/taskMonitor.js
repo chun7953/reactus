@@ -32,6 +32,7 @@ async function checkCalendarEvents(client) {
                     if (eventText.includes('【ラキショ】')) {
                         await pool.query('INSERT INTO notified_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING', [event.id]);
                         console.log(`[TaskMonitor] 抽選イベントを検出: ${event.summary}`);
+                        console.log(`[TaskMonitor DEBUG] Attempting to send to channel ID: ${monitor.channel_id} for trigger: ${monitor.trigger_keyword}`); // デバッグログ追加
                         try {
                             const descriptionLines = (event.description || '').split('\n').map(line => line.trim()).filter(line => line.length > 0);
                             let prizesToCreate = [];
@@ -84,7 +85,7 @@ async function checkCalendarEvents(client) {
                                     const participateButton = new ButtonBuilder().setCustomId('giveaway_participate').setLabel('参加する').setStyle(ButtonStyle.Primary).setEmoji('🎉');
                                     const row = new ActionRowBuilder().addComponents(participateButton);
                                     
-                                    const message = await giveawayChannel.send({ embeds: [giveawayEmbed], components: [row] });
+                                    const message = await giveawayChannel.send({ content: messageContent, embeds: [giveawayEmbed], components: [row] });
                                     
                                     giveawayEmbed.setFooter({ text: `メッセージID: ${message.id}` });
                                     await message.edit({ embeds: [giveawayEmbed], components: [row] });
@@ -106,6 +107,8 @@ async function checkCalendarEvents(client) {
                                     await giveawayChannel.send(combinedPostContent);
                                     console.log(`カレンダーイベントからの追加メッセージをチャンネル ${giveawayChannel.id} に投稿しました。`);
                                 }
+                            } else {
+                                console.error(`[TaskMonitor ERROR] 指定されたチャンネル ${monitor.channel_id} が見つからないか、アクセスできません。`); // エラーログ追加
                             }
                         } catch (e) { console.error(`カレンダーイベント ${event.id} からの自動抽選作成に失敗:`, e); }
                         continue;
@@ -114,8 +117,12 @@ async function checkCalendarEvents(client) {
                     // --- 通常のカレンダー通知 ---
                     if (eventText.includes(`【${monitor.trigger_keyword}】`)) {
                         await pool.query('INSERT INTO notified_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING', [event.id]);
+                        console.log(`[TaskMonitor DEBUG] Attempting to send regular notification to channel ID: ${monitor.channel_id} for trigger: ${monitor.trigger_keyword}`); // デバッグログ追加
                         const channel = await client.channels.fetch(monitor.channel_id).catch(() => null);
-                        if (!channel) continue;
+                        if (!channel) {
+                             console.error(`[TaskMonitor ERROR] 指定された通知チャンネル ${monitor.channel_id} が見つからないか、アクセスできません。`); // エラーログ追加
+                             continue;
+                        }
                         let allMentions = new Set();
                         if (monitor.mention_role) allMentions.add(`<@&${monitor.mention_role}>`);
                         let cleanedDescription = event.description || '';
