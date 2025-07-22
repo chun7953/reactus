@@ -1,5 +1,7 @@
+// src/commands/reaction/reacttomessage.js
+
 import { SlashCommandBuilder, PermissionsBitField, MessageFlags } from 'discord.js';
-import { getReactionSettings } from '../../lib/settingsCache.js';
+import { get } from '../../lib/settingsCache.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -28,7 +30,7 @@ export default {
 
             const message = await targetChannel.messages.fetch(messageId);
             
-            const settings = getReactionSettings(guildId);
+            const settings = get.reactionSettings(guildId);
             const relevantSetting = settings.find(s =>
                 s.channel_id === targetChannel.id && message.content.includes(s.trigger)
             );

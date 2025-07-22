@@ -1,5 +1,7 @@
+// src/lib/permissionUtils.js
+
 import { PermissionsBitField } from 'discord.js';
-import { getGuildConfig } from './settingsCache.js';
+import { get } from './settingsCache.js';
 
 /**
  * Giveaway関連のコマンドを実行する権限があるかチェックする
@@ -13,7 +15,7 @@ export function hasGiveawayPermission(interaction) {
         return true;
     }
     // 設定された権限ロールを持っているかチェック
-    const config = getGuildConfig(interaction.guildId);
+    const config = get.guildConfig(interaction.guildId);
     const managerRoles = config?.giveaway_manager_roles || [];
     return interaction.member.roles.cache.some(role => managerRoles.includes(role.id));
 }
