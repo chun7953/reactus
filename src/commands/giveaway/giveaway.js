@@ -213,7 +213,7 @@ export default {
                 const newWinners = winnerUsers.map(user => `<@${user.id}>`);
                 const newWinnerMentions = newWinners.join(' ');
                 
-                await channel.send({ content: newWinnerMentions, embeds: [
+                await channel.send({ embeds: [ // メッセージ外のメンションを削除
                     new EmbedBuilder()
                         .setTitle(`🎉 景品: ${giveaway.prize} の再抽選結果！`)
                         .setDescription(`新しい当選者は ${newWinnerMentions} です！おめでとうございます🎉`) // Embed内にメンションを記載
@@ -260,22 +260,15 @@ export default {
             try {
                 const channel = await interaction.guild.channels.fetch(giveaway.channel_id);
                 const oldMessage = await channel.messages.fetch(messageId);
-                const reaction = oldMessage.reactions.cache.get('🎉');
-                let rawParticipants = new Collection();
-                if (reaction) {
-                    try {
-                        rawParticipants = await reaction.users.fetch(); 
-                        console.log(`[FIX DEBUG] rawParticipants fetched: ${rawParticipants.size} users.`);
-                    } catch (fetchError) {
-                        console.error(`[FIX ERROR] 抽選 ${messageId} のリアクションユーザーのフェッチに失敗:`, fetchError);
-                        rawParticipants = new Collection(); 
-                    }
-                }
                 
-                // ボットを除外した上でユーザーIDの配列として抽出
-                const validParticipantIds = rawParticipants.filter(user => !user.bot).map(user => user.id);
-                console.log(`[FIX DEBUG] validParticipantIds (non-bot): ${validParticipantIds.length} users:`, validParticipantIds);
+                // データベースからgiveawayオブジェクトを取得し、そのparticipants配列を直接使用
+                // getActiveGiveawaysはキャッシュから取得するため、念のためDBから最新のparticipantsを取得
+                const dbGiveawayResult = await cacheDB.query("SELECT participants FROM giveaways WHERE message_id = $1", [messageId]);
+                const validParticipantIds = dbGiveawayResult.rows[0]?.participants || [];
+
+                console.log(`[FIX DEBUG] validParticipantIds (from DB): ${validParticipantIds.length} users:`, validParticipantIds);
                 
+                // 古いメッセージを編集して、新しいメッセージへの誘導と過去のEmbed/コンポーネントをクリア
                 await oldMessage.edit({ content: '⚠️ **この抽選は不具合のため、新しいメッセージに移動しました。**', embeds: [], components: [] });
                 // 古いgiveawayのstatusを'CANCELLED'に更新
                 await cacheDB.query("UPDATE giveaways SET status = 'CANCELLED' WHERE message_id = $1", [messageId]);
@@ -319,13 +312,14 @@ export default {
                 // 新しいEmbedを、データベースの抽選情報とボットの標準形式に基づいてゼロから構築
                 const newEmbed = new EmbedBuilder()
                     .setTitle(`🎉 景品: ${giveaway.prize}`) // データベースの賞品名を使用
-                    .setDescription(`下のボタンを押して参加しよう！\n**終了日時: <t:${Math.floor(finalEndTime.getTime() / 1000)}:F>**`) // 丸められた終了日時をDiscordのタイムスタンプ形式でフォーマット
+                    // 丸められた終了日時をDiscordのタイムスタンプ形式でフォーマット
+                    .setDescription(`下のボタンを押して参加しよう！\n**終了日時: <t:${Math.floor(finalEndTime.getTime() / 1000)}:F>**`)
                     .setColor(0x5865F2) // 標準のDiscord Blurple色
                     .setTimestamp(finalEndTime) // 丸められた終了日時を使用
 
                     .addFields(
                         { name: '当選者数', value: `${giveaway.winner_count}名`, inline: true }, // データベースの当選者数を使用
-                        { name: '参加者', value: `${validParticipantIds.length}名`, inline: true }, // 収集した参加者数を使用
+                        { name: '参加者', value: `${validParticipantIds.length}名`, inline: true }, // DBから取得した参加者数を使用
                         { name: '主催者', value: oldMessage.embeds[0]?.fields?.[2]?.value || `${interaction.user}` } // 元のEmbedから主催者を取得、なければコマンド実行ユーザー
                     );
 
