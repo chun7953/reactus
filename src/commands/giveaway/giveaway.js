@@ -265,8 +265,6 @@ export default {
                 // getActiveGiveawaysはキャッシュから取得するため、念のためDBから最新のparticipantsを取得
                 const dbGiveawayResult = await cacheDB.query("SELECT participants FROM giveaways WHERE message_id = $1", [messageId]);
                 const validParticipantIds = dbGiveawayResult.rows[0]?.participants || [];
-
-                console.log(`[FIX DEBUG] validParticipantIds (from DB): ${validParticipantIds.length} users:`, validParticipantIds);
                 
                 // 古いメッセージを編集して、新しいメッセージへの誘導と過去のEmbed/コンポーネントをクリア
                 await oldMessage.edit({ content: '⚠️ **この抽選は不具合のため、新しいメッセージに移動しました。**', embeds: [], components: [] });
@@ -345,7 +343,6 @@ export default {
 
                 // 新しい抽選をデータベースに挿入する際に、取得した参加者リストを渡す
                 const sql = 'INSERT INTO giveaways (message_id, guild_id, channel_id, prize, winner_count, end_time, participants) VALUES ($1, $2, $3, $4, $5, $6, $7)';
-                console.log(`[FIX DEBUG] Inserting new giveaway with participants: ${validParticipantIds.length} users.`);
                 await cacheDB.query(sql, [newMessage.id, giveaway.guild_id, giveaway.channel_id, giveaway.prize, giveaway.winner_count, finalEndTime, validParticipantIds]);
                 
                 await interaction.editReply(`✅ 抽選を作り直しました！`); 
