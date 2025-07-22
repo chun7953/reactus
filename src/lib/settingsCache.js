@@ -8,7 +8,7 @@ const giveawayCache = new Map();
 const scheduledGiveawayCache = new Map();
 
 export async function initializeCache() {
-    console.log('[Cache] 全設定のキャッシュを開始します...');
+ //   console.log('[Cache] 全設定のキャッシュを開始します...');
     const pool = await initializeDatabase();
     
     reactionCache.clear();
@@ -52,7 +52,7 @@ export async function initializeCache() {
         scheduledGiveawayCache.get(sg.guild_id).push(sg);
     }
     
-    console.log(`[Cache] キャッシュ完了 (リアクション: ${reactions.length}件, アナウンス: ${announcements.length}件, モニター: ${monitors.length}件, サーバー設定: ${configs.length}件, 進行中Giveaway: ${giveaways.length}件, 予約Giveaway: ${scheduledGiveaways.length}件)`);
+  //  console.log(`[Cache] キャッシュ完了 (リアクション: ${reactions.length}件, アナウンス: ${announcements.length}件, モニター: ${monitors.length}件, サーバー設定: ${configs.length}件, 進行中Giveaway: ${giveaways.length}件, 予約Giveaway: ${scheduledGiveaways.length}件)`);
 }
 
 export function getReactionSettings(guildId) { return reactionCache.get(guildId) || []; }
