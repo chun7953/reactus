@@ -1,3 +1,5 @@
+// src/commands/utility/listsettings.js
+
 import { SlashCommandBuilder, PermissionsBitField, MessageFlags } from 'discord.js';
 import { get } from '../../lib/settingsCache.js';
 
@@ -12,9 +14,9 @@ export default {
         try {
             let response = '### ⚙️ 現在のサーバー設定一覧\n';
             
-            const mainCal = get.guildConfig(guild.id);
-            if (mainCal && mainCal.main_calendar_id) {
-                response += `**メインカレンダー**: \`${mainCal.main_calendar_id}\`\n\n`;
+            const config = get.guildConfig(guild.id);
+            if (config && config.main_calendar_id) {
+                response += `**メインカレンダー**: \`${config.main_calendar_id}\`\n\n`;
             } else {
                 response += '**メインカレンダー**: 未設定\n\n';
             }

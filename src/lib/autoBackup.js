@@ -1,7 +1,8 @@
-import { initializeSheetsAPI } from './sheetsAPI.js';
-import { initializeDatabase } from '../db/database.js';
+// src/lib/autoBackup.js
 
-// --- スプレッドシート更新用のヘルパー関数 ---
+import { initializeSheetsAPI } from './sheetsAPI.js';
+import { getDBPool } from './settingsCache.js';
+
 async function updateSheet(sheets, auth, spreadsheetId, sheetName, range, values) {
     try {
         const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId, auth });
@@ -11,7 +12,7 @@ async function updateSheet(sheets, auth, spreadsheetId, sheetName, range, values
             });
         }
         await sheets.spreadsheets.values.clear({ spreadsheetId, auth, range: `${sheetName}!${range}` });
-        if (values.length > 0) {
+        if (values.length > 0) { // ヘッダーのみの場合は書き込まない
             await sheets.spreadsheets.values.update({
                 spreadsheetId, auth, range: `${sheetName}!A1`, valueInputOption: 'RAW', requestBody: { values },
             });
@@ -22,7 +23,6 @@ async function updateSheet(sheets, auth, spreadsheetId, sheetName, range, values
     }
 }
 
-// ★★★これが、全てのコマンドから呼び出されるバックアップの本体です★★★
 export async function triggerAutoBackup(guildId) {
     if (!guildId) {
         console.error("Auto-backup triggered without guildId.");
@@ -30,7 +30,7 @@ export async function triggerAutoBackup(guildId) {
     }
     console.log(`Triggering auto-backup for guild: ${guildId}`);
     try {
-        const pool = await initializeDatabase();
+        const pool = await getDBPool();
         const { auth, sheets, spreadsheetId } = await initializeSheetsAPI();
 
         // Reactions
@@ -53,14 +53,14 @@ export async function triggerAutoBackup(guildId) {
 
         // Main Calendar Configs
         const configs = (await pool.query('SELECT * FROM guild_configs WHERE guild_id = $1', [guildId])).rows;
-        const configValues = configs.map(c => [c.guild_id, c.main_calendar_id]);
-        configValues.unshift(['guild_id', 'main_calendar_id']);
-        await updateSheet(sheets, auth, spreadsheetId, `MainCalendars_${guildId}`, 'A1:B', configValues);
+        const configValues = configs.map(c => [c.guild_id, c.main_calendar_id, c.giveaway_manager_roles]);
+        configValues.unshift(['guild_id', 'main_calendar_id', 'giveaway_manager_roles']);
+        await updateSheet(sheets, auth, spreadsheetId, `GuildConfigs_${guildId}`, 'A1:C', configValues);
         
         console.log(`Auto-backup for guild ${guildId} completed successfully.`);
-        return true; // 成功
+        return true;
     } catch (error) {
         console.error(`Error during auto-backup for guild ${guildId}:`, error);
-        return false; // 失敗
+        return false;
     }
 }

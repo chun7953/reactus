@@ -1,3 +1,5 @@
+// src/commands/admin/backup.js
+
 import { SlashCommandBuilder, PermissionsBitField, MessageFlags } from 'discord.js';
 import { triggerAutoBackup } from '../../lib/autoBackup.js';
 

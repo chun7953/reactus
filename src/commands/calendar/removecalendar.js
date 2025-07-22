@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { triggerAutoBackup } from '../../lib/autoBackup.js';
-import { removeCalendarMonitor, getDBPool } from '../../lib/settingsCache.js';
+import { cache, getDBPool } from '../../lib/settingsCache.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -22,8 +22,7 @@ export default {
             const res = await pool.query(sql, [guildId, channelId, triggerKeyword]);
 
             if (res.rowCount > 0) {
-                // キャッシュを更新
-                removeCalendarMonitor(guildId, channelId, triggerKeyword);
+                cache.removeCalendarMonitor(guildId, channelId, triggerKeyword);
                 
                 const backupSuccess = await triggerAutoBackup(guildId);
                 const backupMessage = backupSuccess ? "設定は自動でバックアップされました。" : "注意: 設定のバックアップに失敗しました。";
