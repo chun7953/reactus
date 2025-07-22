@@ -100,3 +100,14 @@ Reactusは、Discordサーバーの運営を効率化し、コミュニティ活
 ### 管理者向け機能
 -   `/backup`: 全ての設定を、今すぐ強制的にGoogleスプレッドシートにバックアップします。
 -   `/restore`: Googleスプレッドシートから全ての設定を復元（上書き）します。
+
+---
+
+## ✨ 謝辞 (Acknowledgements)
+
+このボットの抽選機能は、[Androz2091氏が開発したGiveawayBot](https://github.com/Androz2091/giveaways-bot)を大いに参考にしています。素晴らしいオープンソースプロジェクトに感謝します。
+GiveawayBotは Apache License 2.0 の下で公開されています。
+
+## 📜 ライセンス
+
+このプロジェクトは ISC License の下で公開されています。プロジェクトのルートにある `LICENSE` ファイルで詳細を確認できます。
