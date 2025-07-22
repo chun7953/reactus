@@ -1,4 +1,4 @@
-// src/lib/taskMonitor.js
+// src/lib/taskMonitor.js (自動クリーンアップ機能追加版)
 
 import { google } from 'googleapis';
 import { initializeSheetsAPI } from './sheetsAPI.js';
@@ -254,11 +254,34 @@ async function checkScheduledGiveaways(client) {
     }
 }
 
+// ★ ここから新しい関数を追加
+async function cleanupGhostGiveaways() {
+    const pool = await getDBPool();
+    try {
+        const result = await pool.query(
+            "SELECT message_id, guild_id FROM giveaways WHERE status = 'RUNNING' AND end_time < NOW()"
+        );
+        if (result.rowCount > 0) {
+            console.log(`[TaskMonitor] 古い抽選データ ${result.rowCount}件 をクリーンアップします...`);
+            for (const row of result.rows) {
+                await pool.query("UPDATE giveaways SET status = 'ENDED' WHERE message_id = $1", [row.message_id]);
+                // キャッシュからも削除
+                cache.removeGiveaway(row.guild_id, row.message_id);
+            }
+            console.log(`[TaskMonitor] クリーンアップ完了。`);
+        }
+    } catch (error) {
+        console.error('[TaskMonitor] 古い抽選データのクリーンアップ中にエラー:', error);
+    }
+}
+// ★ ここまで
+
 let isRunning = false;
 async function runTasks(client) {
     if (isRunning) return;
     isRunning = true;
     try {
+        await cleanupGhostGiveaways(); // ★ 最初にクリーンアップを実行
         await checkCalendarEvents(client);
         await checkFinishedGiveaways(client);
         await checkScheduledGiveaways(client);
