@@ -1,4 +1,4 @@
-// src/lib/taskMonitor.js (履歴保持期間を2週間に延長)
+// src/lib/taskMonitor.js (自動メンテナンス機能 強化版)
 
 import { google } from 'googleapis';
 import { initializeSheetsAPI } from './sheetsAPI.js';
@@ -27,8 +27,6 @@ async function checkCalendarEvents(client) {
         const { auth } = await initializeSheetsAPI();
         const calendar = google.calendar({ version: 'v3', auth });
         const pool = await getDBPool();
-        
-        // ★ 修正: 古い通知済みイベントIDの削除期間を14日に延長
         await pool.query("DELETE FROM notified_events WHERE notified_at < NOW() - INTERVAL '14 days'");
         
         const now = new Date();
@@ -186,9 +184,22 @@ async function checkFinishedGiveaways(client) {
     for (const giveaway of finishedGiveaways) {
         try {
             const channel = await client.channels.fetch(giveaway.channel_id).catch(() => null);
-            if (!channel) { await pool.query("UPDATE giveaways SET status = 'ERRORED' WHERE message_id = $1", [giveaway.message_id]); cache.removeGiveaway(giveaway.guild_id, giveaway.message_id); continue; }
+            // ★ 修正: チャンネルが見つからない場合もエラーとして扱う
+            if (!channel) {
+                console.log(`[TaskMonitor] 抽選 ${giveaway.message_id} のチャンネルが見つからないため、エラーとして処理します。`);
+                await pool.query("UPDATE giveaways SET status = 'ERRORED' WHERE message_id = $1", [giveaway.message_id]);
+                cache.removeGiveaway(giveaway.guild_id, giveaway.message_id);
+                continue;
+            }
+            
             const message = await channel.messages.fetch(giveaway.message_id).catch(() => null);
-            if (!message) { await pool.query("UPDATE giveaways SET status = 'ERRORED' WHERE message_id = $1", [giveaway.message_id]); cache.removeGiveaway(giveaway.guild_id, giveaway.message_id); continue; }
+            // ★ 修正: メッセージが手動で削除されていた場合、エラーとして記録し、キャッシュから消す
+            if (!message) {
+                console.log(`[TaskMonitor] 抽選メッセージ ${giveaway.message_id} が見つからないため（手動削除の可能性）、エラーとして処理します。`);
+                await pool.query("UPDATE giveaways SET status = 'ERRORED' WHERE message_id = $1", [giveaway.message_id]);
+                cache.removeGiveaway(giveaway.guild_id, giveaway.message_id);
+                continue;
+            }
             
             const participantsResult = await pool.query("SELECT participants FROM giveaways WHERE message_id = $1", [giveaway.message_id]);
             const participants = participantsResult.rows[0]?.participants || [];
@@ -223,11 +234,20 @@ async function checkFinishedGiveaways(client) {
 async function checkScheduledGiveaways(client) {
     const now = new Date();
     const scheduledGiveaways = get.allScheduledGiveaways();
-    const dueOneTime = scheduledGiveaways.filter(g => new Date(g.start_time) <= now); 
+    const dueGiveaways = scheduledGiveaways.filter(g => new Date(g.start_time) <= now); 
     const pool = await getDBPool();
 
-    for (const scheduled of dueOneTime) {
+    for (const scheduled of dueGiveaways) {
         try {
+            // ★ 修正: 開始予定時刻から1時間以上経過していたら、自動でキャンセルする
+            const startTime = new Date(scheduled.start_time);
+            if (now.getTime() - startTime.getTime() > 60 * 60 * 1000) {
+                console.log(`[TaskMonitor] 予約抽選「${scheduled.prize}」(ID: ${scheduled.id})は開始時刻を1時間以上過ぎているため、自動的にキャンセルします。`);
+                await pool.query('DELETE FROM scheduled_giveaways WHERE id = $1', [scheduled.id]); 
+                cache.removeScheduledGiveaway(scheduled.guild_id, scheduled.id);
+                continue;
+            }
+
             const channel = await client.channels.fetch(scheduled.giveaway_channel_id).catch(() => null);
             if (!channel) { 
                 await pool.query('DELETE FROM scheduled_giveaways WHERE id = $1', [scheduled.id]); 
