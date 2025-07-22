@@ -7,7 +7,6 @@ import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'disc
 import cronParser from 'cron-parser';
 
 async function checkCalendarEvents(client) {
-    // console.log('[TaskMonitor] Checking Google Calendar events...'); // ログ削除
     const monitors = await getMonitors();
     if (monitors.length === 0) return;
     try {
@@ -30,10 +29,10 @@ async function checkCalendarEvents(client) {
 
                     const eventText = `${event.summary || ''} ${event.description || ''}`;
                     
-                    // --- カレンダー連携Giveawayの自動作成 ---
+                    // --- カレンダー連携抽選の自動作成 ---
                     if (eventText.includes('【ラキショ】')) {
                         await pool.query('INSERT INTO notified_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING', [event.id]);
-                        console.log(`[TaskMonitor] Giveaway event found: ${event.summary}`); // このログは残します
+                        console.log(`[TaskMonitor] 抽選イベントを検出: ${event.summary}`);
                         try {
                             const descriptionLines = (event.description || '').split('\n').map(line => line.trim()).filter(line => line.length > 0);
                             let prizesToCreate = [];
@@ -62,11 +61,10 @@ async function checkCalendarEvents(client) {
                                 }
                             }
 
-                            // 既存のメインキーワード以外のサマリーから賞品を抽出
                             let mainSummaryPrize = (event.summary || 'プレゼント').replace('【ラキショ】', '').trim();
-                            if (mainSummaryPrize && prizesToCreate.length === 0) { // もしdescriptionから景品が抽出されなかった場合、summaryを使う
-                                prizesToCreate.push({ prize: mainSummaryPrize, winnerCount: 1 }); // デフォルト当選者数1
-                            } else if (prizesToCreate.length === 0) { // summaryからも景品が抽出されなかった場合の最終Fallback
+                            if (mainSummaryPrize && prizesToCreate.length === 0) {
+                                prizesToCreate.push({ prize: mainSummaryPrize, winnerCount: 1 });
+                            } else if (prizesToCreate.length === 0) {
                                 prizesToCreate.push({ prize: '素敵なプレゼント', winnerCount: 1 });
                             }
                             
@@ -87,7 +85,7 @@ async function checkCalendarEvents(client) {
                                     }
 
                                     const giveawayEmbed = new EmbedBuilder()
-                                        .setTitle(`🎉 Giveaway: ${prizeInfo.prize}`)
+                                        .setTitle(`🎉 景品: ${prizeInfo.prize}`)
                                         .setDescription(descriptionText)
                                         .addFields({ name: '当選者数', value: `${prizeInfo.winnerCount}名`, inline: true })
                                         .setColor(0x5865F2)
@@ -99,19 +97,23 @@ async function checkCalendarEvents(client) {
                                     const messageContent = finalMentions ? `${finalMentions}` : '';
                                     
                                     const message = await giveawayChannel.send({ content: messageContent, embeds: [giveawayEmbed], components: [row] });
+                                    
+                                    // メッセージIDをEmbedのフッターに追加 (再編集)
+                                    giveawayEmbed.setFooter({ text: `メッセージID: ${message.id}` });
+                                    await message.edit({ embeds: [giveawayEmbed], components: [row] });
+
                                     const sql = 'INSERT INTO giveaways (message_id, guild_id, channel_id, prize, winner_count, end_time) VALUES ($1, $2, $3, $4, $5, $6)';
                                     await cacheDB.query(sql, [message.id, monitor.guild_id, giveawayChannel.id, prizeInfo.prize, prizeInfo.winnerCount, endTime]);
-                                    console.log(`Auto-created giveaway "${prizeInfo.prize}" in channel ${giveawayChannel.id}.`); // このログは残します
+                                    console.log(`カレンダーから自動作成された抽選「${prizeInfo.prize}」がチャンネル ${giveawayChannel.id} で開始されました。`);
                                 }
                             }
-                        } catch (e) { console.error(`Failed to auto-create giveaway from calendar event ${event.id}:`, e); }
-                        continue; // Giveawayとして処理したので、通常の通知はしない
+                        } catch (e) { console.error(`カレンダーイベント ${event.id} からの自動抽選作成に失敗:`, e); }
+                        continue;
                     }
 
                     // --- 通常のカレンダー通知 ---
                     if (eventText.includes(`【${monitor.trigger_keyword}】`)) {
                         await pool.query('INSERT INTO notified_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING', [event.id]);
-                        // console.log(`[CalendarMonitor] 検出イベント: ${event.summary} (ID: ${event.id})`); // ログ削除
                         const channel = await client.channels.fetch(monitor.channel_id).catch(() => null);
                         if (!channel) continue;
                         let allMentions = new Set();
@@ -131,11 +133,10 @@ async function checkCalendarEvents(client) {
                 }
             } catch (calError) { console.error(`カレンダー(ID: ${monitor.calendar_id})の取得中にエラー:`, calError.message); }
         }
-    } catch (error) { console.error('[TaskMonitor] Error during calendar check:', error); }
+    } catch (error) { console.error('[TaskMonitor] カレンダーチェック中に予期せぬエラーが発生しました:', error); }
 }
 
 async function checkFinishedGiveaways(client) {
-    // console.log('[TaskMonitor] Checking for finished giveaways...'); // ログ削除
     const now = new Date();
     const activeGiveaways = getAllActiveGiveaways();
     const finishedGiveaways = activeGiveaways.filter(g => new Date(g.end_time) <= now);
@@ -157,7 +158,7 @@ async function checkFinishedGiveaways(client) {
             }
             
             const winnerMentions = winners.map(id => `<@${id}>`).join(' ');
-            const resultEmbed = new EmbedBuilder().setTitle(`🎉 Giveaway終了: ${giveaway.prize}`).setColor(0x2ECC71).setTimestamp(new Date(giveaway.end_time));
+            const resultEmbed = new EmbedBuilder().setTitle(`🎉 抽選終了: ${giveaway.prize}`).setColor(0x2ECC71).setTimestamp(new Date(giveaway.end_time));
             if (winners.length > 0) {
                 resultEmbed.setDescription(`**当選者:**\n${winnerMentions}\n\nおめでとうございます！🎉`);
             } else {
@@ -167,22 +168,19 @@ async function checkFinishedGiveaways(client) {
             const endedEmbed = EmbedBuilder.from(message.embeds[0]).setDescription(`**終了しました**\n参加者: ${participants.length}名\n当選者: ${winnerMentions || 'なし'}`).setColor(0x95A5A6);
             await message.edit({ embeds: [endedEmbed], components: [] });
             await cacheDB.query("UPDATE giveaways SET status = 'ENDED', winners = $1 WHERE message_id = $2", [winners, giveaway.message_id]);
-            console.log(`Giveaway for "${giveaway.prize}" ended. Winners announced.`); // このログは残します
+            console.log(`抽選「${giveaway.prize}」が終了しました。当選者が発表されました。`);
         } catch (error) {
-            console.error(`Error processing giveaway ${giveaway.message_id}:`, error);
+            console.error(`抽選 ${giveaway.message_id} の処理中にエラー:`, error);
             await cacheDB.query("UPDATE giveaways SET status = 'ERRORED' WHERE message_id = $1", [giveaway.message_id]);
         }
     }
 }
 
 async function checkScheduledGiveaways(client) {
-    // console.log('[TaskMonitor] Checking for scheduled giveaways...'); // ログ削除
     const now = new Date();
     const scheduledGiveaways = getAllScheduledGiveaways();
     
-    // 定期抽選 (schedule_cronがあるもの) は処理しないようにフィルタリング
     const dueOneTime = scheduledGiveaways.filter(g => !g.schedule_cron && new Date(g.start_time) <= now);
-    // const dueRecurring = scheduledGiveaways.filter(g => g.schedule_cron); // この行を削除、または以下のforループごと削除
 
     for (const scheduled of dueOneTime) {
         try {
@@ -194,18 +192,21 @@ async function checkScheduledGiveaways(client) {
             } else {
                 endTime = new Date(Date.now() + scheduled.duration_hours * 60 * 60 * 1000);
             }
-            const giveawayEmbed = new EmbedBuilder().setTitle(`🎉 Giveaway: ${scheduled.prize}`).setDescription(`リアクションを押して参加しよう！\n**終了日時: <t:${Math.floor(endTime.getTime() / 1000)}:F>**`).addFields({ name: '当選者数', value: `${scheduled.winner_count}名`, inline: true }).setColor(0x5865F2).setTimestamp(endTime);
+            const giveawayEmbed = new EmbedBuilder().setTitle(`🎉 景品: ${scheduled.prize}`).setDescription(`リアクションを押して参加しよう！\n**終了日時: <t:${Math.floor(endTime.getTime() / 1000)}:F>**`).addFields({ name: '当選者数', value: `${scheduled.winner_count}名`, inline: true }).setColor(0x5865F2).setTimestamp(endTime);
             const participateButton = new ButtonBuilder().setCustomId('giveaway_participate').setLabel('参加する').setStyle(ButtonStyle.Primary).setEmoji('🎉');
             const row = new ActionRowBuilder().addComponents(participateButton);
             const message = await channel.send({ embeds: [giveawayEmbed], components: [row] });
+            
+            // メッセージIDをEmbedのフッターに追加 (再編集)
+            giveawayEmbed.setFooter({ text: `メッセージID: ${message.id}` });
+            await message.edit({ embeds: [giveawayEmbed], components: [row] });
+
             const sql = 'INSERT INTO giveaways (message_id, guild_id, channel_id, prize, winner_count, end_time) VALUES ($1, $2, $3, $4, $5, $6)';
             await cacheDB.query(sql, [message.id, scheduled.guild_id, channel.id, scheduled.prize, scheduled.winner_count, endTime]);
             await cacheDB.query('DELETE FROM scheduled_giveaways WHERE id = $1', [scheduled.id]);
-            console.log(`Scheduled giveaway "${scheduled.prize}" has been started in channel ${channel.id}.`); // このログは残します
-        } catch (error) { console.error(`Error processing scheduled giveaway ${scheduled.id}:`, error); }
+            console.log(`予約された抽選「${scheduled.prize}」がチャンネル ${channel.id} で開始されました。`);
+        } catch (error) { console.error(`予約された抽選 ${scheduled.id} の処理中にエラー:`, error); }
     }
-    // for (const scheduled of dueRecurring) { ... } // このブロックを削除
-    // console.log(`Sent confirmation request for recurring giveaway ${scheduled.id}`); // ログ削除
 }
 
 function getScheduleText(cron) {
@@ -225,7 +226,7 @@ async function runTasks(client) {
         await checkCalendarEvents(client);
         await checkFinishedGiveaways(client);
         await checkScheduledGiveaways(client);
-    } catch (error) { console.error('[TaskMonitor] An unexpected error occurred in the main task loop:', error); }
+    } catch (error) { console.error('[TaskMonitor] メインタスクループ中に予期せぬエラーが発生しました:', error); }
     finally { isRunning = false; }
 }
 
@@ -238,7 +239,6 @@ export function startMonitoring(client) {
         const nextRunTime = new Date(now);
         nextRunTime.setMinutes(nextRunMinute, 0, 0);
         const delay = nextRunTime.getTime() - now.getTime();
-        // console.log(`[TaskMonitor] Next run scheduled for ${nextRunTime.toLocaleString('ja-JP')} (in ${Math.round(delay/1000)}s)`); // ログ削除
         setTimeout(() => {
             const runAndSchedule = () => runTasks(client);
             runAndSchedule();
@@ -246,5 +246,5 @@ export function startMonitoring(client) {
         }, delay);
     };
     scheduleNextRun();
-    console.log('✅ Master Task Monitoring service started.');
+    console.log('✅ マスタータスク監視サービスを開始しました。');
 }
