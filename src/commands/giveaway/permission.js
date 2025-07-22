@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, MessageFlags, PermissionsBitField } from 'discord.js';
-import { cacheDB, getGuildConfig } from '../../lib/settingsCache.js';
+import { getGuildConfig, setGuildConfig, getDBPool } from '../../lib/settingsCache.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -29,16 +29,23 @@ export default {
         const role = interaction.options.getRole('role');
         const config = getGuildConfig(interaction.guildId);
         const managerRoles = new Set(config?.giveaway_manager_roles || []);
+        const pool = await getDBPool();
 
         if (subcommand === 'add') {
             if (managerRoles.has(role.id)) {
                 return interaction.editReply(`ロール ${role} は既に登録されています。`);
             }
             managerRoles.add(role.id);
-            await cacheDB.query(
+            const newRoles = Array.from(managerRoles);
+            
+            await pool.query(
                 'INSERT INTO guild_configs (guild_id, giveaway_manager_roles) VALUES ($1, $2) ON CONFLICT (guild_id) DO UPDATE SET giveaway_manager_roles = EXCLUDED.giveaway_manager_roles',
-                [interaction.guildId, Array.from(managerRoles)]
+                [interaction.guildId, newRoles]
             );
+            
+            // キャッシュを更新
+            setGuildConfig({ ...config, giveaway_manager_roles: newRoles });
+
             await interaction.editReply(`✅ ロール ${role} にGiveawayの管理権限を付与しました。`);
 
         } else if (subcommand === 'remove') {
@@ -46,7 +53,13 @@ export default {
                 return interaction.editReply(`ロール ${role} は登録されていません。`);
             }
             managerRoles.delete(role.id);
-            await cacheDB.query('UPDATE guild_configs SET giveaway_manager_roles = $1 WHERE guild_id = $2', [Array.from(managerRoles), interaction.guildId]);
+            const newRoles = Array.from(managerRoles);
+
+            await pool.query('UPDATE guild_configs SET giveaway_manager_roles = $1 WHERE guild_id = $2', [newRoles, interaction.guildId]);
+            
+            // キャッシュを更新
+            setGuildConfig({ ...config, giveaway_manager_roles: newRoles });
+
             await interaction.editReply(`✅ ロール ${role} からGiveawayの管理権限を削除しました。`);
 
         } else if (subcommand === 'list') {

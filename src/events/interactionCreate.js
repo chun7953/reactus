@@ -1,6 +1,6 @@
 import { Events, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle, Collection, EmbedBuilder } from 'discord.js';
 import { logCommandError } from '../lib/logger.js';
-import { getAllScheduledGiveaways, cacheDB } from '../lib/settingsCache.js';
+import { getDBPool, updateGiveaway, getAllScheduledGiveaways } from '../lib/settingsCache.js';
 import { hasGiveawayPermission } from '../lib/permissionUtils.js';
 
 export default {
@@ -39,27 +39,30 @@ export default {
         else if (interaction.isButton()) {
             if (interaction.customId.startsWith('giveaway_participate')) {
                 await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
-                const result = await cacheDB.query("SELECT prize, participants, winner_count FROM giveaways WHERE message_id = $1", [interaction.message.id]);
+                const pool = await getDBPool();
+                const result = await pool.query("SELECT prize, participants, winner_count FROM giveaways WHERE message_id = $1 AND status = 'RUNNING'", [interaction.message.id]);
                 const giveaway = result.rows[0];
 
                 if (!giveaway) return interaction.editReply('このGiveawayは終了またはキャンセルされました。');
 
                 const participants = new Set(giveaway.participants || []);
+                let newParticipantsArray;
                 
-                // 主催者フィールドの値を安全に取得し、フォールバックを設定
-                // interaction.message.embeds[0]が存在し、fields配列があり、その3番目の要素にvalueプロパティがあればそれを使用
-                // なければボットのユーザー名を表示
                 const currentHostValue = interaction.message.embeds[0]?.fields?.[2]?.value || `ボット(${interaction.client.user.username})`; 
                 
                 if (participants.has(interaction.user.id)) {
                     participants.delete(interaction.user.id);
-                    await cacheDB.query("UPDATE giveaways SET participants = $1 WHERE message_id = $2", [Array.from(participants), interaction.message.id]);
+                    newParticipantsArray = Array.from(participants);
+                    await pool.query("UPDATE giveaways SET participants = $1 WHERE message_id = $2", [newParticipantsArray, interaction.message.id]);
+                    updateGiveaway(interaction.guildId, interaction.message.id, { participants: newParticipantsArray });
                     const newEmbed = EmbedBuilder.from(interaction.message.embeds[0]).setFields({ name: '当選者数', value: `${giveaway.winner_count}名`, inline: true }, { name: '参加者', value: `${participants.size}名`, inline: true }, { name: '主催者', value: currentHostValue });
                     await interaction.message.edit({ embeds: [newEmbed] });
                     await interaction.editReply('✅ 参加を取り消しました。');
                 } else {
                     participants.add(interaction.user.id);
-                    await cacheDB.query("UPDATE giveaways SET participants = $1 WHERE message_id = $2", [Array.from(participants), interaction.message.id]);
+                    newParticipantsArray = Array.from(participants);
+                    await pool.query("UPDATE giveaways SET participants = $1 WHERE message_id = $2", [newParticipantsArray, interaction.message.id]);
+                    updateGiveaway(interaction.guildId, interaction.message.id, { participants: newParticipantsArray });
                     const newEmbed = EmbedBuilder.from(interaction.message.embeds[0]).setFields({ name: '当選者数', value: `${giveaway.winner_count}名`, inline: true }, { name: '参加者', value: `${participants.size}名`, inline: true }, { name: '主催者', value: currentHostValue });
                     await interaction.message.edit({ embeds: [newEmbed] });
                     await interaction.editReply('✅ 抽選に参加しました！');
@@ -67,53 +70,6 @@ export default {
                 return;
             }
 
-            // --- Giveaway参加取り消し実行ボタン ---
-            if (interaction.customId.startsWith('giveaway_withdraw_')) {
-                const messageId = interaction.customId.split('_')[2];
-                if (interaction.message.id !== messageId) {
-                    return interaction.update({ content: 'エラーが発生しました。', components: [] });
-                }
-                const reaction = interaction.message.reactions.cache.get('🎉');
-                if (reaction) {
-                    await reaction.users.remove(interaction.user.id).catch(() => {});
-                }
-                await interaction.update({ content: '✅ 参加を取り消しました。', components: [] });
-                return;
-            }
-
-            // --- 定期Giveawayの承認ボタン ---
-            if (interaction.customId.startsWith('giveaway_confirm_start_')) {
-                const scheduledId = parseInt(interaction.customId.split('_')[3], 10);
-                const scheduled = getAllScheduledGiveaways().find(g => g.id === scheduledId);
-                if (!scheduled) { return interaction.update({ content: 'この承認依頼は既に対応済みか、見つかりませんでした。', embeds: [], components: [] }); }
-                if (!interaction.member.roles.cache.has(scheduled.confirmation_role_id)) { return interaction.reply({ content: '⚠️ このボタンを操作する権限がありません。', flags: [MessageFlags.Ephemeral] }); }
-                try {
-                    const giveawayChannel = await interaction.client.channels.fetch(scheduled.giveaway_channel_id);
-                    const endTime = new Date(Date.now() + scheduled.duration_hours * 60 * 60 * 1000);
-                    const giveawayEmbed = new EmbedBuilder().setTitle(`🎉 Giveaway: ${scheduled.prize}`).setDescription(`リアクションを押して参加しよう！\n**終了日時: <t:${Math.floor(endTime.getTime() / 1000)}:F>**`).addFields({ name: '当選者数', value: `${scheduled.winner_count}名`, inline: true }).setColor(0x5865F2).setTimestamp(endTime);
-                    const participateButton = new ButtonBuilder().setCustomId('giveaway_participate').setLabel('参加する').setStyle(ButtonStyle.Primary).setEmoji('🎉');
-                    const row = new ActionRowBuilder().addComponents(participateButton);
-                    const message = await giveawayChannel.send({ embeds: [giveawayEmbed], components: [row] });
-                    const sql = 'INSERT INTO giveaways (message_id, guild_id, channel_id, prize, winner_count, end_time) VALUES ($1, $2, $3, $4, $5, $6)';
-                    await cacheDB.query(sql, [message.id, scheduled.guild_id, giveawayChannel.id, scheduled.prize, scheduled.winner_count, endTime]);
-                    const originalEmbed = EmbedBuilder.from(interaction.message.embeds[0]).setColor(0x2ECC71).setFooter({text: `承認者: ${interaction.user.username}`});
-                    await interaction.update({ content: `✅ **${interaction.user.username}** が承認しました。${giveawayChannel}で抽選を開始します。`, embeds: [originalEmbed], components: [] });
-                } catch(e) { console.error(e); await interaction.update({ content: '抽選の開始に失敗しました。', embeds: [], components: [] }); }
-                return;
-            }
-
-            // --- 定期Giveawayのスキップボタン ---
-            if (interaction.customId.startsWith('giveaway_confirm_skip_')) {
-                const scheduledId = parseInt(interaction.customId.split('_')[3], 10);
-                const scheduled = getAllScheduledGiveaways().find(g => g.id === scheduledId);
-                if (!scheduled) { return interaction.update({ content: 'この承認依頼は既に対応済みか、見つかりませんでした。', embeds: [], components: [] }); }
-                if (!interaction.member.roles.cache.has(scheduled.confirmation_role_id)) { return interaction.reply({ content: '⚠️ このボタンを操作する権限がありません。', flags: [MessageFlags.Ephemeral] }); }
-                const originalEmbed = EmbedBuilder.from(interaction.message.embeds[0]).setColor(0x95A5A6).setFooter({text: `スキップした人: ${interaction.user.username}`});
-                await interaction.update({ content: `❌ **${interaction.user.username}** が今回の抽選をスキップしました。`, embeds: [originalEmbed], components: [] });
-                return;
-            }
-
-            // --- CSV集計ボタン ---
             if (interaction.customId.startsWith('csvreactions_')) {
                 const messageId = interaction.customId.split('_')[1];
                 const row = new ActionRowBuilder().addComponents(
@@ -134,7 +90,7 @@ export default {
                     await exporter.execute(interaction, isPublic);
                 } catch (error) {
                     console.error('Button interaction for CSV export failed:', error);
-                    if (interaction.deferred) { await interaction.editReply({ content: '集計対象のメッセージが見つからないか、エラーが発生しました。' }); }
+                    if (interaction.deferred || interaction.replied) { await interaction.editReply({ content: '集計対象のメッセージが見つからないか、エラーが発生しました。' }); }
                     else { await interaction.reply({ content: '集計対象のメッセージが見つからないか、エラーが発生しました。', flags: [MessageFlags.Ephemeral] }); }
                 }
             }

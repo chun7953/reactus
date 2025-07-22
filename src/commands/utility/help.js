@@ -23,10 +23,20 @@ export default {
                            '`/removecalendar` - カレンダー通知設定を解除'
                 },
                 { name: 'アナウンス機能', value: '`/startannounce` - 自動アナウンスを開始\n`/stopannounce` - アナウンスを停止' },
+                {
+                    name: '抽選機能', // ★ カテゴリ名を変更
+                    value: '`/giveaway start` - 抽選を開始\n' +
+                           '`/giveaway schedule` - 抽選を予約\n' +
+                           '`/giveaway end` - 抽選を早期終了\n' +
+                           '`/giveaway reroll` - 再抽選\n' +
+                           '`/giveaway list` - 抽選一覧を表示\n' +
+                           '`/giveaway delete` - 抽選を完全削除\n' + // ★ 追加
+                           '`/giveaway-permission` - 抽選の管理権限を設定'
+                },
                 { 
                     name: 'ユーティリティ', 
-                    value: '`/poll` - 投票を作成（集計ボタン付き）\n' +
-                           '`/csvreactions` - リアクションをCSVで集計（公開/非公開を選択可）\n' +
+                    value: '`/poll` - 投票を作成\n' +
+                           '`/csvreactions` - リアクションをCSVで集計\n' +
                            '`/listsettings` - 全ての自動設定を一覧表示'
                 },
                 { name: 'その他', value: '`/feedback` - 開発サーバーのリンクを表示\n`/help` - このヘルプを表示' },

@@ -2,7 +2,7 @@ import { SlashCommandBuilder, PermissionsBitField, MessageFlags } from 'discord.
 import { initializeSheetsAPI } from '../../lib/sheetsAPI.js';
 import { google } from 'googleapis';
 import { triggerAutoBackup } from '../../lib/autoBackup.js';
-import { cacheDB } from '../../lib/settingsCache.js';
+import { setGuildConfig, getDBPool } from '../../lib/settingsCache.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -19,6 +19,7 @@ export default {
         const calendarId = options.getString('calendar_id');
 
         try {
+            // Google APIでのカレンダー存在確認
             try {
                 const { auth } = await initializeSheetsAPI();
                 const calendar = google.calendar({ version: 'v3', auth });
@@ -31,8 +32,12 @@ export default {
                 throw apiError;
             }
 
+            const pool = await getDBPool();
             const sql = `INSERT INTO guild_configs (guild_id, main_calendar_id) VALUES ($1, $2) ON CONFLICT (guild_id) DO UPDATE SET main_calendar_id = excluded.main_calendar_id`;
-            await cacheDB.query(sql, [guildId, calendarId]);
+            await pool.query(sql, [guildId, calendarId]);
+            
+            // キャッシュを更新
+            setGuildConfig({ guild_id: guildId, main_calendar_id: calendarId });
             
             const backupSuccess = await triggerAutoBackup(guildId);
             const backupMessage = backupSuccess ? "\n設定は自動でバックアップされました。" : "\n注意: 設定のバックアップに失敗しました。";

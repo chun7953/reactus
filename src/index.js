@@ -3,10 +3,8 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import config from './config.js';
-import { initializeDatabase } from './db/database.js';
 import { startServer } from './web/server.js';
-// ★★★ 読み込み元を 'calendarMonitor.js' から 'taskMonitor.js' に変更 ★★★
-import { startMonitoring } from './lib/taskMonitor.js'; 
+import { startMonitoring } from './lib/taskMonitor.js';
 import { initializeCache } from './lib/settingsCache.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -31,7 +29,7 @@ const client = new Client({
 });
 
 client.commands = new Collection();
-client.cooldowns = new Collection(); // ★ この行を追記
+client.cooldowns = new Collection();
 const commandFolders = fs.readdirSync(path.join(__dirname, 'commands'));
 for (const folder of commandFolders) {
     const commandFiles = fs.readdirSync(path.join(__dirname, 'commands', folder)).filter(file => file.endsWith('.js'));
@@ -58,8 +56,7 @@ for (const file of eventFiles) {
 (async () => {
     try {
         console.log("--- Initializing Modules ---");
-        await initializeDatabase();
-        await initializeCache(); // ★ 追記
+        await initializeCache(); // DB接続とキャッシュの初期化
         startServer();
         startMonitoring(client);
         if (!config.discord.token) {
@@ -73,6 +70,6 @@ for (const file of eventFiles) {
         process.exit(1);
     }
 })();
-// ★★★ ここから4行を追記 ★★★
+
 process.on('SIGINT', () => process.exit());
 process.on('SIGTERM', () => process.exit());

@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, PermissionsBitField, MessageFlags } from 'discord.js';
 import { triggerAutoBackup } from '../../lib/autoBackup.js';
-import { cacheDB } from '../../lib/settingsCache.js';
+import { removeAnnouncement, getDBPool } from '../../lib/settingsCache.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -12,8 +12,12 @@ export default {
         const { guildId, channelId } = interaction;
 
         try {
-            const res = await cacheDB.query('DELETE FROM announcements WHERE guild_id = $1 AND channel_id = $2', [guildId, channelId]);
+            const pool = await getDBPool();
+            const res = await pool.query('DELETE FROM announcements WHERE guild_id = $1 AND channel_id = $2', [guildId, channelId]);
             if (res.rowCount > 0) {
+                // キャッシュを更新
+                removeAnnouncement(guildId, channelId);
+
                 const backupSuccess = await triggerAutoBackup(guildId);
                 const backupMessage = backupSuccess ? "設定は自動でバックアップされました。" : "注意: 設定のバックアップに失敗しました。";
                 await interaction.editReply(`✅ このチャンネルのアナウンスを停止しました。${backupMessage}`);

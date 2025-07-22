@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, PermissionsBitField, MessageFlags } from 'discord.js';
 import { triggerAutoBackup } from '../../lib/autoBackup.js';
-import { cacheDB } from '../../lib/settingsCache.js';
+import { setAnnouncement, getDBPool } from '../../lib/settingsCache.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -17,11 +17,15 @@ export default {
         const messageContent = options.getString('message');
 
         try {
+            const pool = await getDBPool();
             const sql = `
                 INSERT INTO announcements (guild_id, channel_id, message) VALUES ($1, $2, $3)
                 ON CONFLICT (guild_id, channel_id) DO UPDATE SET message = excluded.message
             `;
-            await cacheDB.query(sql, [guildId, channel.id, messageContent]);
+            await pool.query(sql, [guildId, channel.id, messageContent]);
+            
+            // キャッシュを更新
+            setAnnouncement({ guild_id: guildId, channel_id: channel.id, message: messageContent });
 
             await channel.send(messageContent);
             

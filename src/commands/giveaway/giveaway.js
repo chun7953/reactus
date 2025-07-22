@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, MessageFlags, ChannelType, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, PermissionsBitField, Collection } from 'discord.js';
-import { cacheDB, getActiveGiveaways, getAllScheduledGiveaways } from '../../lib/settingsCache.js';
+import { getDBPool, getActiveGiveaways, getAllScheduledGiveaways, addGiveaway, updateGiveaway, removeGiveaway, addScheduledGiveaway, removeScheduledGiveaway } from '../../lib/settingsCache.js';
 import { parseDuration } from '../../lib/timeUtils.js';
 import { hasGiveawayPermission } from '../../lib/permissionUtils.js';
 
@@ -20,6 +20,14 @@ export default {
                 .addIntegerOption(option =>
                     option.setName('id')
                         .setDescription('削除したい予約抽選のID')
+                        .setRequired(true)))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('delete')
+                .setDescription('進行中または終了した抽選を完全に削除します。')
+                .addStringOption(option =>
+                    option.setName('message_id')
+                        .setDescription('削除したい抽選のメッセージID')
                         .setRequired(true)))
         .addSubcommand(subcommand => subcommand.setName('fix').setDescription('不具合のある抽選を、参加者を引き継いで作り直します。').addStringOption(option => option.setName('message_id').setDescription('不具合のある抽選のメッセージID').setRequired(true)))
         .addSubcommand(subcommand =>
@@ -49,6 +57,7 @@ export default {
         }
         
         const subcommand = interaction.options.getSubcommand();
+        const pool = await getDBPool();
 
         if (subcommand === 'start') {
             await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
@@ -70,16 +79,14 @@ export default {
                 endTime = date;
             }
 
-            // 終了時刻を最も近い未来の10分刻みに丸める関数
             const roundToNextTenMinutes = (date) => {
                 const newDate = new Date(date);
-                newDate.setSeconds(0, 0); // 秒とミリ秒をゼロにする
+                newDate.setSeconds(0, 0);
                 const minutes = newDate.getMinutes();
                 const remainder = minutes % 10;
                 if (remainder !== 0) {
                     newDate.setMinutes(minutes + (10 - remainder));
                 }
-                // 丸めた結果、現在時刻より過去になってしまった場合、現在時刻から最も近い未来の10分刻みにする
                 const now = new Date();
                 if (newDate <= now) {
                     const currentMinutes = now.getMinutes();
@@ -95,7 +102,7 @@ export default {
                 return newDate;
             };
 
-            const finalRoundedEndTime = roundToNextTenMinutes(endTime); // 丸めた終了時刻
+            const finalRoundedEndTime = roundToNextTenMinutes(endTime);
 
             const createGiveaway = async (effectiveEndTime) => {
              const giveawayEmbed = new EmbedBuilder()
@@ -113,12 +120,16 @@ export default {
             const row = new ActionRowBuilder().addComponents(participateButton);
                 try {
                     const message = await channel.send({ embeds: [giveawayEmbed], components: [row] });
-                    // メッセージIDをフッターに追加
                     giveawayEmbed.setFooter({ text: `メッセージID: ${message.id}` });
                     await message.edit({ embeds: [giveawayEmbed], components: [row] });
 
                     const sql = 'INSERT INTO giveaways (message_id, guild_id, channel_id, prize, winner_count, end_time) VALUES ($1, $2, $3, $4, $5, $6)';
-                    await cacheDB.query(sql, [message.id, interaction.guildId, channel.id, prize, winnerCount, effectiveEndTime]);
+                    await pool.query(sql, [message.id, interaction.guildId, channel.id, prize, winnerCount, effectiveEndTime]);
+                    
+                    addGiveaway({
+                        message_id: message.id, guild_id: interaction.guildId, channel_id: channel.id, prize, winner_count: winnerCount, end_time: effectiveEndTime, status: 'RUNNING', participants: []
+                    });
+                    
                     await interaction.editReply({ content: `✅ 抽選を作成しました！`, components: [] });
                 } catch (error) {
                     console.error('抽選開始に失敗:', error);
@@ -176,8 +187,9 @@ export default {
                 endTime = new Date(endTimeStr.replace(/-/g, '/') + ' GMT+0900');
                 if (isNaN(endTime.getTime()) || endTime <= startTime) { return interaction.editReply('エラー: 終了日時は、開始日時より後の正しい日時を指定してください。');}
             }
-            const sql = 'INSERT INTO scheduled_giveaways (guild_id, prize, winner_count, start_time, duration_hours, end_time, giveaway_channel_id) VALUES ($1, $2, $3, $4, $5, $6, $7)';
-            await cacheDB.query(sql, [interaction.guildId, prize, winnerCount, startTime, durationHours, endTime, channel.id]);
+            const sql = 'INSERT INTO scheduled_giveaways (guild_id, prize, winner_count, start_time, duration_hours, end_time, giveaway_channel_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *';
+            const result = await pool.query(sql, [interaction.guildId, prize, winnerCount, startTime, durationHours, endTime, channel.id]);
+            addScheduledGiveaway(result.rows[0]);
             await interaction.editReply(`✅ 抽選の予約が完了しました。\n**${startTime.toLocaleString('ja-JP')}** に、${channel} で **「${prize}」** の抽選が開始されます。`);
         } 
         else if (subcommand === 'end') {
@@ -185,32 +197,25 @@ export default {
             const messageId = interaction.options.getString('message_id');
             const giveaway = getActiveGiveaways(interaction.guildId).find(g => g.message_id === messageId);
             if (!giveaway) { return interaction.editReply('エラー: 指定されたIDの進行中抽選が見つかりません。');}
-            await cacheDB.query("UPDATE giveaways SET end_time = NOW() WHERE message_id = $1", [messageId]);
+            const newEndTime = new Date();
+            await pool.query("UPDATE giveaways SET end_time = $1 WHERE message_id = $2", [newEndTime, messageId]);
+            updateGiveaway(interaction.guildId, messageId, { end_time: newEndTime });
             await interaction.editReply(`✅ 抽選「${giveaway.prize}」を終了しました。次の監視タイミング（最大10分後）に抽選が行われます。`);
         } else if (subcommand === 'reroll') {
             await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
             const messageId = interaction.options.getString('message_id');
-            const result = await cacheDB.query("SELECT * FROM giveaways WHERE message_id = $1 AND guild_id = $2 AND status = 'ENDED'", [messageId, interaction.guildId]);
+            const result = await pool.query("SELECT * FROM giveaways WHERE message_id = $1 AND guild_id = $2 AND status = 'ENDED'", [messageId, interaction.guildId]);
             const giveaway = result.rows[0];
             if (!giveaway) { return interaction.editReply('エラー: 指定されたIDの終了済み抽選が見つかりません。');}
             try {
                 const channel = await interaction.guild.channels.fetch(giveaway.channel_id);
-                const message = await channel.messages.fetch(giveaway.message_id);
-                const reaction = message.reactions.cache.get('🎉');
-                let rawParticipants = new Collection();
-                if (reaction) {
-                    try {
-                        rawParticipants = await reaction.users.fetch(); 
-                    } catch (fetchError) {
-                        console.error(`抽選 ${messageId} のリアクションユーザーのフェッチに失敗:`, fetchError);
-                        rawParticipants = new Collection();
-                    }
-                }
-                const validParticipants = rawParticipants.filter(user => !user.bot);
-                if (validParticipants.size < giveaway.winner_count) { return interaction.editReply('エラー: 当選者数より参加者が少ないため、再抽選できません。');}
-                const winnerUsers = validParticipants.random(giveaway.winner_count);
-                const newWinners = winnerUsers.map(user => `<@${user.id}>`);
-                const newWinnerMentions = newWinners.join(' ');
+                const participants = giveaway.participants || [];
+                
+                if (participants.length < giveaway.winner_count) { return interaction.editReply('エラー: 当選者数より参加者が少ないため、再抽選できません。');}
+                
+                const shuffled = [...participants].sort(() => 0.5 - Math.random());
+                const newWinnerIds = shuffled.slice(0, giveaway.winner_count);
+                const newWinnerMentions = newWinnerIds.map(id => `<@${id}>`).join(' ');
                 
                 await channel.send({ embeds: [
                     new EmbedBuilder()
@@ -219,13 +224,13 @@ export default {
                         .setColor(0x2ECC71)
                         .setTimestamp()
                 ]});
-                await cacheDB.query("UPDATE giveaways SET winners = $1 WHERE message_id = $2", [winnerUsers.map(u => u.id), messageId]);
+                await pool.query("UPDATE giveaways SET winners = $1 WHERE message_id = $2", [newWinnerIds, messageId]);
                 await interaction.editReply('✅ 新しい当選者を再抽選しました。');
             } catch (error) { console.error('再抽選の処理中にエラー:', error); await interaction.editReply('再抽選の処理中にエラーが発生しました。'); }
         } else if (subcommand === 'list') {
             await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
             const activeGiveaways = getActiveGiveaways(interaction.guildId);
-            const scheduledGiveaways = getAllScheduledGiveaways(interaction.guildId);
+            const scheduledGiveaways = getScheduledGiveaways(interaction.guildId);
 
             if (activeGiveaways.length === 0 && scheduledGiveaways.length === 0) {
                 return interaction.editReply('現在、このサーバーで進行中または予約中の抽選はありません。');
@@ -246,10 +251,7 @@ export default {
             if (scheduledGiveaways.length > 0) {
                 let scheduledDescription = '';
                 for (const s of scheduledGiveaways.slice(0, 10)) {
-                    const startTime = new Date(s.start_time);
-                    const endTime = s.end_time ? new Date(s.end_time) : new Date(startTime.getTime() + s.duration_hours * 60 * 60 * 1000);
-                    
-                    scheduledDescription += `**${s.prize}** (ID: \`${s.id}\`)\n- 当選者数: ${s.winner_count}名\n- 開始日時: <t:${Math.floor(startTime.getTime() / 1000)}:F>\n- チャンネル: <#${s.giveaway_channel_id}>\n\n`;
+                    scheduledDescription += `**${s.prize}** (ID: \`${s.id}\`)\n- 当選者数: ${s.winner_count}名\n- 開始日時: <t:${Math.floor(new Date(s.start_time).getTime() / 1000)}:F>\n- チャンネル: <#${s.giveaway_channel_id}>\n\n`;
                 }
                 embed.addFields({ name: '⏰ 予約中の抽選', value: scheduledDescription || 'なし', inline: false });
             }
@@ -260,8 +262,9 @@ export default {
             const scheduledId = interaction.options.getInteger('id');
 
             try {
-                const result = await cacheDB.query('DELETE FROM scheduled_giveaways WHERE id = $1 AND guild_id = $2', [scheduledId, interaction.guildId]);
+                const result = await pool.query('DELETE FROM scheduled_giveaways WHERE id = $1 AND guild_id = $2', [scheduledId, interaction.guildId]);
                 if (result.rowCount > 0) {
+                    removeScheduledGiveaway(interaction.guildId, scheduledId);
                     await interaction.editReply(`✅ 予約抽選 (ID: \`${scheduledId}\`) を削除しました。`);
                 } else {
                     await interaction.editReply('エラー: 指定されたIDの予約抽選が見つかりませんでした。');
@@ -270,11 +273,36 @@ export default {
                 console.error('予約抽選の解除に失敗:', error);
                 await interaction.editReply('予約抽選の削除中にエラーが発生しました。');
             }
-        }
-        else if (subcommand === 'fix') {
+        } else if (subcommand === 'delete') {
             await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
             const messageId = interaction.options.getString('message_id');
-            const giveawayResult = await cacheDB.query("SELECT * FROM giveaways WHERE message_id = $1 AND guild_id = $2", [messageId, interaction.guildId]);
+            const giveawayResult = await pool.query("SELECT * FROM giveaways WHERE message_id = $1 AND guild_id = $2", [messageId, interaction.guildId]);
+            const giveaway = giveawayResult.rows[0];
+
+            if (!giveaway) {
+                return interaction.editReply('エラー: 指定されたIDの抽選が見つかりませんでした。');
+            }
+
+            try {
+                const channel = await interaction.client.channels.fetch(giveaway.channel_id);
+                const message = await channel.messages.fetch(messageId);
+                await message.delete();
+            } catch (error) {
+                console.log(`Giveaway message ${messageId} could not be deleted (may already be gone):`, error.message);
+            }
+
+            const deleteResult = await pool.query('DELETE FROM giveaways WHERE message_id = $1', [messageId]);
+
+            if (deleteResult.rowCount > 0) {
+                removeGiveaway(interaction.guildId, messageId);
+                await interaction.editReply(`✅ 抽選「${giveaway.prize}」(ID: \`${messageId}\`) を完全に削除しました。`);
+            } else {
+                await interaction.editReply('データベースからの削除中にエラーが発生しました。');
+            }
+        } else if (subcommand === 'fix') {
+            await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+            const messageId = interaction.options.getString('message_id');
+            const giveawayResult = await pool.query("SELECT * FROM giveaways WHERE message_id = $1 AND guild_id = $2", [messageId, interaction.guildId]);
             const giveaway = giveawayResult.rows[0];
 
             if (!giveaway) { 
@@ -289,44 +317,17 @@ export default {
                 const channel = await interaction.guild.channels.fetch(giveaway.channel_id);
                 const oldMessage = await channel.messages.fetch(messageId);
                 
-                const dbGiveawayResult = await cacheDB.query("SELECT participants FROM giveaways WHERE message_id = $1", [messageId]);
-                const validParticipantIds = dbGiveawayResult.rows[0]?.participants || [];
-
-                console.log(`[FIX DEBUG] validParticipantIds (from DB): ${validParticipantIds.length} users:`, validParticipantIds);
+                const validParticipantIds = giveaway.participants || [];
                 
                 await oldMessage.edit({ content: '⚠️ **この抽選は不具合のため、新しいメッセージに移動しました。**', embeds: [], components: [] });
-                await cacheDB.query("UPDATE giveaways SET status = 'CANCELLED' WHERE message_id = $1", [messageId]);
+                await pool.query("UPDATE giveaways SET status = 'CANCELLED' WHERE message_id = $1", [messageId]);
+                removeGiveaway(interaction.guildId, messageId);
 
                 let finalEndTime = new Date(giveaway.end_time);
-
                 if (isNaN(finalEndTime.getTime())) {
-                    console.error(`Fix command failed: Invalid end_time for giveaway ID ${giveaway.id}: ${giveaway.end_time}`);
-                    await interaction.editReply('エラー: 抽選の終了日時が不正なため、修復に失敗しました。管理者にお問い合わせください。');
-                    return;
+                    finalEndTime = new Date(Date.now() + 24 * 60 * 60 * 1000);
                 }
-
-                const now = new Date();
-                finalEndTime.setSeconds(0, 0);
-                const minutes = finalEndTime.getMinutes();
-                const remainder = minutes % 10;
-                if (remainder !== 0) {
-                    finalEndTime.setMinutes(minutes + (10 - remainder));
-                }
-
-                if (finalEndTime <= now) {
-                    const currentMinutes = now.getMinutes();
-                    const currentRemainder = currentMinutes % 10;
-                    const nextRoundedMinutes = currentMinutes + (10 - currentRemainder);
-                    
-                    const newRoundedTime = new Date(now);
-                    newRoundedTime.setMinutes(nextRoundedMinutes, 0, 0);
-                    
-                    if (newRoundedTime.getMinutes() < currentMinutes) { 
-                        newRoundedTime.setHours(newRoundedTime.getHours() + 1);
-                    }
-                    finalEndTime = newRoundedTime; 
-                }
-
+                
                 const newEmbed = new EmbedBuilder()
                     .setTitle(`🎉 景品: ${giveaway.prize}`)
                     .setDescription(`下のボタンを押して参加しよう！\n**終了日時: <t:${Math.floor(finalEndTime.getTime() / 1000)}:F>**`)
@@ -337,15 +338,6 @@ export default {
                         { name: '参加者', value: `${validParticipantIds.length}名`, inline: true },
                         { name: '主催者', value: oldMessage.embeds[0]?.fields?.[2]?.value || `${interaction.user}` }
                     );
-
-                const originalEmbedData = oldMessage.embeds[0]?.toJSON();
-                if (originalEmbedData) {
-                    if (originalEmbedData.footer) newEmbed.setFooter(originalEmbedData.footer);
-                    if (originalEmbedData.image) newEmbed.setImage(originalEmbedData.image.url);
-                    if (originalEmbedData.thumbnail) newEmbed.setThumbnail(originalEmbedData.thumbnail.url);
-                    if (originalEmbedData.url) newEmbed.setURL(originalEmbedData.url);
-                    if (originalEmbedData.author) newEmbed.setAuthor(originalEmbedData.author);
-                }
                 
                 const newButton = new ButtonBuilder().setCustomId('giveaway_participate').setLabel('参加する').setStyle(ButtonStyle.Primary).setEmoji('🎉');
                 const newRow = new ActionRowBuilder().addComponents(newButton);
@@ -356,8 +348,10 @@ export default {
                 await newMessage.edit({ embeds: [newEmbed], components: [newRow] });
 
                 const sql = 'INSERT INTO giveaways (message_id, guild_id, channel_id, prize, winner_count, end_time, participants) VALUES ($1, $2, $3, $4, $5, $6, $7)';
-                console.log(`[FIX DEBUG] Inserting new giveaway with participants: ${validParticipantIds.length} users.`);
-                await cacheDB.query(sql, [newMessage.id, giveaway.guild_id, giveaway.channel_id, giveaway.prize, giveaway.winner_count, finalEndTime, validParticipantIds]);
+                await pool.query(sql, [newMessage.id, giveaway.guild_id, giveaway.channel_id, giveaway.prize, giveaway.winner_count, finalEndTime, validParticipantIds]);
+                addGiveaway({
+                     message_id: newMessage.id, guild_id: giveaway.guild_id, channel_id: giveaway.channel_id, prize: giveaway.prize, winner_count: giveaway.winner_count, end_time: finalEndTime, status: 'RUNNING', participants: validParticipantIds
+                });
                 
                 await interaction.editReply(`✅ 抽選を作り直しました！`); 
             } catch (error) { 
@@ -371,7 +365,7 @@ export default {
             const newWinnerCount = interaction.options.getInteger('winners');
             const newEndTimeStr = interaction.options.getString('end_time');
 
-            const giveawayResult = await cacheDB.query("SELECT * FROM giveaways WHERE message_id = $1 AND guild_id = $2 AND status = 'RUNNING'", [messageId, interaction.guildId]);
+            const giveawayResult = await pool.query("SELECT * FROM giveaways WHERE message_id = $1 AND guild_id = $2 AND status = 'RUNNING'", [messageId, interaction.guildId]);
             const giveaway = giveawayResult.rows[0];
 
             if (!giveaway) {
@@ -403,18 +397,16 @@ export default {
                 return interaction.editReply('エラー: 更新する情報が指定されていません。');
             }
 
-            const updateSql = `UPDATE giveaways SET ${updateFields.join(', ')} WHERE message_id = $${paramIndex}`;
+            const updateSql = `UPDATE giveaways SET ${updateFields.join(', ')} WHERE message_id = $${paramIndex} RETURNING *`;
             updateValues.push(messageId);
+            const updatedResult = await pool.query(updateSql, updateValues);
+            const updatedGiveaway = updatedResult.rows[0];
 
-            await cacheDB.query(updateSql, updateValues);
-
-            const updatedGiveawayResult = await cacheDB.query("SELECT * FROM giveaways WHERE message_id = $1", [messageId]);
-            const updatedGiveaway = updatedGiveawayResult.rows[0];
+            updateGiveaway(interaction.guildId, messageId, updatedGiveaway);
 
             try {
                 const channel = await interaction.guild.channels.fetch(updatedGiveaway.channel_id);
                 const message = await channel.messages.fetch(messageId);
-
                 const currentParticipantsCount = updatedGiveaway.participants ? updatedGiveaway.participants.length : 0;
                 
                 const updatedEmbed = EmbedBuilder.from(message.embeds[0])
@@ -428,7 +420,6 @@ export default {
                     .setTimestamp(new Date(updatedGiveaway.end_time));
                 
                 updatedEmbed.setFooter({ text: `メッセージID: ${message.id}` });
-
                 await message.edit({ embeds: [updatedEmbed] });
                 await interaction.editReply(`✅ 抽選 (ID: \`${messageId}\`) の情報を更新しました。`);
             } catch (error) {

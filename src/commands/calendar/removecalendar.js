@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { triggerAutoBackup } from '../../lib/autoBackup.js';
-import { cacheDB } from '../../lib/settingsCache.js';
+import { removeCalendarMonitor, getDBPool } from '../../lib/settingsCache.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -17,10 +17,14 @@ export default {
         const { channelId, guildId } = interaction;
 
         try {
+            const pool = await getDBPool();
             const sql = 'DELETE FROM calendar_monitors WHERE guild_id = $1 AND channel_id = $2 AND trigger_keyword = $3';
-            const res = await cacheDB.query(sql, [guildId, channelId, triggerKeyword]);
+            const res = await pool.query(sql, [guildId, channelId, triggerKeyword]);
 
             if (res.rowCount > 0) {
+                // キャッシュを更新
+                removeCalendarMonitor(guildId, channelId, triggerKeyword);
+                
                 const backupSuccess = await triggerAutoBackup(guildId);
                 const backupMessage = backupSuccess ? "設定は自動でバックアップされました。" : "注意: 設定のバックアップに失敗しました。";
                 await interaction.editReply(`✅ **設定を解除しました。**${backupMessage}`);
