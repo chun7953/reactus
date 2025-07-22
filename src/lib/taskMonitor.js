@@ -35,11 +35,10 @@ async function checkCalendarEvents(client) {
                         try {
                             const descriptionLines = (event.description || '').split('\n').map(line => line.trim()).filter(line => line.length > 0);
                             let prizesToCreate = [];
-                            let additionalMessage = [];
-                            let allMentions = new Set();
+                            let additionalMessageContent = [];
+                            let allMentionsForSeparatePost = new Set();
 
                             for (const line of descriptionLines) {
-                                // 景品と当選者数のパターンを検出（例: 【景品A/10】）
                                 const prizeMatch = line.match(/^【(.+)\/(\d+)】$/);
                                 if (prizeMatch) {
                                     prizesToCreate.push({
@@ -47,15 +46,13 @@ async function checkCalendarEvents(client) {
                                         winnerCount: parseInt(prizeMatch[2], 10)
                                     });
                                 } else {
-                                    // メンションを抽出し、それ以外は追加メッセージとして扱う
                                     const mentionMatches = line.match(/<@&[0-9]+>|<@[0-9]+>|<@everyone>|<@here>/g);
                                     if (mentionMatches) {
-                                        mentionMatches.forEach(m => allMentions.add(m));
-                                        // メンション部分を削除して残りをメッセージとして追加
+                                        mentionMatches.forEach(m => allMentionsForSeparatePost.add(m));
                                         let cleanedLine = line.replace(/<@&[0-9]+>|<@[0-9]+>|<@everyone>|<@here>/g, '').trim();
-                                        if (cleanedLine) additionalMessage.push(cleanedLine);
+                                        if (cleanedLine) additionalMessageContent.push(cleanedLine);
                                     } else {
-                                        additionalMessage.push(line);
+                                        additionalMessageContent.push(line);
                                     }
                                 }
                             }
@@ -70,22 +67,16 @@ async function checkCalendarEvents(client) {
                             const startTime = new Date(event.start.dateTime || event.start.date);
                             const endTime = new Date(event.end.dateTime || event.end.date);
                             
-                            // メンションロールが設定されていれば追加
-                            if (monitor.mention_role) allMentions.add(`<@&${monitor.mention_role}>`);
-                            const finalMentions = Array.from(allMentions).join(' ').trim();
-                            const finalAdditionalMessage = additionalMessage.join('\n').trim();
+                            if (monitor.mention_role) allMentionsForSeparatePost.add(`<@&${monitor.mention_role}>`);
+                            const finalMentionsForSeparatePost = Array.from(allMentionsForSeparatePost).join(' ').trim();
+                            const finalAdditionalMessageText = additionalMessageContent.join('\n').trim();
 
                             const giveawayChannel = await client.channels.fetch(monitor.channel_id).catch(() => null);
                             if (giveawayChannel) {
                                 for (const prizeInfo of prizesToCreate) {
-                                    let descriptionText = `リアクションを押して参加しよう！\n**終了日時: <t:${Math.floor(endTime.getTime() / 1000)}:F>**`;
-                                    if (finalAdditionalMessage) {
-                                        descriptionText += `\n\n${finalAdditionalMessage}`;
-                                    }
-
                                     const giveawayEmbed = new EmbedBuilder()
                                         .setTitle(`🎉 景品: ${prizeInfo.prize}`)
-                                        .setDescription(descriptionText)
+                                        .setDescription(`リアクションを押して参加しよう！\n**終了日時: <t:${Math.floor(endTime.getTime() / 1000)}:F>**`)
                                         .addFields({ name: '当選者数', value: `${prizeInfo.winnerCount}名`, inline: true })
                                         .setColor(0x5865F2)
                                         .setTimestamp(endTime);
@@ -93,17 +84,27 @@ async function checkCalendarEvents(client) {
                                     const participateButton = new ButtonBuilder().setCustomId('giveaway_participate').setLabel('参加する').setStyle(ButtonStyle.Primary).setEmoji('🎉');
                                     const row = new ActionRowBuilder().addComponents(participateButton);
                                     
-                                    const messageContent = finalMentions ? `${finalMentions}` : '';
+                                    const message = await giveawayChannel.send({ embeds: [giveawayEmbed], components: [row] });
                                     
-                                    const message = await giveawayChannel.send({ content: messageContent, embeds: [giveawayEmbed], components: [row] });
-                                    
-                                    // メッセージIDをEmbedのフッターに追加 (再編集)
                                     giveawayEmbed.setFooter({ text: `メッセージID: ${message.id}` });
                                     await message.edit({ embeds: [giveawayEmbed], components: [row] });
 
                                     const sql = 'INSERT INTO giveaways (message_id, guild_id, channel_id, prize, winner_count, end_time) VALUES ($1, $2, $3, $4, $5, $6)';
                                     await cacheDB.query(sql, [message.id, monitor.guild_id, giveawayChannel.id, prizeInfo.prize, prizeInfo.winnerCount, endTime]);
                                     console.log(`カレンダーから自動作成された抽選「${prizeInfo.prize}」がチャンネル ${giveawayChannel.id} で開始されました。`);
+                                }
+
+                                if (finalAdditionalMessageText || finalMentionsForSeparatePost) {
+                                    let combinedPostContent = '';
+                                    if (finalMentionsForSeparatePost) {
+                                        combinedPostContent += finalMentionsForSeparatePost;
+                                    }
+                                    if (finalAdditionalMessageText) {
+                                        if (combinedPostContent) combinedPostContent += '\n';
+                                        combinedPostContent += finalAdditionalMessageText;
+                                    }
+                                    await giveawayChannel.send(combinedPostContent);
+                                    console.log(`カレンダーイベントからの追加メッセージをチャンネル ${giveawayChannel.id} に投稿しました。`);
                                 }
                             }
                         } catch (e) { console.error(`カレンダーイベント ${event.id} からの自動抽選作成に失敗:`, e); }
@@ -179,8 +180,7 @@ async function checkScheduledGiveaways(client) {
     const now = new Date();
     const scheduledGiveaways = getAllScheduledGiveaways();
     
-    // 定期抽選 (schedule_cronがあるもの) は処理しないようにフィルタリング -> 不要になったため、このフィルタリングは実質的に全件処理
-    const dueOneTime = scheduledGiveaways.filter(g => !g.schedule_cron && new Date(g.start_time) <= now); 
+    const dueOneTime = scheduledGiveaways.filter(g => new Date(g.start_time) <= now); 
 
     for (const scheduled of dueOneTime) {
         try {
@@ -197,7 +197,6 @@ async function checkScheduledGiveaways(client) {
             const row = new ActionRowBuilder().addComponents(participateButton);
             const message = await channel.send({ embeds: [giveawayEmbed], components: [row] });
             
-            // メッセージIDをEmbedのフッターに追加 (再編集)
             giveawayEmbed.setFooter({ text: `メッセージID: ${message.id}` });
             await message.edit({ embeds: [giveawayEmbed], components: [row] });
 
@@ -208,16 +207,6 @@ async function checkScheduledGiveaways(client) {
         } catch (error) { console.error(`予約された抽選 ${scheduled.id} の処理中にエラー:`, error); }
     }
 }
-
-// getScheduleText 関数は定期抽選機能の削除に伴い不要になったため削除
-// function getScheduleText(cron) {
-//     const parts = cron.split(' ');
-//     if (parts.length !== 5) return '毎周期';
-//     if (parts[4] !== '*') return '毎週';
-//     if (parts[2] !== '*') return '毎月';
-//     if (parts[1] !== '*') return '毎日';
-//     return '毎時間';
-// }
 
 let isRunning = false;
 async function runTasks(client) {

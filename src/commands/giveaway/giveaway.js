@@ -1,3 +1,4 @@
+// src/commands/giveaway/giveaway.js
 import { SlashCommandBuilder, MessageFlags, ChannelType, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, PermissionsBitField, Collection } from 'discord.js';
 import { cacheDB, getActiveGiveaways, getAllScheduledGiveaways } from '../../lib/settingsCache.js';
 import { parseDuration } from '../../lib/timeUtils.js';
@@ -12,17 +13,17 @@ export default {
         .addSubcommand(subcommand => subcommand.setName('schedule').setDescription('未来の指定した日時に抽選を開始するよう予約します。').addStringOption(option => option.setName('prize').setDescription('賞品').setRequired(true)).addIntegerOption(option => option.setName('winners').setDescription('当選者数').setRequired(true)).addStringOption(option => option.setName('start_time').setDescription('開始日時 (例: 2025-07-22 21:00)').setRequired(true)).addStringOption(option => option.setName('duration').setDescription('期間 (例: 1h, 2d)').setRequired(false)).addStringOption(option => option.setName('end_time').setDescription('終了日時 (例: 2025-07-22 22:00)').setRequired(false)))
         .addSubcommand(subcommand => subcommand.setName('end').setDescription('進行中の抽選をただちに終了します。').addStringOption(option => option.setName('message_id').setDescription('終了したい抽選のメッセージID').setRequired(true)))
         .addSubcommand(subcommand => subcommand.setName('reroll').setDescription('終了した抽選の当選者を再抽選します。').addStringOption(option => option.setName('message_id').setDescription('再抽選したい抽選のメッセージID').setRequired(true)))
-        .addSubcommand(subcommand => subcommand.setName('list').setDescription('進行中および予約中の抽選の一覧を表示します。')) // 説明を更新
+        .addSubcommand(subcommand => subcommand.setName('list').setDescription('進行中および予約中の抽選の一覧を表示します。'))
         .addSubcommand(subcommand =>
             subcommand
-                .setName('unschedule') // 新しいサブコマンドを追加
-                .setDescription('予約された抽選を削除します。') // 説明を更新
+                .setName('unschedule')
+                .setDescription('予約された抽選を削除します。')
                 .addIntegerOption(option =>
                     option.setName('id')
-                        .setDescription('削除したい予約抽選のID') // 説明を更新
+                        .setDescription('削除したい予約抽選のID')
                         .setRequired(true)))
         .addSubcommand(subcommand => subcommand.setName('fix').setDescription('不具合のある抽選を、参加者を引き継いで作り直します。').addStringOption(option => option.setName('message_id').setDescription('不具合のある抽選のメッセージID').setRequired(true)))
-        .addSubcommand(subcommand => // Add new subcommand for editing
+        .addSubcommand(subcommand =>
             subcommand
                 .setName('edit')
                 .setDescription('進行中の抽選の情報を編集します。')
@@ -212,10 +213,10 @@ export default {
                 const newWinners = winnerUsers.map(user => `<@${user.id}>`);
                 const newWinnerMentions = newWinners.join(' ');
                 
-                await channel.send({ embeds: [ // メッセージ外のメンションを削除
+                await channel.send({ embeds: [
                     new EmbedBuilder()
                         .setTitle(`🎉 景品: ${giveaway.prize} の再抽選結果！`)
-                        .setDescription(`新しい当選者は ${newWinnerMentions} です！おめでとうございます🎉`) // Embed内にメンションを記載
+                        .setDescription(`新しい当選者は ${newWinnerMentions} です！おめでとうございます🎉`)
                         .setColor(0x2ECC71) // Green color for success
                         .setTimestamp()
                 ]});
@@ -225,7 +226,7 @@ export default {
         } else if (subcommand === 'list') {
             await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
             const activeGiveaways = getActiveGiveaways(interaction.guildId);
-            const scheduledGiveaways = getAllScheduledGiveaways(interaction.guildId); // 予約中の抽選も取得
+            const scheduledGiveaways = getAllScheduledGiveaways(interaction.guildId);
 
             if (activeGiveaways.length === 0 && scheduledGiveaways.length === 0) {
                 return interaction.editReply('現在、このサーバーで進行中または予約中の抽選はありません。');
@@ -237,7 +238,7 @@ export default {
 
             if (activeGiveaways.length > 0) {
                 let activeDescription = '';
-                for (const g of activeGiveaways.slice(0, 10)) { // 最大10件表示
+                for (const g of activeGiveaways.slice(0, 10)) {
                     activeDescription += `**${g.prize}**\n- [メッセージに飛ぶ](https://discord.com/channels/${g.guild_id}/${g.channel_id}/${g.message_id})\n- 終了日時: <t:${Math.floor(new Date(g.end_time).getTime() / 1000)}:F>\n\n`;
                 }
                 embed.addFields({ name: '🚀 進行中の抽選', value: activeDescription || 'なし', inline: false });
@@ -245,17 +246,17 @@ export default {
 
             if (scheduledGiveaways.length > 0) {
                 let scheduledDescription = '';
-                for (const s of scheduledGiveaways.slice(0, 10)) { // 最大10件表示
+                for (const s of scheduledGiveaways.slice(0, 10)) {
                     const startTime = new Date(s.start_time);
                     const endTime = s.end_time ? new Date(s.end_time) : new Date(startTime.getTime() + s.duration_hours * 60 * 60 * 1000);
                     
-                    scheduledDescription += `**${s.prize}** (ID: \`${s.id}\`)\n- 当選者数: ${s.winner_count}名\n- 開始日時: <t:${Math.floor(startTime.getTime() / 1000)}:F>\n- チャンネル: <#${s.giveaway_channel_id}>\n\n`; // 終了日時も表示
+                    scheduledDescription += `**${s.prize}** (ID: \`${s.id}\`)\n- 当選者数: ${s.winner_count}名\n- 開始日時: <t:${Math.floor(startTime.getTime() / 1000)}:F>\n- チャンネル: <#${s.giveaway_channel_id}>\n\n`;
                 }
                 embed.addFields({ name: '⏰ 予約中の抽選', value: scheduledDescription || 'なし', inline: false });
             }
 
             await interaction.editReply({ embeds: [embed] });
-        } else if (subcommand === 'unschedule') { // 新しいサブコマンドのロジック
+        } else if (subcommand === 'unschedule') {
             await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
             const scheduledId = interaction.options.getInteger('id');
 
@@ -274,7 +275,6 @@ export default {
         else if (subcommand === 'fix') {
             await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
             const messageId = interaction.options.getString('message_id');
-            // データベースから抽選情報を取得 (statusに関わらず取得)
             const giveawayResult = await cacheDB.query("SELECT * FROM giveaways WHERE message_id = $1 AND guild_id = $2", [messageId, interaction.guildId]);
             const giveaway = giveawayResult.rows[0];
 
@@ -282,7 +282,6 @@ export default {
                 return interaction.editReply('エラー: 指定されたIDの抽選が見つかりません。'); 
             }
 
-            // Fixコマンド実行時に、元の抽選が「RUNNING」でなかった場合はエラーとする
             if (giveaway.status !== 'RUNNING') {
                  return interaction.editReply('エラー: この抽選は進行中ではありません。修復できるのは進行中の抽選のみです。');
             }
@@ -291,37 +290,30 @@ export default {
                 const channel = await interaction.guild.channels.fetch(giveaway.channel_id);
                 const oldMessage = await channel.messages.fetch(messageId);
                 
-                // 参加者リストはデータベースから直接取得
-                const validParticipantIds = giveaway.participants || [];
+                const dbGiveawayResult = await cacheDB.query("SELECT participants FROM giveaways WHERE message_id = $1", [messageId]);
+                const validParticipantIds = dbGiveawayResult.rows[0]?.participants || [];
 
                 console.log(`[FIX DEBUG] validParticipantIds (from DB): ${validParticipantIds.length} users:`, validParticipantIds);
                 
-                // 古いメッセージを編集して、新しいメッセージへの誘導と過去のEmbed/コンポーネントをクリア
                 await oldMessage.edit({ content: '⚠️ **この抽選は不具合のため、新しいメッセージに移動しました。**', embeds: [], components: [] });
-                // 古いgiveawayのstatusを'CANCELLED'に更新
                 await cacheDB.query("UPDATE giveaways SET status = 'CANCELLED' WHERE message_id = $1", [messageId]);
 
-                // データベースから取得したgiveaway.end_timeをDateオブジェクトに変換
                 let finalEndTime = new Date(giveaway.end_time);
 
-                // 終了時刻が有効な日付であることを確認
                 if (isNaN(finalEndTime.getTime())) {
                     console.error(`Fix command failed: Invalid end_time for giveaway ID ${giveaway.id}: ${giveaway.end_time}`);
                     await interaction.editReply('エラー: 抽選の終了日時が不正なため、修復に失敗しました。管理者にお問い合わせください。');
-                    return; // ここで処理を終了
+                    return;
                 }
 
-                // 終了時刻を最も近い未来の10分刻みに丸める (startコマンドのロジックを再利用)
                 const now = new Date();
-                finalEndTime.setSeconds(0, 0); // 秒とミリ秒をゼロにする
-
+                finalEndTime.setSeconds(0, 0);
                 const minutes = finalEndTime.getMinutes();
                 const remainder = minutes % 10;
                 if (remainder !== 0) {
                     finalEndTime.setMinutes(minutes + (10 - remainder));
                 }
 
-                // 丸めた結果、現在時刻より過去になってしまった場合、現在時刻から最も近い未来の10分刻みにする
                 if (finalEndTime <= now) {
                     const currentMinutes = now.getMinutes();
                     const currentRemainder = currentMinutes % 10;
@@ -330,28 +322,23 @@ export default {
                     const newRoundedTime = new Date(now);
                     newRoundedTime.setMinutes(nextRoundedMinutes, 0, 0);
                     
-                    // 次の10分刻みが次の時間になる場合を考慮
                     if (newRoundedTime.getMinutes() < currentMinutes) { 
                         newRoundedTime.setHours(newRoundedTime.getHours() + 1);
                     }
                     finalEndTime = newRoundedTime; 
                 }
 
-                // 新しいEmbedを、データベースの抽選情報とボットの標準形式に基づいてゼロから構築
                 const newEmbed = new EmbedBuilder()
-                    .setTitle(`🎉 景品: ${giveaway.prize}`) // データベースの賞品名を使用
-                    // 丸められた終了日時をDiscordのタイムスタンプ形式でフォーマット
+                    .setTitle(`🎉 景品: ${giveaway.prize}`)
                     .setDescription(`下のボタンを押して参加しよう！\n**終了日時: <t:${Math.floor(finalEndTime.getTime() / 1000)}:F>**`)
-                    .setColor(0x5865F2) // 標準のDiscord Blurple色
-                    .setTimestamp(finalEndTime) // 丸められた終了日時を使用
-
+                    .setColor(0x5865F2)
+                    .setTimestamp(finalEndTime)
                     .addFields(
-                        { name: '当選者数', value: `${giveaway.winner_count}名`, inline: true }, // データベースの当選者数を使用
-                        { name: '参加者', value: `${validParticipantIds.length}名`, inline: true }, // DBから取得した参加者数を使用
-                        { name: '主催者', value: oldMessage.embeds[0]?.fields?.[2]?.value || `${interaction.user}` } // 元のEmbedから主催者を取得、なければコマンド実行ユーザー
+                        { name: '当選者数', value: `${giveaway.winner_count}名`, inline: true },
+                        { name: '参加者', value: `${validParticipantIds.length}名`, inline: true },
+                        { name: '主催者', value: oldMessage.embeds[0]?.fields?.[2]?.value || `${interaction.user}` }
                     );
 
-                // 元のEmbedにフッター、画像、サムネイル、URL、作者があった場合、それらをコピー（抽選のメイン情報とは独立して保持）
                 const originalEmbedData = oldMessage.embeds[0]?.toJSON();
                 if (originalEmbedData) {
                     if (originalEmbedData.footer) newEmbed.setFooter(originalEmbedData.footer);
@@ -364,14 +351,11 @@ export default {
                 const newButton = new ButtonBuilder().setCustomId('giveaway_participate').setLabel('参加する').setStyle(ButtonStyle.Primary).setEmoji('🎉');
                 const newRow = new ActionRowBuilder().addComponents(newButton);
                 
-                // チャンネルに新しい抽選メッセージを送信
                 const newMessage = await channel.send({ content: '🔧 **抽選を再作成しました！** 🔧', embeds: [newEmbed], components: [newRow] });
                 
-                // 新しく作成されたメッセージのIDをフッターに追加し、メッセージを更新
                 newEmbed.setFooter({ text: `メッセージID: ${newMessage.id}` });
                 await newMessage.edit({ embeds: [newEmbed], components: [newRow] });
 
-                // 新しい抽選をデータベースに挿入する際に、取得した参加者リストを渡す
                 const sql = 'INSERT INTO giveaways (message_id, guild_id, channel_id, prize, winner_count, end_time, participants) VALUES ($1, $2, $3, $4, $5, $6, $7)';
                 console.log(`[FIX DEBUG] Inserting new giveaway with participants: ${validParticipantIds.length} users.`);
                 await cacheDB.query(sql, [newMessage.id, giveaway.guild_id, giveaway.channel_id, giveaway.prize, giveaway.winner_count, finalEndTime, validParticipantIds]);
@@ -381,7 +365,7 @@ export default {
                 console.error('抽選の修復中にエラー:', error); 
                 await interaction.editReply('抽選の修復中にエラーが発生しました。管理者にお問い合わせください。'); 
             }
-        } else if (subcommand === 'edit') { // New subcommand logic for editing
+        } else if (subcommand === 'edit') {
             await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
             const messageId = interaction.options.getString('message_id');
             const newPrize = interaction.options.getString('prize');
@@ -403,7 +387,7 @@ export default {
                 updateFields.push(`prize = $${paramIndex++}`);
                 updateValues.push(newPrize);
             }
-            if (newWinnerCount !== null) { // Check for null explicitly as 0 is a valid value
+            if (newWinnerCount !== null) {
                 updateFields.push(`winner_count = $${paramIndex++}`);
                 updateValues.push(newWinnerCount);
             }
@@ -440,11 +424,10 @@ export default {
                     .setFields(
                         { name: '当選者数', value: `${updatedGiveaway.winner_count}名`, inline: true },
                         { name: '参加者', value: `${currentParticipantsCount}名`, inline: true },
-                        { name: '主催者', value: message.embeds[0].fields[2].value } // Keep original host
+                        { name: '主催者', value: message.embeds[0].fields[2].value }
                     )
                     .setTimestamp(new Date(updatedGiveaway.end_time));
                 
-                // メッセージIDをEmbedのフッターに追加 (再編集)
                 updatedEmbed.setFooter({ text: `メッセージID: ${message.id}` });
 
                 await message.edit({ embeds: [updatedEmbed] });
