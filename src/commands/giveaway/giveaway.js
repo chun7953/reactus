@@ -1,4 +1,3 @@
-// src/commands/giveaway/giveaway.js
 import { SlashCommandBuilder, MessageFlags, ChannelType, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, PermissionsBitField, Collection } from 'discord.js';
 import { cacheDB, getActiveGiveaways, getAllScheduledGiveaways } from '../../lib/settingsCache.js';
 import { parseDuration } from '../../lib/timeUtils.js';
@@ -171,7 +170,7 @@ export default {
             let endTime = null;
             if (durationStr) {
                 const durationMs = parseDuration(durationStr);
-                if (!durationMs) { return interaction.editReply('期間の形式が正しくありません。(例: 1h, 2d)');}
+                if (!durationMs) { return interaction.editReply('エラー: 期間の形式が正しくありません。(例: 1h, 2d)');}
                 durationHours = durationMs / (1000 * 60 * 60);
             } else {
                 endTime = new Date(endTimeStr.replace(/-/g, '/') + ' GMT+0900');

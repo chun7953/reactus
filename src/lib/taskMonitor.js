@@ -1,12 +1,11 @@
-// src/lib/taskMonitor.js
 import { google } from 'googleapis';
 import { initializeDatabase } from '../db/database.js';
 import { initializeSheetsAPI } from './sheetsAPI.js';
 import { getAllActiveGiveaways, getAllScheduledGiveaways, getMonitors, cacheDB } from './settingsCache.js';
 import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
-// import he from 'he'; // ★heライブラリのインポートを削除★
 
-// ★ここから追加：基本的なHTMLエンティティデコード関数★
+// 基本的なHTMLエンティティデコード関数
+// heライブラリの導入が難しい場合に、よく使われるエンティティをデコードします
 function basicDecodeHtmlEntities(text) {
     if (!text || typeof text !== 'string') {
         return '';
@@ -18,12 +17,12 @@ function basicDecodeHtmlEntities(text) {
                .replace(/&#39;/g, "'") // アポストロフィ
                .replace(/&apos;/g, "'"); // HTML5の &apos;
 }
-// ★ここまで追加★
 
 async function checkCalendarEvents(client) {
     const monitors = await getMonitors();
     if (monitors.length === 0) return;
 
+    // 【ラキショ】用のモニター設定を事前に特定し、なければ警告を出す
     const luckyShowMonitor = monitors.find(m => m.trigger_keyword === 'ラキショ');
     if (!luckyShowMonitor) {
         console.warn('[TaskMonitor WARNING] 「ラキショ」のトリガーキーワードに対応する設定が見つかりません。/setcalendarコマンドで設定してください。');
@@ -37,36 +36,40 @@ async function checkCalendarEvents(client) {
         const timeMin = new Date().toISOString();
         const timeMax = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
+        // 全てのモニター設定をループし、それぞれに紐付くカレンダーイベントを取得
         for (const monitor of monitors) {
             try {
                 const events = await calendar.events.list({
-                    calendarId: monitor.calendar_id,
+                    calendarId: monitor.calendar_id, // 各モニター設定のカレンダーIDを使用
                     timeMin, timeMax, singleEvents: true, orderBy: 'startTime', timeZone: 'Asia/Tokyo'
                 });
                 if (!events.data.items) continue;
+
                 for (const event of events.data.items) {
                     const notifiedCheck = await pool.query('SELECT 1 FROM notified_events WHERE event_id = $1', [event.id]);
                     if (notifiedCheck.rows.length > 0) continue;
 
+                    // イベントの説明をHTMLエンティティからデコード
                     let eventDescription = event.description || '';
-                    eventDescription = basicDecodeHtmlEntities(eventDescription); // ★修正: basicDecodeHtmlEntitiesを使用★
+                    eventDescription = basicDecodeHtmlEntities(eventDescription); 
 
                     const eventText = `${event.summary || ''} ${eventDescription}`;
                     
-                    // --- カレンダー連携抽選の自動作成 (【ラキショ】専用の処理) ---
+                    // --- カレンダー連携抽選の自動作成 (【ラキショ】イベントはここで処理する) ---
                     if (eventText.includes('【ラキショ】')) {
+                        // 【ラキショ】用のモニター設定がない場合はスキップし、警告を出す
                         if (!luckyShowMonitor) {
                             console.error(`[TaskMonitor ERROR] カレンダーイベント ${event.summary} (${event.id}) は【ラキショ】抽選ですが、対応するモニター設定が見つかりません。投稿をスキップします。`);
-                            await pool.query('INSERT INTO notified_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING', [event.id]);
-                            continue;
+                            await pool.query('INSERT INTO notified_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING', [event.id]); // 処理済として記録
+                            continue; // このイベントの処理をスキップ
                         }
 
+                        // 【ラキショ】イベントは、常にluckyShowMonitorの設定を使用する
                         const targetChannelId = luckyShowMonitor.channel_id;
                         const targetMentionRoleId = luckyShowMonitor.mention_role;
 
                         await pool.query('INSERT INTO notified_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING', [event.id]);
                         console.log(`[TaskMonitor] 抽選イベントを検出: ${event.summary}`);
-                        console.log(`[TaskMonitor DEBUG] 【ラキショ】抽選をチャンネル ID: ${targetChannelId} に送信しようとしています。`);
                         try {
                             const descriptionLines = eventDescription.split('\n').map(line => line.trim()).filter(line => line.length > 0);
                             let prizesToCreate = [];
@@ -136,7 +139,7 @@ async function checkCalendarEvents(client) {
                                     }
                                     if (finalAdditionalMessageText) {
                                         if (combinedPostContent) combinedPostContent += '\n';
-                                        combinedPostContent += finalAdditionalMessageText; // finalAdditionalMessageContentではなく、finalAdditionalMessageTextを使用
+                                        combinedPostContent += finalAdditionalMessageText; 
                                     }
                                     await giveawayChannel.send(combinedPostContent);
                                     console.log(`カレンダーイベントからの追加メッセージをチャンネル ${giveawayChannel.id} に投稿しました。`);
@@ -145,13 +148,17 @@ async function checkCalendarEvents(client) {
                                 console.error(`[TaskMonitor ERROR] 【ラキショ】抽選の投稿先チャンネル ${targetChannelId} が見つからないか、アクセスできません。`);
                             }
                         } catch (e) { console.error(`カレンダーイベント ${event.id} からの自動抽選作成に失敗:`, e); }
-                        continue;
+                        continue; // 【ラキショ】イベントはここで処理を終える
                     }
 
-                    // --- 通常のカレンダー通知 (他のトリガーキーワードの処理) ---
+                    // --- 通常のカレンダー通知 (【ラキショ】以外のトリガーキーワードの処理) ---
+                    // イベントが現在のループのモニターのトリガーキーワードを含む場合
                     if (eventText.includes(`【${monitor.trigger_keyword}】`)) {
+                        // 【ラキショ】イベントは上で処理されたはずなので、ここでは再処理しない
+                        // (ただし、イベントが複数のキーワードを含む場合は、挙動に注意が必要だが、今回は【ラキショ】を優先)
+
                         await pool.query('INSERT INTO notified_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING', [event.id]);
-                        console.log(`[TaskMonitor DEBUG] 通常通知をチャンネル ID: ${monitor.channel_id} に送信しようとしています (トリガー: ${monitor.trigger_keyword})`);
+                        console.log(`[TaskMonitor] 通常通知をチャンネル ID: ${monitor.channel_id} に送信しようとしています (トリガー: ${monitor.trigger_keyword})`);
                         const channel = await client.channels.fetch(monitor.channel_id).catch(() => null);
                         if (!channel) {
                              console.error(`[TaskMonitor ERROR] 指定された通知チャンネル ${monitor.channel_id} が見つからないか、アクセスできません。`);
@@ -159,7 +166,7 @@ async function checkCalendarEvents(client) {
                         }
                         let allMentions = new Set();
                         if (monitor.mention_role) allMentions.add(`<@&${monitor.mention_role}>`);
-                        let cleanedDescription = eventDescription || ''; // ★修正: デコード後のeventDescriptionを使用★
+                        let cleanedDescription = eventDescription || ''; // デコード済みのeventDescriptionを使用
                         const mentionMatches = cleanedDescription.match(/<@&[0-9]+>|<@[0-9]+>|<@everyone>|<@here>/g);
                         if (mentionMatches) {
                             mentionMatches.forEach(m => allMentions.add(m));
