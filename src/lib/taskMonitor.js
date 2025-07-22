@@ -1,4 +1,4 @@
-// src/lib/taskMonitor.js (自動クリーンアップ機能追加版)
+// src/lib/taskMonitor.js (再起動対策 修正版)
 
 import { google } from 'googleapis';
 import { initializeSheetsAPI } from './sheetsAPI.js';
@@ -22,16 +22,15 @@ async function checkCalendarEvents(client) {
     if (monitors.length === 0) return;
 
     const luckyShowMonitor = monitors.find(m => m.trigger_keyword === 'ラキショ');
-    if (!luckyShowMonitor) {
-        console.warn('[TaskMonitor WARNING] 「ラキショ」のトリガーキーワードに対応する設定が見つかりません。/setcalendarコマンドで設定してください。');
-    }
 
     try {
         const { auth } = await initializeSheetsAPI();
         const calendar = google.calendar({ version: 'v3', auth });
         const pool = await getDBPool();
         await pool.query("DELETE FROM notified_events WHERE notified_at < NOW() - INTERVAL '6 hours'");
-        const timeMin = new Date().toISOString();
+        
+        // ★ 修正: 10分前から取得して、再起動時のイベントの見逃しを防ぐ
+        const timeMin = new Date(Date.now() - 10 * 60 * 1000).toISOString();
         const timeMax = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
         for (const monitor of monitors) {
@@ -43,8 +42,13 @@ async function checkCalendarEvents(client) {
                 if (!events.data.items) continue;
 
                 for (const event of events.data.items) {
+                    // 唯一のチェック: データベースに記録があるか？
                     const notifiedCheck = await pool.query('SELECT 1 FROM notified_events WHERE event_id = $1', [event.id]);
-                    if (notifiedCheck.rows.length > 0) continue;
+                    if (notifiedCheck.rows.length > 0) {
+                        continue; // 記録があれば、それは処理済みなのでスキップ
+                    }
+                    
+                    // ★ 削除: 開始時刻が過去かのチェックは不要（むしろバグの原因だった）
 
                     let eventDescription = event.description || '';
                     eventDescription = basicDecodeHtmlEntities(eventDescription); 
@@ -254,7 +258,6 @@ async function checkScheduledGiveaways(client) {
     }
 }
 
-// ★ ここから新しい関数を追加
 async function cleanupGhostGiveaways() {
     const pool = await getDBPool();
     try {
@@ -265,7 +268,6 @@ async function cleanupGhostGiveaways() {
             console.log(`[TaskMonitor] 古い抽選データ ${result.rowCount}件 をクリーンアップします...`);
             for (const row of result.rows) {
                 await pool.query("UPDATE giveaways SET status = 'ENDED' WHERE message_id = $1", [row.message_id]);
-                // キャッシュからも削除
                 cache.removeGiveaway(row.guild_id, row.message_id);
             }
             console.log(`[TaskMonitor] クリーンアップ完了。`);
@@ -274,14 +276,13 @@ async function cleanupGhostGiveaways() {
         console.error('[TaskMonitor] 古い抽選データのクリーンアップ中にエラー:', error);
     }
 }
-// ★ ここまで
 
 let isRunning = false;
 async function runTasks(client) {
     if (isRunning) return;
     isRunning = true;
     try {
-        await cleanupGhostGiveaways(); // ★ 最初にクリーンアップを実行
+        await cleanupGhostGiveaways();
         await checkCalendarEvents(client);
         await checkFinishedGiveaways(client);
         await checkScheduledGiveaways(client);
