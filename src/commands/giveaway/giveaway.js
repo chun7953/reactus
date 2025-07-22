@@ -216,8 +216,19 @@ export default {
                 const channel = await interaction.guild.channels.fetch(giveaway.channel_id);
                 const oldMessage = await channel.messages.fetch(messageId);
                 const reaction = oldMessage.reactions.cache.get('🎉');
-                const participants = reaction ? await reaction.users.fetch() : new Collection();
-                const validParticipantIds = Array.from(participants.filter(u => !u.bot).keys());
+                let rawParticipants = new Collection();
+                if (reaction) {
+                    try {
+                        rawParticipants = await reaction.users.fetch(); 
+                    } catch (fetchError) {
+                        console.error(`Error fetching reactions users for message ${messageId}:`, fetchError);
+                        // フェッチ失敗時も空のCollectionとして続行
+                        rawParticipants = new Collection(); 
+                    }
+                }
+                
+                // ボットを除外した上でユーザーIDの配列として抽出
+                const validParticipantIds = rawParticipants.filter(user => !user.bot).map(user => user.id);
                 
                 // 古いメッセージを編集して、新しいメッセージへの誘導と過去のEmbed/コンポーネントをクリア
                 await oldMessage.edit({ content: '⚠️ **この抽選は不具合のため、新しいメッセージに移動しました。**', embeds: [], components: [] });
