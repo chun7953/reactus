@@ -1,3 +1,4 @@
+// src/commands/giveaway/giveaway.js
 import { SlashCommandBuilder, MessageFlags, ChannelType, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, PermissionsBitField, Collection } from 'discord.js';
 import { cacheDB, getActiveGiveaways } from '../../lib/settingsCache.js';
 import { parseDuration } from '../../lib/timeUtils.js';
@@ -207,13 +208,15 @@ export default {
                 const channel = await interaction.guild.channels.fetch(giveaway.channel_id);
                 const oldMessage = await channel.messages.fetch(messageId);
                 const reaction = oldMessage.reactions.cache.get('🎉');
-const participants = reaction ? await reaction.users.fetch() : new Collection();
+                const participants = reaction ? await reaction.users.fetch() : new Collection(); // MapではなくCollectionを使用
                 const validParticipantIds = Array.from(participants.filter(u => !u.bot).keys());
                 
                 await oldMessage.edit({ content: '⚠️ **この抽選は不具合のため、新しいメッセージに移動しました。**', embeds: [], components: [] });
                 await cacheDB.query("UPDATE giveaways SET status = 'CANCELLED' WHERE message_id = $1", [messageId]);
 
-                const newEmbed = EmbedBuilder.from(oldMessage.embeds[0]);
+                const newEmbed = EmbedBuilder.from(oldMessage.embeds[0])
+                    .setDescription(oldMessage.embeds[0]?.description || '参加するにはリアクションを押してください。'); // descriptionが空の場合のフォールバック
+
                 const newButton = new ButtonBuilder().setCustomId('giveaway_participate').setLabel('参加する').setStyle(ButtonStyle.Primary).setEmoji('🎉');
                 const newRow = new ActionRowBuilder().addComponents(newButton);
                 
