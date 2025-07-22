@@ -171,7 +171,7 @@ export default {
             let endTime = null;
             if (durationStr) {
                 const durationMs = parseDuration(durationStr);
-                if (!durationMs) { return interaction.editReply('エラー: 期間の形式が正しくありません。(例: 1h, 2d)');}
+                if (!durationMs) { return interaction.editReply('期間の形式が正しくありません。(例: 1h, 2d)');}
                 durationHours = durationMs / (1000 * 60 * 60);
             } else {
                 endTime = new Date(endTimeStr.replace(/-/g, '/') + ' GMT+0900');
@@ -207,7 +207,7 @@ export default {
                         rawParticipants = new Collection();
                     }
                 }
-                const validParticipants = rawParticipants.filter(user => !user.bot); // Collectionのまま
+                const validParticipants = rawParticipants.filter(user => !user.bot);
                 if (validParticipants.size < giveaway.winner_count) { return interaction.editReply('エラー: 当選者数より参加者が少ないため、再抽選できません。');}
                 const winnerUsers = validParticipants.random(giveaway.winner_count);
                 const newWinners = winnerUsers.map(user => `<@${user.id}>`);
@@ -217,10 +217,10 @@ export default {
                     new EmbedBuilder()
                         .setTitle(`🎉 景品: ${giveaway.prize} の再抽選結果！`)
                         .setDescription(`新しい当選者は ${newWinnerMentions} です！おめでとうございます🎉`)
-                        .setColor(0x2ECC71) // Green color for success
+                        .setColor(0x2ECC71)
                         .setTimestamp()
                 ]});
-                await cacheDB.query("UPDATE giveaways SET winners = $1 WHERE message_id = $2", [winnerUsers.map(u => u.id), messageId]); // DBにはIDのみ保存
+                await cacheDB.query("UPDATE giveaways SET winners = $1 WHERE message_id = $2", [winnerUsers.map(u => u.id), messageId]);
                 await interaction.editReply('✅ 新しい当選者を再抽選しました。');
             } catch (error) { console.error('再抽選の処理中にエラー:', error); await interaction.editReply('再抽選の処理中にエラーが発生しました。'); }
         } else if (subcommand === 'list') {
