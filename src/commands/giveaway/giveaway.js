@@ -10,7 +10,7 @@ export default {
         .setDescription('Giveaway（抽選）を管理します。')
         .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageMessages)
         .addSubcommand(subcommand => subcommand.setName('start').setDescription('新しいGiveawayをすぐに開始します。').addStringOption(option => option.setName('prize').setDescription('賞品').setRequired(true)).addIntegerOption(option => option.setName('winners').setDescription('当選者数').setRequired(true)).addStringOption(option => option.setName('duration').setDescription('期間 (例: 10m, 1h, 2d)').setRequired(false)).addStringOption(option => option.setName('end_time').setDescription('終了日時 (例: 2025-07-22 21:00)').setRequired(false)))
-        .addSubcommand(subcommand => subcommand.setName('schedule').setDescription('未来の指定した日時にGiveawayを開始するよう予約します。').addStringOption(option => option.setName('prize').setDescription('賞品').setRequired(true)).addIntegerOption(option => option.setName('winners').setDescription('当選者数').setRequired(true)).addStringOption(option => option.setName('start_time').setDescription('開始日時 (例: 2025-07-22 21:00)').setRequired(true)).addChannelOption(option => option.setName('channel').setDescription('抽選を投稿するチャンネル').addChannelTypes(ChannelType.GuildText).setRequired(true)).addStringOption(option => option.setName('duration').setDescription('期間 (例: 1h, 2d)').setRequired(false)).addStringOption(option => option.setName('end_time').setDescription('終了日時 (例: 2025-07-22 22:00)').setRequired(false)))
+        .addSubcommand(subcommand => subcommand.setName('schedule').setDescription('未来の指定した日時にGiveawayを開始するよう予約します。').addStringOption(option => option.setName('prize').setDescription('賞品').setRequired(true)).addIntegerOption(option => option.setName('winners').setDescription('当選者数').setRequired(true)).addStringOption(option => option.setName('start_time').setDescription('開始日時 (例: 2025-07-22 21:00)').setRequired(true)).addStringOption(option => option.setName('duration').setDescription('期間 (例: 1h, 2d)').setRequired(false)).addStringOption(option => option.setName('end_time').setDescription('終了日時 (例: 2025-07-22 22:00)').setRequired(false))) // チャンネルオプションを削除
         .addSubcommand(subcommand => subcommand.setName('recurring').setDescription('定期的なGiveawayを設定します。').addStringOption(option => option.setName('prize').setDescription('賞品').setRequired(true)).addIntegerOption(option => option.setName('winners').setDescription('当選者数').setRequired(true)).addStringOption(option => option.setName('schedule').setDescription('スケジュール (cron形式: 分 時 日 月 週)').setRequired(true)).addStringOption(option => option.setName('duration').setDescription('期間 (例: 1h, 2d)').setRequired(true)).addChannelOption(option => option.setName('giveaway_channel').setDescription('抽選を投稿するチャンネル').addChannelTypes(ChannelType.GuildText).setRequired(true)).addChannelOption(option => option.setName('confirmation_channel').setDescription('開催確認を投稿するチャンネル').addChannelTypes(ChannelType.GuildText).setRequired(true)).addRoleOption(option => option.setName('confirmation_role').setDescription('開催を確認するロール').setRequired(true)))
         .addSubcommand(subcommand => subcommand.setName('end').setDescription('進行中のGiveawayをただちに終了します。').addStringOption(option => option.setName('message_id').setDescription('終了したいGiveawayのメッセージID').setRequired(true)))
         .addSubcommand(subcommand => subcommand.setName('reroll').setDescription('終了したGiveawayの当選者を再抽選します。').addStringOption(option => option.setName('message_id').setDescription('再抽選したいGiveawayのメッセージID').setRequired(true)))
@@ -96,12 +96,12 @@ export default {
             const prize = interaction.options.getString('prize');
             const winnerCount = interaction.options.getInteger('winners');
             const startTimeStr = interaction.options.getString('start_time');
-            const channel = interaction.options.getChannel('channel');
+            const channel = interaction.channel; // コマンド入力チャンネルを使用
             const durationStr = interaction.options.getString('duration');
             const endTimeStr = interaction.options.getString('end_time');
             if (!durationStr && !endTimeStr) { return interaction.editReply('エラー: `duration`または`end_time`のどちらか一方を必ず指定してください。');}
             if (durationStr && endTimeStr) { return interaction.editReply('エラー: `duration`と`end_time`を同時に指定することはできません。');}
-            const startTime = new Date(startTimeStr.replace(/-/g, '/') + ' GMT+0900');
+            const startTime = new Date(startTimeStr.replace(/-/g, '/') + ' GMT+0900'); // JSTに設定
             if (isNaN(startTime.getTime()) || startTime <= new Date()) { return interaction.editReply('エラー: 開始日時は未来の正しい日時を指定してください。');}
             let durationHours = null;
             let endTime = null;
@@ -110,7 +110,7 @@ export default {
                 if (!durationMs) { return interaction.editReply('エラー: 期間の形式が正しくありません。(例: 1h, 2d)');}
                 durationHours = durationMs / (1000 * 60 * 60);
             } else {
-                endTime = new Date(endTimeStr.replace(/-/g, '/') + ' GMT+0900');
+                endTime = new Date(endTimeStr.replace(/-/g, '/') + ' GMT+0900'); // JSTに設定
                 if (isNaN(endTime.getTime()) || endTime <= startTime) { return interaction.editReply('エラー: 終了日時は、開始日時より後の正しい日時を指定してください。');}
             }
             const sql = 'INSERT INTO scheduled_giveaways (guild_id, prize, winner_count, start_time, duration_hours, end_time, giveaway_channel_id) VALUES ($1, $2, $3, $4, $5, $6, $7)';
