@@ -45,18 +45,22 @@ export default {
                 if (!giveaway) return interaction.editReply('このGiveawayは終了またはキャンセルされました。');
 
                 const participants = new Set(giveaway.participants || []);
+                
+                // 主催者フィールドの値を安全に取得し、フォールバックを設定
+                // interaction.message.embeds[0]が存在し、fields配列があり、その3番目の要素にvalueプロパティがあればそれを使用
+                // なければボットのユーザー名を表示
+                const currentHostValue = interaction.message.embeds[0]?.fields?.[2]?.value || `ボット(${interaction.client.user.username})`; 
+                
                 if (participants.has(interaction.user.id)) {
-                     // 既に参加済みの場合、取り消し
                     participants.delete(interaction.user.id);
                     await cacheDB.query("UPDATE giveaways SET participants = $1 WHERE message_id = $2", [Array.from(participants), interaction.message.id]);
-                    const newEmbed = EmbedBuilder.from(interaction.message.embeds[0]).setFields({ name: '当選者数', value: `${giveaway.winner_count}名`, inline: true }, { name: '参加者', value: `${participants.size}名`, inline: true }, { name: '主催者', value: interaction.message.embeds[0].fields[2].value });
+                    const newEmbed = EmbedBuilder.from(interaction.message.embeds[0]).setFields({ name: '当選者数', value: `${giveaway.winner_count}名`, inline: true }, { name: '参加者', value: `${participants.size}名`, inline: true }, { name: '主催者', value: currentHostValue });
                     await interaction.message.edit({ embeds: [newEmbed] });
                     await interaction.editReply('✅ 参加を取り消しました。');
                 } else {
-                    // 新規参加の場合
                     participants.add(interaction.user.id);
                     await cacheDB.query("UPDATE giveaways SET participants = $1 WHERE message_id = $2", [Array.from(participants), interaction.message.id]);
-                    const newEmbed = EmbedBuilder.from(interaction.message.embeds[0]).setFields({ name: '当選者数', value: `${giveaway.winner_count}名`, inline: true }, { name: '参加者', value: `${participants.size}名`, inline: true }, { name: '主催者', value: interaction.message.embeds[0].fields[2].value });
+                    const newEmbed = EmbedBuilder.from(interaction.message.embeds[0]).setFields({ name: '当選者数', value: `${giveaway.winner_count}名`, inline: true }, { name: '参加者', value: `${participants.size}名`, inline: true }, { name: '主催者', value: currentHostValue });
                     await interaction.message.edit({ embeds: [newEmbed] });
                     await interaction.editReply('✅ 抽選に参加しました！');
                 }
@@ -122,8 +126,8 @@ export default {
             const isPublic = interaction.customId.startsWith('csv_public_');
             const isEphemeral = interaction.customId.startsWith('csv_ephemeral_');
             if (isPublic || isEphemeral) {
-                 const messageId = interaction.customId.split('_')[2];
-                 try {
+                const messageId = interaction.customId.split('_')[2];
+                try {
                     const message = await interaction.channel.messages.fetch(messageId);
                     const { ReactionExporter } = await import('../lib/reactionExporter.js');
                     const exporter = new ReactionExporter(interaction.client, message);
