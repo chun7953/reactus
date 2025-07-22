@@ -7,29 +7,29 @@ import { hasGiveawayPermission } from '../../lib/permissionUtils.js';
 export default {
     data: new SlashCommandBuilder()
         .setName('giveaway')
-        .setDescription('Giveaway（抽選）を管理します。')
+        .setDescription('抽選を管理します。')
         .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageMessages)
-        .addSubcommand(subcommand => subcommand.setName('start').setDescription('新しいGiveawayをすぐに開始します。').addStringOption(option => option.setName('prize').setDescription('賞品').setRequired(true)).addIntegerOption(option => option.setName('winners').setDescription('当選者数').setRequired(true)).addStringOption(option => option.setName('duration').setDescription('期間 (例: 10m, 1h, 2d)').setRequired(false)).addStringOption(option => option.setName('end_time').setDescription('終了日時 (例: 2025-07-22 21:00)').setRequired(false)))
-        .addSubcommand(subcommand => subcommand.setName('schedule').setDescription('未来の指定した日時にGiveawayを開始するよう予約します。').addStringOption(option => option.setName('prize').setDescription('賞品').setRequired(true)).addIntegerOption(option => option.setName('winners').setDescription('当選者数').setRequired(true)).addStringOption(option => option.setName('start_time').setDescription('開始日時 (例: 2025-07-22 21:00)').setRequired(true)).addStringOption(option => option.setName('duration').setDescription('期間 (例: 1h, 2d)').setRequired(false)).addStringOption(option => option.setName('end_time').setDescription('終了日時 (例: 2025-07-22 22:00)').setRequired(false)))
-        .addSubcommand(subcommand => subcommand.setName('end').setDescription('進行中のGiveawayをただちに終了します。').addStringOption(option => option.setName('message_id').setDescription('終了したいGiveawayのメッセージID').setRequired(true)))
-        .addSubcommand(subcommand => subcommand.setName('reroll').setDescription('終了したGiveawayの当選者を再抽選します。').addStringOption(option => option.setName('message_id').setDescription('再抽選したいGiveawayのメッセージID').setRequired(true)))
-        .addSubcommand(subcommand => subcommand.setName('list').setDescription('進行中のGiveawayの一覧を表示します。'))
+        .addSubcommand(subcommand => subcommand.setName('start').setDescription('新しい抽選をすぐに開始します。').addStringOption(option => option.setName('prize').setDescription('賞品').setRequired(true)).addIntegerOption(option => option.setName('winners').setDescription('当選者数').setRequired(true)).addStringOption(option => option.setName('duration').setDescription('期間 (例: 10m, 1h, 2d)').setRequired(false)).addStringOption(option => option.setName('end_time').setDescription('終了日時 (例: 2025-07-22 21:00)').setRequired(false)))
+        .addSubcommand(subcommand => subcommand.setName('schedule').setDescription('未来の指定した日時に抽選を開始するよう予約します。').addStringOption(option => option.setName('prize').setDescription('賞品').setRequired(true)).addIntegerOption(option => option.setName('winners').setDescription('当選者数').setRequired(true)).addStringOption(option => option.setName('start_time').setDescription('開始日時 (例: 2025-07-22 21:00)').setRequired(true)).addStringOption(option => option.setName('duration').setDescription('期間 (例: 1h, 2d)').setRequired(false)).addStringOption(option => option.setName('end_time').setDescription('終了日時 (例: 2025-07-22 22:00)').setRequired(false)))
+        .addSubcommand(subcommand => subcommand.setName('end').setDescription('進行中の抽選をただちに終了します。').addStringOption(option => option.setName('message_id').setDescription('終了したい抽選のメッセージID').setRequired(true)))
+        .addSubcommand(subcommand => subcommand.setName('reroll').setDescription('終了した抽選の当選者を再抽選します。').addStringOption(option => option.setName('message_id').setDescription('再抽選したい抽選のメッセージID').setRequired(true)))
+        .addSubcommand(subcommand => subcommand.setName('list').setDescription('進行中の抽選の一覧を表示します。'))
         .addSubcommand(subcommand =>
             subcommand
                 .setName('unschedule') // 新しいサブコマンドを追加
-                .setDescription('予約されたGiveawayまたは定期抽選を削除します。')
+                .setDescription('予約された抽選または定期抽選を削除します。')
                 .addIntegerOption(option =>
                     option.setName('id')
                         .setDescription('削除したい予約/定期抽選のID')
                         .setRequired(true)))
-        .addSubcommand(subcommand => subcommand.setName('fix').setDescription('不具合のあるGiveawayを、参加者を引き継いで作り直します。').addStringOption(option => option.setName('message_id').setDescription('不具合のあるGiveawayのメッセージID').setRequired(true)))
+        .addSubcommand(subcommand => subcommand.setName('fix').setDescription('不具合のある抽選を、参加者を引き継いで作り直します。').addStringOption(option => option.setName('message_id').setDescription('不具合のある抽選のメッセージID').setRequired(true)))
         .addSubcommand(subcommand => // Add new subcommand for editing
             subcommand
                 .setName('edit')
-                .setDescription('進行中のGiveawayの情報を編集します。')
+                .setDescription('進行中の抽選の情報を編集します。')
                 .addStringOption(option =>
                     option.setName('message_id')
-                        .setDescription('編集したいGiveawayのメッセージID')
+                        .setDescription('編集したい抽選のメッセージID')
                         .setRequired(true))
                 .addStringOption(option =>
                     option.setName('prize')
@@ -72,16 +72,16 @@ export default {
             }
 
             const createGiveaway = async (finalEndTime) => {
-             const giveawayEmbed = new EmbedBuilder().setTitle(`🎉 Giveaway: ${prize}`).setDescription(`下のボタンを押して参加しよう！\n**終了日時: <t:${Math.floor(endTime.getTime() / 1000)}:F>**`).addFields({ name: '当選者数', value: `${winnerCount}名`, inline: true }, { name: '参加者', value: '0名', inline: true }, { name: '主催者', value: `${interaction.user}`, inline: true }).setColor(0x5865F2).setTimestamp(endTime);
+             const giveawayEmbed = new EmbedBuilder().setTitle(`🎉 景品: ${prize}`).setDescription(`下のボタンを押して参加しよう！\n**終了日時: <t:${Math.floor(endTime.getTime() / 1000)}:F>**`).addFields({ name: '当選者数', value: `${winnerCount}名`, inline: true }, { name: '参加者', value: '0名', inline: true }, { name: '主催者', value: `${interaction.user}`, inline: true }).setColor(0x5865F2).setTimestamp(endTime);
             const participateButton = new ButtonBuilder().setCustomId(`giveaway_participate:${interaction.guildId}:${channel.id}`).setLabel('参加する').setStyle(ButtonStyle.Primary);                const row = new ActionRowBuilder().addComponents(participateButton);
                 try {
                     const message = await channel.send({ embeds: [giveawayEmbed], components: [row] });
                     const sql = 'INSERT INTO giveaways (message_id, guild_id, channel_id, prize, winner_count, end_time) VALUES ($1, $2, $3, $4, $5, $6)';
                     await cacheDB.query(sql, [message.id, interaction.guildId, channel.id, prize, winnerCount, finalEndTime]);
-                    await interaction.editReply({ content: `✅ Giveawayを ${channel} に作成しました！`, components: [] });
+                    await interaction.editReply({ content: `✅ 抽選を ${channel} に作成しました！`, components: [] });
                 } catch (error) {
                     console.error('Failed to start giveaway:', error);
-                    await interaction.editReply({ content: 'Giveawayの作成中にエラーが発生しました。', components: [] });
+                    await interaction.editReply({ content: '抽選の作成中にエラーが発生しました。', components: [] });
                 }
             };
 
@@ -110,7 +110,7 @@ export default {
                     if (confirmation.customId === 'cancel_giveaway_time') {
                         return confirmation.update({ content: 'キャンセルしました。', components: [] });
                     }
-                    await confirmation.update({ content: '✅ Giveawayを作成します...', components: [] });
+                    await confirmation.update({ content: '✅ 抽選を作成します...', components: [] });
                     await createGiveaway(endTime);
                 } catch (e) {
                     return interaction.editReply({ content: '60秒以内に応答がなかったため、キャンセルしました。', components: [] });
@@ -148,15 +148,15 @@ export default {
             await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
             const messageId = interaction.options.getString('message_id');
             const giveaway = getActiveGiveaways(interaction.guildId).find(g => g.message_id === messageId);
-            if (!giveaway) { return interaction.editReply('エラー: 指定されたIDの進行中Giveawayが見つかりません。');}
+            if (!giveaway) { return interaction.editReply('エラー: 指定されたIDの進行中抽選が見つかりません。');}
             await cacheDB.query("UPDATE giveaways SET end_time = NOW() WHERE message_id = $1", [messageId]);
-            await interaction.editReply(`✅ Giveaway「${giveaway.prize}」を終了しました。次の監視タイミング（最大10分後）に抽選が行われます。`);
+            await interaction.editReply(`✅ 抽選「${giveaway.prize}」を終了しました。次の監視タイミング（最大10分後）に抽選が行われます。`);
         } else if (subcommand === 'reroll') {
             await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
             const messageId = interaction.options.getString('message_id');
             const result = await cacheDB.query("SELECT * FROM giveaways WHERE message_id = $1 AND guild_id = $2 AND status = 'ENDED'", [messageId, interaction.guildId]);
             const giveaway = result.rows[0];
-            if (!giveaway) { return interaction.editReply('エラー: 指定されたIDの終了済みGiveawayが見つかりません。');}
+            if (!giveaway) { return interaction.editReply('エラー: 指定されたIDの終了済み抽選が見つかりません。');}
             try {
                 const channel = await interaction.guild.channels.fetch(giveaway.channel_id);
                 const message = await channel.messages.fetch(giveaway.message_id);
@@ -175,8 +175,8 @@ export default {
         } else if (subcommand === 'list') {
             await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
             const giveaways = getActiveGiveaways(interaction.guildId);
-            if (giveaways.length === 0) { return interaction.editReply('現在、このサーバーで進行中のGiveawayはありません。');}
-            const embed = new EmbedBuilder().setTitle('🎁 進行中のGiveaway一覧').setColor(0x5865F2);
+            if (giveaways.length === 0) { return interaction.editReply('現在、このサーバーで進行中の抽選はありません。');}
+            const embed = new EmbedBuilder().setTitle('🎁 進行中の抽選一覧').setColor(0x5865F2);
             for (const g of giveaways.slice(0, 25)) {
                 embed.addFields({ name: g.prize, value: `[メッセージに飛ぶ](https://discord.com/channels/${g.guild_id}/${g.channel_id}/${g.message_id})\n終了日時: <t:${Math.floor(new Date(g.end_time).getTime() / 1000)}:F>` });
             }
@@ -200,10 +200,10 @@ export default {
         else if (subcommand === 'fix') {
             await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
             const messageId = interaction.options.getString('message_id');
-            // データベースからgiveaway情報を取得
+            // データベースから抽選情報を取得
             const giveaway = getActiveGiveaways(interaction.guildId).find(g => g.message_id === messageId);
             if (!giveaway) { 
-                return interaction.editReply('エラー: 指定されたIDの進行中Giveawayが見つかりません。'); 
+                return interaction.editReply('エラー: 指定されたIDの進行中抽選が見つかりません。'); 
             }
 
             try {
@@ -260,9 +260,9 @@ export default {
                 }
 
 
-                // 新しいEmbedを、データベースのgiveaway情報とボットの標準形式に基づいてゼロから構築
+                // 新しいEmbedを、データベースの抽選情報とボットの標準形式に基づいてゼロから構築
                 const newEmbed = new EmbedBuilder()
-                    .setTitle(`🎉 Giveaway: ${giveaway.prize}`) // データベースの賞品名を使用
+                    .setTitle(`🎉 景品: ${giveaway.prize}`) // データベースの賞品名を使用
                     // 丸められた終了日時をDiscordのタイムスタンプ形式でフォーマット
                     .setDescription(`下のボタンを押して参加しよう！\n**終了日時: <t:${Math.floor(originalEndTime.getTime() / 1000)}:F>**`)
                     .setColor(0x5865F2) // 標準のDiscord Blurple色
@@ -274,7 +274,7 @@ export default {
                         { name: '主催者', value: oldMessage.embeds[0]?.fields?.[2]?.value || `${interaction.user}` } // 元のEmbedから主催者を取得、なければコマンド実行ユーザー
                     );
 
-                // 元のEmbedにフッター、画像、サムネイル、URL、作者があった場合、それらをコピー（Giveawayのメイン情報とは独立して保持）
+                // 元のEmbedにフッター、画像、サムネイル、URL、作者があった場合、それらをコピー（抽選のメイン情報とは独立して保持）
                 const originalEmbedData = oldMessage.embeds[0]?.toJSON();
                 if (originalEmbedData) {
                     if (originalEmbedData.footer) newEmbed.setFooter(originalEmbedData.footer);
@@ -314,7 +314,7 @@ export default {
             const giveaway = giveawayResult.rows[0];
 
             if (!giveaway) {
-                return interaction.editReply('エラー: 指定されたIDの進行中Giveawayが見つからないか、既に終了しています。');
+                return interaction.editReply('エラー: 指定されたIDの進行中抽選が見つからないか、既に終了しています。');
             }
 
             let updateFields = [];
@@ -358,7 +358,7 @@ export default {
                 const currentParticipantsCount = updatedGiveaway.participants ? updatedGiveaway.participants.length : 0;
                 
                 const updatedEmbed = EmbedBuilder.from(message.embeds[0])
-                    .setTitle(`🎉 Giveaway: ${updatedGiveaway.prize}`)
+                    .setTitle(`🎉 景品: ${updatedGiveaway.prize}`)
                     .setDescription(`下のボタンを押して参加しよう！\n**終了日時: <t:${Math.floor(new Date(updatedGiveaway.end_time).getTime() / 1000)}:F>**`)
                     .setFields(
                         { name: '当選者数', value: `${updatedGiveaway.winner_count}名`, inline: true },
@@ -368,10 +368,10 @@ export default {
                     .setTimestamp(new Date(updatedGiveaway.end_time));
 
                 await message.edit({ embeds: [updatedEmbed] });
-                await interaction.editReply(`✅ Giveaway (ID: \`${messageId}\`) の情報を更新しました。`);
+                await interaction.editReply(`✅ 抽選 (ID: \`${messageId}\`) の情報を更新しました。`);
             } catch (error) {
                 console.error('Failed to edit giveaway message:', error);
-                await interaction.editReply('Giveaway情報の更新中にエラーが発生しましたが、データベースは更新されました。メッセージの表示更新に失敗しました。');
+                await interaction.editReply('抽選情報の更新中にエラーが発生しましたが、データベースは更新されました。メッセージの表示更新に失敗しました。');
             }
         }
     },
