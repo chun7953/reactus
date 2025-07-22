@@ -2,12 +2,20 @@ import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { initializeSheetsAPI } from '../../lib/sheetsAPI.js';
 import { google } from 'googleapis';
 import { triggerAutoBackup } from '../../lib/autoBackup.js';
-import { getMainCalendar, addCalendarMonitor, getDBPool } from '../../lib/settingsCache.js';
+import { get, cache, getDBPool } from '../../lib/settingsCache.js';
 
 export default {
     data: new SlashCommandBuilder()
         .setName('setcalendar')
-        // ... (description and options are same)
+        .setDescription('カレンダー通知を設定します。ID省略時はメインカレンダーを使用。')
+        .addStringOption(option =>
+            option.setName('trigger_keyword')
+                .setDescription('トリガーキーワード（【】は不要。例: ご連絡, GvGアンケ）')
+                .setRequired(true))
+        .addStringOption(option =>
+            option.setName('calendar_id')
+                .setDescription('（任意）監視するカレンダーのID。省略するとメインカレンダーを使用。')
+                .setRequired(false))
         .addRoleOption(option =>
             option.setName('mention_role')
                 .setDescription('（任意）通知時に必ずメンションするロール')),
@@ -22,7 +30,7 @@ export default {
         try {
             let targetCalendarId = calendarIdInput;
             if (!targetCalendarId) {
-                const mainCal = getMainCalendar(guildId);
+                const mainCal = get.guildConfig(guildId);
                 if (mainCal && mainCal.main_calendar_id) {
                     targetCalendarId = mainCal.main_calendar_id;
                 } else {
@@ -43,25 +51,22 @@ export default {
             }
 
             const pool = await getDBPool();
-            const sql = 'INSERT INTO calendar_monitors (guild_id, channel_id, calendar_id, trigger_keyword, mention_role) VALUES ($1, $2, $3, $4, $5)';
-            const values = [guildId, channelId, targetCalendarId, triggerKeyword, mentionRole ? mentionRole.id : null];
-            await pool.query(sql, values);
-            
-            // キャッシュを更新
-            addCalendarMonitor({
-                guild_id: guildId, 
-                channel_id: channelId, 
-                calendar_id: targetCalendarId, 
-                trigger_keyword: triggerKeyword, 
+            const setting = {
+                guild_id: guildId,
+                channel_id: channelId,
+                calendar_id: targetCalendarId,
+                trigger_keyword: triggerKeyword,
                 mention_role: mentionRole ? mentionRole.id : null
-            });
+            };
+            const sql = 'INSERT INTO calendar_monitors (guild_id, channel_id, calendar_id, trigger_keyword, mention_role) VALUES ($1, $2, $3, $4, $5)';
+            await pool.query(sql, [setting.guild_id, setting.channel_id, setting.calendar_id, setting.trigger_keyword, setting.mention_role]);
+            
+            cache.addCalendarMonitor(setting);
             
             const backupSuccess = await triggerAutoBackup(guildId);
             const backupMessage = backupSuccess ? "設定は自動でバックアップされました。" : "注意: 設定のバックアップに失敗しました。";
 
-            let replyMessage = `✅ **設定完了**\n・対象カレンダー: \`${targetCalendarId}\`\n・キーワード: \`【${triggerKeyword}】\`\n${backupMessage}`;
-            await interaction.editReply(replyMessage);
-
+            await interaction.editReply(`✅ **設定完了**\n・対象カレンダー: \`${targetCalendarId}\`\n・キーワード: \`【${triggerKeyword}】\`\n${backupMessage}`);
         } catch (error) {
             console.error("Failed to set calendar monitor:", error);
             await interaction.editReply('設定の保存中にエラーが発生しました。同じキーワードが既に登録されている可能性があります。');

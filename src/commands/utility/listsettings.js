@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, PermissionsBitField, MessageFlags } from 'discord.js';
-import { getReactionSettings, getMonitorsByGuild, getMainCalendar } from '../../lib/settingsCache.js';
+import { get } from '../../lib/settingsCache.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -12,14 +12,14 @@ export default {
         try {
             let response = '### ⚙️ 現在のサーバー設定一覧\n';
             
-            const mainCal = getMainCalendar(guild.id);
+            const mainCal = get.guildConfig(guild.id);
             if (mainCal && mainCal.main_calendar_id) {
                 response += `**メインカレンダー**: \`${mainCal.main_calendar_id}\`\n\n`;
             } else {
                 response += '**メインカレンダー**: 未設定\n\n';
             }
 
-            const reactionSettings = getReactionSettings(guild.id);
+            const reactionSettings = get.reactionSettings(guild.id);
             const accessibleReactions = reactionSettings.filter(row => guild.channels.cache.get(row.channel_id)?.permissionsFor(user).has(PermissionsBitField.Flags.ViewChannel));
             if (accessibleReactions.length > 0) {
                 response += '**自動リアクション設定**\n';
@@ -28,7 +28,7 @@ export default {
                 });
             }
 
-            const calendarSettings = getMonitorsByGuild(guild.id);
+            const calendarSettings = get.monitorsByGuild(guild.id);
             const accessibleCalendars = calendarSettings.filter(row => guild.channels.cache.get(row.channel_id)?.permissionsFor(user).has(PermissionsBitField.Flags.ViewChannel));
             if (accessibleCalendars.length > 0) {
                 response += '\n**カレンダー通知設定**\n';
