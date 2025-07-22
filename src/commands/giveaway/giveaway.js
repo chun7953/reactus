@@ -3,7 +3,6 @@ import { SlashCommandBuilder, MessageFlags, ChannelType, EmbedBuilder, ButtonBui
 import { cacheDB, getActiveGiveaways } from '../../lib/settingsCache.js';
 import { parseDuration } from '../../lib/timeUtils.js';
 import { hasGiveawayPermission } from '../../lib/permissionUtils.js';
-// import cron from 'node-cron'; // 定期抽選コマンド削除に伴い、この行を削除
 
 export default {
     data: new SlashCommandBuilder()
@@ -12,7 +11,6 @@ export default {
         .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageMessages)
         .addSubcommand(subcommand => subcommand.setName('start').setDescription('新しいGiveawayをすぐに開始します。').addStringOption(option => option.setName('prize').setDescription('賞品').setRequired(true)).addIntegerOption(option => option.setName('winners').setDescription('当選者数').setRequired(true)).addStringOption(option => option.setName('duration').setDescription('期間 (例: 10m, 1h, 2d)').setRequired(false)).addStringOption(option => option.setName('end_time').setDescription('終了日時 (例: 2025-07-22 21:00)').setRequired(false)))
         .addSubcommand(subcommand => subcommand.setName('schedule').setDescription('未来の指定した日時にGiveawayを開始するよう予約します。').addStringOption(option => option.setName('prize').setDescription('賞品').setRequired(true)).addIntegerOption(option => option.setName('winners').setDescription('当選者数').setRequired(true)).addStringOption(option => option.setName('start_time').setDescription('開始日時 (例: 2025-07-22 21:00)').setRequired(true)).addStringOption(option => option.setName('duration').setDescription('期間 (例: 1h, 2d)').setRequired(false)).addStringOption(option => option.setName('end_time').setDescription('終了日時 (例: 2025-07-22 22:00)').setRequired(false)))
-        // .addSubcommand(subcommand => subcommand.setName('recurring').setDescription('定期的なGiveawayを設定します。').addStringOption(option => option.setName('prize').setDescription('賞品').setRequired(true)).addIntegerOption(option => option.setName('winners').setDescription('当選者数').setRequired(true)).addStringOption(option => option.setName('schedule').setDescription('スケジュール (cron形式: 分 時 日 月 週)').setRequired(true)).addStringOption(option => option.setName('duration').setDescription('期間 (例: 1h, 2d)').setRequired(true)).addChannelOption(option => option.setName('giveaway_channel').setDescription('抽選を投稿するチャンネル').addChannelTypes(ChannelType.GuildText).setRequired(false)).addChannelOption(option => option.setName('confirmation_channel').setDescription('開催確認を投稿するチャンネル').addChannelTypes(ChannelType.GuildText).setRequired(false)).addRoleOption(option => option.setName('confirmation_role').setDescription('開催を確認するロール').setRequired(false)))
         .addSubcommand(subcommand => subcommand.setName('end').setDescription('進行中のGiveawayをただちに終了します。').addStringOption(option => option.setName('message_id').setDescription('終了したいGiveawayのメッセージID').setRequired(true)))
         .addSubcommand(subcommand => subcommand.setName('reroll').setDescription('終了したGiveawayの当選者を再抽選します。').addStringOption(option => option.setName('message_id').setDescription('再抽選したいGiveawayのメッセージID').setRequired(true)))
         .addSubcommand(subcommand => subcommand.setName('list').setDescription('進行中のGiveawayの一覧を表示します。'))
@@ -202,21 +200,43 @@ export default {
         else if (subcommand === 'fix') {
             await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
             const messageId = interaction.options.getString('message_id');
+            // データベースからgiveaway情報を取得
             const giveaway = getActiveGiveaways(interaction.guildId).find(g => g.message_id === messageId);
             if (!giveaway) { return interaction.editReply('エラー: 指定されたIDの進行中Giveawayが見つかりません。'); }
+
             try {
                 const channel = await interaction.guild.channels.fetch(giveaway.channel_id);
                 const oldMessage = await channel.messages.fetch(messageId);
                 const reaction = oldMessage.reactions.cache.get('🎉');
-                const participants = reaction ? await reaction.users.fetch() : new Collection(); // MapではなくCollectionを使用
+                const participants = reaction ? await reaction.users.fetch() : new Collection();
                 const validParticipantIds = Array.from(participants.filter(u => !u.bot).keys());
                 
                 await oldMessage.edit({ content: '⚠️ **この抽選は不具合のため、新しいメッセージに移動しました。**', embeds: [], components: [] });
                 await cacheDB.query("UPDATE giveaways SET status = 'CANCELLED' WHERE message_id = $1", [messageId]);
 
-                const newEmbed = EmbedBuilder.from(oldMessage.embeds[0])
-                    .setDescription(oldMessage.embeds[0]?.description || '参加するにはリアクションを押してください。'); // descriptionが空の場合のフォールバック
+                // 新しいEmbedを、データベースのgiveaway情報とボットの標準形式に基づいてゼロから構築
+                const newEmbed = new EmbedBuilder()
+                    .setTitle(`🎉 Giveaway: ${giveaway.prize}`) // データベースの賞品名を使用
+                    .setDescription(`下のボタンを押して参加しよう！\n**終了日時: <t:${Math.floor(new Date(giveaway.end_time).getTime() / 1000)}:F>**`) // データベースの終了日時を使用し、Discordのタイムスタンプ形式でフォーマット
+                    .setColor(0x5865F2) // 標準のDiscord Blurple色
+                    .setTimestamp(new Date(giveaway.end_time)) // データベースの終了日時を使用
 
+                    .addFields(
+                        { name: '当選者数', value: `${giveaway.winner_count}名`, inline: true }, // データベースの当選者数を使用
+                        { name: '参加者', value: `${validParticipantIds.length}名`, inline: true }, // 収集した参加者数を使用
+                        { name: '主催者', value: oldMessage.embeds[0]?.fields?.[2]?.value || `${interaction.user}` } // 元のEmbedから主催者を取得、なければコマンド実行ユーザー
+                    );
+
+                // 元のEmbedにフッター、画像、サムネイル、URL、作者があった場合、それらをコピー（Giveawayのメイン情報とは独立して保持）
+                const originalEmbedData = oldMessage.embeds[0]?.toJSON();
+                if (originalEmbedData) {
+                    if (originalEmbedData.footer) newEmbed.setFooter(originalEmbedData.footer);
+                    if (originalEmbedData.image) newEmbed.setImage(originalEmbedData.image.url);
+                    if (originalEmbedData.thumbnail) newEmbed.setThumbnail(originalEmbedData.thumbnail.url);
+                    if (originalEmbedData.url) newEmbed.setURL(originalEmbedData.url);
+                    if (originalEmbedData.author) newEmbed.setAuthor(originalEmbedData.author);
+                }
+                
                 const newButton = new ButtonBuilder().setCustomId('giveaway_participate').setLabel('参加する').setStyle(ButtonStyle.Primary).setEmoji('🎉');
                 const newRow = new ActionRowBuilder().addComponents(newButton);
                 
