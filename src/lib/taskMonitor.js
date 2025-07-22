@@ -1,4 +1,4 @@
-// src/lib/taskMonitor.js (再起動対策 修正版)
+// src/lib/taskMonitor.js (履歴保持期間を2週間に延長)
 
 import { google } from 'googleapis';
 import { initializeSheetsAPI } from './sheetsAPI.js';
@@ -27,11 +27,13 @@ async function checkCalendarEvents(client) {
         const { auth } = await initializeSheetsAPI();
         const calendar = google.calendar({ version: 'v3', auth });
         const pool = await getDBPool();
-        await pool.query("DELETE FROM notified_events WHERE notified_at < NOW() - INTERVAL '6 hours'");
         
-        // ★ 修正: 10分前から取得して、再起動時のイベントの見逃しを防ぐ
-        const timeMin = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-        const timeMax = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+        // ★ 修正: 古い通知済みイベントIDの削除期間を14日に延長
+        await pool.query("DELETE FROM notified_events WHERE notified_at < NOW() - INTERVAL '14 days'");
+        
+        const now = new Date();
+        const timeMin = new Date(now.getTime() - 10 * 60 * 1000).toISOString();
+        const timeMax = new Date(now.getTime() + 10 * 60 * 1000).toISOString();
 
         for (const monitor of monitors) {
             try {
@@ -42,13 +44,14 @@ async function checkCalendarEvents(client) {
                 if (!events.data.items) continue;
 
                 for (const event of events.data.items) {
-                    // 唯一のチェック: データベースに記録があるか？
                     const notifiedCheck = await pool.query('SELECT 1 FROM notified_events WHERE event_id = $1', [event.id]);
-                    if (notifiedCheck.rows.length > 0) {
-                        continue; // 記録があれば、それは処理済みなのでスキップ
+                    if (notifiedCheck.rows.length > 0) continue;
+
+                    const eventEndTime = new Date(event.end.dateTime || event.end.date);
+                    if (eventEndTime < now) {
+                        await pool.query('INSERT INTO notified_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING', [event.id]);
+                        continue; 
                     }
-                    
-                    // ★ 削除: 開始時刻が過去かのチェックは不要（むしろバグの原因だった）
 
                     let eventDescription = event.description || '';
                     eventDescription = basicDecodeHtmlEntities(eventDescription); 
