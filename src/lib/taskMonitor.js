@@ -4,7 +4,6 @@ import { initializeDatabase } from '../db/database.js';
 import { initializeSheetsAPI } from './sheetsAPI.js';
 import { getAllActiveGiveaways, getAllScheduledGiveaways, getMonitors, cacheDB } from './settingsCache.js';
 import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
-import cronParser from 'cron-parser';
 
 async function checkCalendarEvents(client) {
     const monitors = await getMonitors();
@@ -180,7 +179,8 @@ async function checkScheduledGiveaways(client) {
     const now = new Date();
     const scheduledGiveaways = getAllScheduledGiveaways();
     
-    const dueOneTime = scheduledGiveaways.filter(g => !g.schedule_cron && new Date(g.start_time) <= now);
+    // 定期抽選 (schedule_cronがあるもの) は処理しないようにフィルタリング -> 不要になったため、このフィルタリングは実質的に全件処理
+    const dueOneTime = scheduledGiveaways.filter(g => !g.schedule_cron && new Date(g.start_time) <= now); 
 
     for (const scheduled of dueOneTime) {
         try {
@@ -209,14 +209,15 @@ async function checkScheduledGiveaways(client) {
     }
 }
 
-function getScheduleText(cron) {
-    const parts = cron.split(' ');
-    if (parts.length !== 5) return '毎周期';
-    if (parts[4] !== '*') return '毎週';
-    if (parts[2] !== '*') return '毎月';
-    if (parts[1] !== '*') return '毎日';
-    return '毎時間';
-}
+// getScheduleText 関数は定期抽選機能の削除に伴い不要になったため削除
+// function getScheduleText(cron) {
+//     const parts = cron.split(' ');
+//     if (parts.length !== 5) return '毎周期';
+//     if (parts[4] !== '*') return '毎週';
+//     if (parts[2] !== '*') return '毎月';
+//     if (parts[1] !== '*') return '毎日';
+//     return '毎時間';
+// }
 
 let isRunning = false;
 async function runTasks(client) {
