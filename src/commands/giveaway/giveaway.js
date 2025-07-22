@@ -207,7 +207,7 @@ export default {
                 const channel = await interaction.guild.channels.fetch(giveaway.channel_id);
                 const oldMessage = await channel.messages.fetch(messageId);
                 const reaction = oldMessage.reactions.cache.get('🎉');
-                const participants = reaction ? await reaction.users.fetch() : new Map();
+const participants = reaction ? await reaction.users.fetch() : new Collection();
                 const validParticipantIds = Array.from(participants.filter(u => !u.bot).keys());
                 
                 await oldMessage.edit({ content: '⚠️ **この抽選は不具合のため、新しいメッセージに移動しました。**', embeds: [], components: [] });
