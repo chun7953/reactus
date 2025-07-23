@@ -1,4 +1,4 @@
-// src/lib/taskMonitor.js (自動巡回メンテナンス機能 強化版)
+// src/lib/taskMonitor.js (最終修正版)
 
 import { google } from 'googleapis';
 import { initializeSheetsAPI } from './sheetsAPI.js';
@@ -184,14 +184,16 @@ async function checkFinishedGiveaways(client) {
     for (const giveaway of finishedGiveaways) {
         try {
             const channel = await client.channels.fetch(giveaway.channel_id).catch(() => null);
-            if (!channel) { 
-                await pool.query("UPDATE giveaways SET status = 'ERRORED' WHERE message_id = $1", [giveaway.message_id]); 
-                cache.removeGiveaway(giveaway.guild_id, giveaway.message_id); 
-                continue; 
+            if (!channel) {
+                console.log(`[TaskMonitor] 抽選 ${giveaway.message_id} のチャンネルが見つからないため、ERRORED として処理します。`);
+                await pool.query("UPDATE giveaways SET status = 'ERRORED' WHERE message_id = $1", [giveaway.message_id]);
+                cache.removeGiveaway(giveaway.guild_id, giveaway.message_id);
+                continue;
             }
             
             const message = await channel.messages.fetch(giveaway.message_id).catch(() => null);
             if (!message) {
+                console.log(`[TaskMonitor] 抽選メッセージ ${giveaway.message_id} が見つからないため（手動削除の可能性）、ERRORED として処理します。`);
                 await pool.query("UPDATE giveaways SET status = 'ERRORED' WHERE message_id = $1", [giveaway.message_id]);
                 cache.removeGiveaway(giveaway.guild_id, giveaway.message_id);
                 continue;
@@ -295,7 +297,6 @@ async function cleanupGhostGiveaways() {
     }
 }
 
-// ★★★ ここからが新しい関数 ★★★
 async function validateActiveGiveaways(client) {
     const activeGiveaways = get.allActiveGiveaways();
     if (activeGiveaways.length === 0) return;
@@ -310,10 +311,8 @@ async function validateActiveGiveaways(client) {
                 cache.removeGiveaway(giveaway.guild_id, giveaway.message_id);
                 continue;
             }
-            // メッセージが存在するかどうかを確認
             await channel.messages.fetch(giveaway.message_id);
         } catch (error) {
-            // Discord APIエラーコード 10008 は「不明なメッセージ」= 削除済み
             if (error.code === 10008) { 
                 console.log(`[TaskMonitor] 進行中抽選メッセージ ${giveaway.message_id} が見つからないため（手動削除）、ERRORED に設定します。`);
                 await pool.query("UPDATE giveaways SET status = 'ERRORED' WHERE message_id = $1", [giveaway.message_id]);
@@ -325,35 +324,37 @@ async function validateActiveGiveaways(client) {
     }
 }
 
-let isRunning = false;
-async function runTasks(client) {
-    if (isRunning) return;
-    isRunning = true;
+let highFreqIsRunning = false;
+async function runHighFrequencyTasks(client) {
+    if (highFreqIsRunning) return;
+    highFreqIsRunning = true;
     try {
         await cleanupGhostGiveaways();
-        await validateActiveGiveaways(client); // ★ 新しい巡回チェックを追加
-        await checkCalendarEvents(client);
+        await validateActiveGiveaways(client);
         await checkFinishedGiveaways(client);
         await checkScheduledGiveaways(client);
-    } catch (error) { console.error('[TaskMonitor] メインタスクループ中に予期せぬエラーが発生しました:', error); }
-    finally { isRunning = false; }
+    } catch (error) { console.error('[TaskMonitor] 高頻度タスクループ中にエラー:', error); }
+    finally { highFreqIsRunning = false; }
+}
+
+let lowFreqIsRunning = false;
+async function runLowFrequencyTasks(client) {
+    if (lowFreqIsRunning) return;
+    lowFreqIsRunning = true;
+    try {
+        await checkCalendarEvents(client);
+    } catch (error) { console.error('[TaskMonitor] 低頻度タスクループ中にエラー:', error); }
+    finally { lowFreqIsRunning = false; }
 }
 
 export function startMonitoring(client) {
-    const MONITOR_INTERVAL_MINUTES = 10;
-    const scheduleNextRun = () => {
-        const now = new Date();
-        const minutes = now.getMinutes();
-        const nextRunMinute = (Math.floor(minutes / MONITOR_INTERVAL_MINUTES) + 1) * MONITOR_INTERVAL_MINUTES;
-        const nextRunTime = new Date(now);
-        nextRunTime.setMinutes(nextRunMinute, 0, 0);
-        const delay = nextRunTime.getTime() - now.getTime();
-        setTimeout(() => {
-            const runAndSchedule = () => runTasks(client);
-            runAndSchedule();
-            setInterval(runAndSchedule, MONITOR_INTERVAL_MINUTES * 60 * 1000);
-        }, delay);
-    };
-    scheduleNextRun();
-    console.log('✅ マスタータスク監視サービスを開始しました。');
+    const HIGH_FREQ_INTERVAL = 1 * 60 * 1000;
+    runHighFrequencyTasks(client);
+    setInterval(() => runHighFrequencyTasks(client), HIGH_FREQ_INTERVAL);
+
+    const LOW_FREQ_INTERVAL = 10 * 60 * 1000;
+    runLowFrequencyTasks(client);
+    setInterval(() => runLowFrequencyTasks(client), LOW_FREQ_INTERVAL);
+    
+    console.log('✅ タスク監視サービスを開始しました (高頻度: 1分, 低頻度: 10分)。');
 }
