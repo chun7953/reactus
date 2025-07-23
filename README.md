@@ -90,6 +90,18 @@ Reactusは、Discordサーバーの運営を効率化し、コミュニティ活
 -   `/startannounce`: チャンネルに自動アナウンスを設定します。
 -   `/stopannounce`: アナウンスを停止します。
 
+### 抽選機能
+-   `/giveaway start`: 抽選を開始します。
+-   `/giveaway schedule`: 抽選を予約します。
+-   `/giveaway end`: 進行中の抽選を即時終了します。
+-   `/giveaway reroll`: 終了した抽選の再抽選をします。
+-   `/giveaway edit`: 進行中の抽選の内容（賞品、当選者数、終了日時）を変更します。
+-   `/giveaway fix`: 不具合が起きた抽選を、参加者を引き継いで作り直します。
+-   `/giveaway restore`: エラーで止まった抽選を、進行中に復元します。
+-   `/giveaway list`: 進行中・予約中の抽選を一覧表示します。
+-   `/giveaway delete`: 抽選のメッセージとデータを完全に削除します。
+-   `/giveaway-permission`: 抽選コマンドの管理権限をロールに付与します。
+
 ### ユーティリティ
 -   `/poll`: 簡易投票を作成します。リアクション集計ボタン付きです。
 -   `/csvreactions`: 指定メッセージのリアクションをCSVで集計します。公開/非公開を選べます。
