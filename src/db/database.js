@@ -1,3 +1,5 @@
+// src/db/database.js (修正版)
+
 import pg from 'pg';
 import config from '../config.js';
 
@@ -50,7 +52,8 @@ async function createTables() {
                 end_time TIMESTAMP WITH TIME ZONE NOT NULL,
                 status TEXT NOT NULL DEFAULT 'RUNNING',
                 winners TEXT[],
-                participants TEXT[] DEFAULT '{}'::TEXT[]
+                participants TEXT[] DEFAULT '{}'::TEXT[],
+                validation_fails INTEGER DEFAULT 0
             );
         `);
         await pool.query(`
@@ -69,6 +72,18 @@ async function createTables() {
             );
         `);
         console.log('✅ Tables checked/created successfully.');
+        
+        // 既存のテーブルに validation_fails カラムを追加しようと試みる
+        try {
+            await pool.query(`ALTER TABLE giveaways ADD COLUMN validation_fails INTEGER DEFAULT 0;`);
+            console.log('✅ "giveaways" table updated with "validation_fails" column.');
+        } catch (err) {
+            // "duplicate column" エラー (コード 42701) は、既にカラムが存在することを意味するので無視する
+            if (err.code !== '42701') { 
+                console.error('Error adding "validation_fails" column (this may be expected if it exists):', err.message);
+            }
+        }
+
     } catch (err) {
         console.error('Error creating tables:', err);
     }

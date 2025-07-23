@@ -1,10 +1,10 @@
-// src/lib/taskMonitor.js (ログ通知機能 強化版)
+// src/lib/taskMonitor.js (最終修正版)
 
 import { google } from 'googleapis';
 import { initializeSheetsAPI } from './sheetsAPI.js';
 import { get, cache, getDBPool } from './settingsCache.js';
 import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
-import { logSystemNotice } from './logger.js'; // ★ 新しいログ関数をインポート
+import { logSystemNotice } from './logger.js';
 
 function basicDecodeHtmlEntities(text) {
     if (!text || typeof text !== 'string') {
@@ -190,23 +190,19 @@ async function checkFinishedGiveaways(client) {
                 cache.removeGiveaway(giveaway.guild_id, giveaway.message_id); 
                 continue; 
             }
-            
             const message = await channel.messages.fetch(giveaway.message_id).catch(() => null);
             if (!message) {
                 await pool.query("UPDATE giveaways SET status = 'ERRORED' WHERE message_id = $1", [giveaway.message_id]);
                 cache.removeGiveaway(giveaway.guild_id, giveaway.message_id);
                 continue;
             }
-            
             const participantsResult = await pool.query("SELECT participants FROM giveaways WHERE message_id = $1", [giveaway.message_id]);
             const participants = participantsResult.rows[0]?.participants || [];
-            
             let winners = [];
             if (participants.length > 0) {
                 const shuffled = [...participants].sort(() => 0.5 - Math.random());
                 winners = shuffled.slice(0, giveaway.winner_count);
             }
-            
             const winnerMentions = winners.map(id => `<@${id}>`).join(' ');
             const resultEmbed = new EmbedBuilder().setTitle(`🎉 抽選終了: ${giveaway.prize}`).setColor(0x2ECC71).setTimestamp(new Date(giveaway.end_time));
             if (winners.length > 0) {
@@ -303,38 +299,40 @@ async function validateActiveGiveaways(client) {
     const pool = await getDBPool();
     for (const giveaway of activeGiveaways) {
         try {
-            const channel = await client.channels.fetch(giveaway.channel_id).catch(() => null);
-            if (!channel) {
-                console.log(`[TaskMonitor] 進行中抽選 ${giveaway.message_id} のチャンネルが見つからないため、ERRORED に設定します。`);
-                // ★ ログ送信を追加
-                logSystemNotice({
-                    title: '🧹 自動クリーンアップ通知 (チャンネル消失)',
-                    fields: [
-                        { name: '内容', value: '進行中の抽選が属するチャンネルが見つからなかったため、自動で整理しました。' },
-                        { name: '賞品', value: giveaway.prize },
-                        { name: 'メッセージID', value: `\`${giveaway.message_id}\`` },
-                    ]
-                });
-                await pool.query("UPDATE giveaways SET status = 'ERRORED' WHERE message_id = $1", [giveaway.message_id]);
-                cache.removeGiveaway(giveaway.guild_id, giveaway.message_id);
-                continue;
-            }
+            const channel = await client.channels.fetch(giveaway.channel_id);
             await channel.messages.fetch(giveaway.message_id);
+            
+            // 成功した場合、失敗カウントをリセット
+            if (giveaway.validation_fails > 0) {
+                await pool.query("UPDATE giveaways SET validation_fails = 0 WHERE message_id = $1", [giveaway.message_id]);
+            }
+
         } catch (error) {
-            if (error.code === 10008) { 
-                console.log(`[TaskMonitor] 進行中抽選メッセージ ${giveaway.message_id} が見つからないため（手動削除）、ERRORED に設定します。`);
-                // ★ ログ送信を追加
-                logSystemNotice({
-                    title: '🧹 自動クリーンアップ通知 (メッセージ削除)',
-                    fields: [
-                        { name: '内容', value: '進行中の抽選メッセージが見つからなかったため、自動で整理しました。' },
-                        { name: '賞品', value: giveaway.prize },
-                        { name: 'メッセージID', value: `\`${giveaway.message_id}\`` },
-                        { name: 'チャンネル', value: `<#${giveaway.channel_id}>` }
-                    ]
-                });
-                await pool.query("UPDATE giveaways SET status = 'ERRORED' WHERE message_id = $1", [giveaway.message_id]);
-                cache.removeGiveaway(giveaway.guild_id, giveaway.message_id);
+            const FAIL_THRESHOLD = 3; // 3回連続で失敗したらエラー扱い (約30分)
+
+            if (error.code === 10003 || error.code === 10008) { // Unknown Channel or Unknown Message
+                const { rows } = await pool.query("UPDATE giveaways SET validation_fails = validation_fails + 1 WHERE message_id = $1 RETURNING *", [giveaway.message_id]);
+                const updatedGiveaway = rows[0];
+
+                if (updatedGiveaway && updatedGiveaway.validation_fails >= FAIL_THRESHOLD) {
+                    await pool.query("UPDATE giveaways SET status = 'ERRORED' WHERE message_id = $1", [giveaway.message_id]);
+                    cache.removeGiveaway(giveaway.guild_id, giveaway.message_id);
+                    
+                    const reason = error.code === 10003 ? 'チャンネルが見つかりませんでした' : 'メッセージが見つかりませんでした';
+                    console.log(`[TaskMonitor] 進行中抽選 ${giveaway.message_id} は${FAIL_THRESHOLD}回連続で検証に失敗したため、ERROREDに設定します。理由: ${reason}`);
+                    logSystemNotice({
+                        title: '🧹 自動クリーンアップ通知 (検証失敗)',
+                        fields: [
+                            { name: '内容', value: `進行中の抽選が${FAIL_THRESHOLD}回連続（約30分）で検証に失敗したため、自動で整理しました。` },
+                            { name: '理由', value: reason },
+                            { name: '賞品', value: updatedGiveaway.prize },
+                            { name: 'メッセージID', value: `\`${giveaway.message_id}\`` },
+                            { name: 'チャンネル', value: `<#${updatedGiveaway.channel_id}>` }
+                        ]
+                    });
+                } else if (updatedGiveaway) {
+                    console.log(`[TaskMonitor] 進行中抽選 ${giveaway.message_id} の検証に失敗しました。(${updatedGiveaway.validation_fails}/${FAIL_THRESHOLD})`);
+                }
             } else {
                 console.error(`[TaskMonitor] 進行中抽選 ${giveaway.message_id} の検証中に予期せぬエラー:`, error.message);
             }
