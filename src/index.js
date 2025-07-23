@@ -1,4 +1,4 @@
-// src/index.js
+// src/index.js (修正版)
 
 import { Client, GatewayIntentBits, Collection } from 'discord.js';
 import fs from 'fs';
@@ -6,7 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import config from './config.js';
 import { startServer } from './web/server.js';
-import { startMonitoring } from './lib/taskMonitor.js';
+// import { startMonitoring } from './lib/taskMonitor.js'; // ★ 不要になったので削除
 import { initializeCache } from './lib/settingsCache.js';
 import { logGlobalError } from './lib/logger.js';
 
@@ -64,7 +64,7 @@ for (const file of eventFiles) {
         console.log("--- Initializing Modules ---");
         await initializeCache(); // DB接続とキャッシュの初期化
         startServer();
-        startMonitoring(client);
+        // startMonitoring(client); // ★ この行を削除
         if (!config.discord.token) {
             throw new Error("Discord token is not configured in environment variables.");
         }
