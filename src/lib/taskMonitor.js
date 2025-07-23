@@ -1,9 +1,10 @@
-// src/lib/taskMonitor.js (最終修正版)
+// src/lib/taskMonitor.js (ログ通知機能 強化版)
 
 import { google } from 'googleapis';
 import { initializeSheetsAPI } from './sheetsAPI.js';
 import { get, cache, getDBPool } from './settingsCache.js';
 import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
+import { logSystemNotice } from './logger.js'; // ★ 新しいログ関数をインポート
 
 function basicDecodeHtmlEntities(text) {
     if (!text || typeof text !== 'string') {
@@ -184,16 +185,14 @@ async function checkFinishedGiveaways(client) {
     for (const giveaway of finishedGiveaways) {
         try {
             const channel = await client.channels.fetch(giveaway.channel_id).catch(() => null);
-            if (!channel) {
-                console.log(`[TaskMonitor] 抽選 ${giveaway.message_id} のチャンネルが見つからないため、ERRORED として処理します。`);
-                await pool.query("UPDATE giveaways SET status = 'ERRORED' WHERE message_id = $1", [giveaway.message_id]);
-                cache.removeGiveaway(giveaway.guild_id, giveaway.message_id);
-                continue;
+            if (!channel) { 
+                await pool.query("UPDATE giveaways SET status = 'ERRORED' WHERE message_id = $1", [giveaway.message_id]); 
+                cache.removeGiveaway(giveaway.guild_id, giveaway.message_id); 
+                continue; 
             }
             
             const message = await channel.messages.fetch(giveaway.message_id).catch(() => null);
             if (!message) {
-                console.log(`[TaskMonitor] 抽選メッセージ ${giveaway.message_id} が見つからないため（手動削除の可能性）、ERRORED として処理します。`);
                 await pool.query("UPDATE giveaways SET status = 'ERRORED' WHERE message_id = $1", [giveaway.message_id]);
                 cache.removeGiveaway(giveaway.guild_id, giveaway.message_id);
                 continue;
@@ -307,6 +306,15 @@ async function validateActiveGiveaways(client) {
             const channel = await client.channels.fetch(giveaway.channel_id).catch(() => null);
             if (!channel) {
                 console.log(`[TaskMonitor] 進行中抽選 ${giveaway.message_id} のチャンネルが見つからないため、ERRORED に設定します。`);
+                // ★ ログ送信を追加
+                logSystemNotice({
+                    title: '🧹 自動クリーンアップ通知 (チャンネル消失)',
+                    fields: [
+                        { name: '内容', value: '進行中の抽選が属するチャンネルが見つからなかったため、自動で整理しました。' },
+                        { name: '賞品', value: giveaway.prize },
+                        { name: 'メッセージID', value: `\`${giveaway.message_id}\`` },
+                    ]
+                });
                 await pool.query("UPDATE giveaways SET status = 'ERRORED' WHERE message_id = $1", [giveaway.message_id]);
                 cache.removeGiveaway(giveaway.guild_id, giveaway.message_id);
                 continue;
@@ -315,6 +323,16 @@ async function validateActiveGiveaways(client) {
         } catch (error) {
             if (error.code === 10008) { 
                 console.log(`[TaskMonitor] 進行中抽選メッセージ ${giveaway.message_id} が見つからないため（手動削除）、ERRORED に設定します。`);
+                // ★ ログ送信を追加
+                logSystemNotice({
+                    title: '🧹 自動クリーンアップ通知 (メッセージ削除)',
+                    fields: [
+                        { name: '内容', value: '進行中の抽選メッセージが見つからなかったため、自動で整理しました。' },
+                        { name: '賞品', value: giveaway.prize },
+                        { name: 'メッセージID', value: `\`${giveaway.message_id}\`` },
+                        { name: 'チャンネル', value: `<#${giveaway.channel_id}>` }
+                    ]
+                });
                 await pool.query("UPDATE giveaways SET status = 'ERRORED' WHERE message_id = $1", [giveaway.message_id]);
                 cache.removeGiveaway(giveaway.guild_id, giveaway.message_id);
             } else {

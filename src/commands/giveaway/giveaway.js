@@ -1,7 +1,7 @@
-// src/commands/giveaway/giveaway.js (10分警告削除版)
+// src/commands/giveaway/giveaway.js (restore機能追加版)
 
 import { SlashCommandBuilder, MessageFlags, ChannelType, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, PermissionsBitField, Collection } from 'discord.js';
-import { getDBPool, get, cache } from '../../lib/settingsCache.js';
+import { getDBPool, get, cache, initializeCache } from '../../lib/settingsCache.js';
 import { parseDuration } from '../../lib/timeUtils.js';
 import { hasGiveawayPermission } from '../../lib/permissionUtils.js';
 
@@ -51,7 +51,16 @@ export default {
                 .addStringOption(option =>
                     option.setName('end_time')
                         .setDescription('新しい終了日時 (例: 2025-07-22 21:00)')
-                        .setRequired(false))),
+                        .setRequired(false)))
+        // ★ 新しいサブコマンドを追加
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('restore')
+                .setDescription('エラー状態になった抽選を、進行中に復元します。')
+                .addStringOption(option =>
+                    option.setName('message_id')
+                        .setDescription('復元したい抽選のメッセージID')
+                        .setRequired(true))),
     async execute(interaction) {
         if (interaction.options.getSubcommand() !== 'list' && !hasGiveawayPermission(interaction)) {
             return interaction.reply({ content: 'このコマンドを実行する権限がありません。', flags: [MessageFlags.Ephemeral] });
@@ -213,6 +222,26 @@ export default {
             }
 
             await interaction.editReply({ embeds: [embed] });
+        } else if (subcommand === 'restore') { // ★ 新しいサブコマンドの処理
+            await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+            const messageId = interaction.options.getString('message_id');
+
+            try {
+                const { rows } = await pool.query("SELECT * FROM giveaways WHERE message_id = $1 AND guild_id = $2 AND status = 'ERRORED'", [messageId, interaction.guildId]);
+                if (rows.length === 0) {
+                    return interaction.editReply('エラー: 指定されたIDのエラー状態の抽選が見つかりませんでした。');
+                }
+
+                await pool.query("UPDATE giveaways SET status = 'RUNNING' WHERE message_id = $1", [messageId]);
+                
+                // キャッシュを再読み込みして、ボットに復元を認識させる
+                await initializeCache();
+
+                await interaction.editReply(`✅ 抽選 (ID: \`${messageId}\`) を進行中に復元しました。`);
+            } catch (error) {
+                console.error('Giveaway restore failed:', error);
+                await interaction.editReply('抽選の復元中にエラーが発生しました。');
+            }
         } else if (subcommand === 'unschedule') {
             await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
             const scheduledId = interaction.options.getInteger('id');

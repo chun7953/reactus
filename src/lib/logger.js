@@ -1,4 +1,4 @@
-// src/lib/logger.js
+// src/lib/logger.js (修正版)
 
 import { WebhookClient, EmbedBuilder } from 'discord.js';
 
@@ -20,7 +20,7 @@ export function logCommandError(interaction, error) {
     if (!webhookClient) return;
     const { commandName, user, guild, channel } = interaction;
     const errorEmbed = new EmbedBuilder()
-        .setColor(0xFF0000)
+        .setColor(0xFF0000) // Red for critical errors
         .setTitle('🚨 Command Execution Error')
         .addFields(
             { name: 'Command', value: `\`/${commandName}\``, inline: true },
@@ -37,7 +37,7 @@ export function logGlobalError(error, type) {
     if (!webhookClient) return;
     const isErrorObject = error instanceof Error;
     const errorEmbed = new EmbedBuilder()
-        .setColor(0xFF0000)
+        .setColor(0xFF0000) // Red for critical errors
         .setTitle(`🚨 Global Error: ${type}`)
         .addFields(
             { name: 'Error Message', value: `\`\`\`${isErrorObject ? error.message : String(error)}\`\`\`` },
@@ -46,3 +46,15 @@ export function logGlobalError(error, type) {
         .setTimestamp();
     webhookClient.send({ username: 'Reactus Error Log', embeds: [errorEmbed] }).catch(console.error);
 }
+
+// ★★★ ここからが新しい関数 ★★★
+export function logSystemNotice({ title, fields }) {
+    if (!webhookClient) return;
+    const noticeEmbed = new EmbedBuilder()
+        .setColor(0xFFEB3B) // Yellow for notices/warnings
+        .setTitle(title)
+        .addFields(fields)
+        .setTimestamp();
+    webhookClient.send({ username: 'Reactus System Notice', embeds: [noticeEmbed] }).catch(console.error);
+}
+// ★★★ ここまで ★★★
