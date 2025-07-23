@@ -1,3 +1,5 @@
+// src/commands/announce/startannounce.js (修正版)
+
 import { SlashCommandBuilder, PermissionsBitField, MessageFlags } from 'discord.js';
 import { triggerAutoBackup } from '../../lib/autoBackup.js';
 import { cache, getDBPool } from '../../lib/settingsCache.js';
@@ -27,7 +29,11 @@ export default {
             
             cache.setAnnouncement(setting);
 
-            await channel.send(messageContent);
+            // ★ 修正: 埋め込みを抑制するフラグを追加
+            await channel.send({ 
+                content: messageContent,
+                flags: [MessageFlags.SuppressEmbeds] 
+            });
             
             const backupSuccess = await triggerAutoBackup(guildId);
             const backupMessage = backupSuccess ? "\n設定は自動でバックアップされました。" : "\n注意: 設定のバックアップに失敗しました。";

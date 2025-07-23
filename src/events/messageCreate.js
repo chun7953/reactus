@@ -1,6 +1,6 @@
-// src/events/messageCreate.js
+// src/events/messageCreate.js (修正版)
 
-import { Events } from 'discord.js';
+import { Events, MessageFlags } from 'discord.js'; // ★ MessageFlags をインポート
 import { get } from '../lib/settingsCache.js';
 
 async function handleAutoReaction(message) {
@@ -31,7 +31,11 @@ async function handleAutoAnnounce(message) {
             if (oldAnnounce) {
                 await oldAnnounce.delete().catch(console.error);
             }
-            await message.channel.send(announcement.message);
+            // ★ 修正: 埋め込みを抑制するフラグを追加
+            await message.channel.send({
+                content: announcement.message,
+                flags: [MessageFlags.SuppressEmbeds]
+            });
         }
     } catch (error) {
         console.error('Error in handleAutoAnnounce:', error);
