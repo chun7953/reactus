@@ -21,19 +21,15 @@ function basicDecodeHtmlEntities(text) {
 async function checkCalendarEvents(client) {
     const monitors = get.allMonitors();
     if (monitors.length === 0) return;
-
     const luckyShowMonitor = monitors.find(m => m.trigger_keyword === 'ラキショ');
-
     try {
         const { auth } = await initializeSheetsAPI();
         const calendar = google.calendar({ version: 'v3', auth });
         const pool = await getDBPool();
         await pool.query("DELETE FROM notified_events WHERE notified_at < NOW() - INTERVAL '14 days'");
-        
         const now = new Date();
         const timeMin = new Date(now.getTime() - 10 * 60 * 1000).toISOString();
         const timeMax = new Date(now.getTime() + 10 * 60 * 1000).toISOString();
-
         for (const monitor of monitors) {
             try {
                 const events = await calendar.events.list({
@@ -41,32 +37,25 @@ async function checkCalendarEvents(client) {
                     timeMin, timeMax, singleEvents: true, orderBy: 'startTime', timeZone: 'Asia/Tokyo'
                 });
                 if (!events.data.items) continue;
-
                 for (const event of events.data.items) {
                     const notifiedCheck = await pool.query('SELECT 1 FROM notified_events WHERE event_id = $1', [event.id]);
                     if (notifiedCheck.rows.length > 0) continue;
-
                     const eventEndTime = new Date(event.end.dateTime || event.end.date);
                     if (eventEndTime < now) {
                         await pool.query('INSERT INTO notified_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING', [event.id]);
                         continue; 
                     }
-
                     let eventDescription = event.description || '';
                     eventDescription = basicDecodeHtmlEntities(eventDescription); 
-
                     const eventText = `${event.summary || ''} ${eventDescription}`;
-                    
                     if (eventText.includes('【ラキショ】')) {
                         if (!luckyShowMonitor) {
                             console.error(`[TaskMonitor ERROR] カレンダーイベント ${event.summary} (${event.id}) は【ラキショ】抽選ですが、対応するモニター設定が見つかりません。投稿をスキップします。`);
                             await pool.query('INSERT INTO notified_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING', [event.id]);
                             continue;
                         }
-
                         const targetChannelId = luckyShowMonitor.channel_id;
                         const targetMentionRoleId = luckyShowMonitor.mention_role;
-
                         await pool.query('INSERT INTO notified_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING', [event.id]);
                         console.log(`[TaskMonitor] 抽選イベントを検出: ${event.summary}`);
                         try {
@@ -74,7 +63,6 @@ async function checkCalendarEvents(client) {
                             let prizesToCreate = [];
                             let additionalMessageContent = [];
                             let allMentionsForSeparatePost = new Set();
-
                             for (const line of descriptionLines) {
                                 const prizeMatch = line.match(/^【(.+)\/(\d+)】$/);
                                 if (prizeMatch) {
@@ -93,46 +81,30 @@ async function checkCalendarEvents(client) {
                                     }
                                 }
                             }
-
                             let mainSummaryPrize = (event.summary || 'プレゼント').replace('【ラキショ】', '').trim();
                             if (mainSummaryPrize && prizesToCreate.length === 0) {
                                 prizesToCreate.push({ prize: mainSummaryPrize, winnerCount: 1 });
                             } else if (prizesToCreate.length === 0) {
                                 prizesToCreate.push({ prize: '素敵なプレゼント', winnerCount: 1 });
                             }
-                            
                             const endTime = new Date(event.end.dateTime || event.end.date);
-                            
                             if (targetMentionRoleId) allMentionsForSeparatePost.add(`<@&${targetMentionRoleId}>`);
                             const finalMentionsForSeparatePost = Array.from(allMentionsForSeparatePost).join(' ').trim();
                             const finalAdditionalMessageText = additionalMessageContent.join('\n').trim();
-
                             const giveawayChannel = await client.channels.fetch(targetChannelId).catch(() => null);
                             if (giveawayChannel) {
                                 for (const prizeInfo of prizesToCreate) {
-                                    const giveawayEmbed = new EmbedBuilder()
-                                        .setTitle(`🎉 景品: ${prizeInfo.prize}`)
-                                        .setDescription(`リアクションを押して参加しよう！\n**終了日時: <t:${Math.floor(endTime.getTime() / 1000)}:F>**`)
-                                        .addFields({ name: '当選者数', value: `${prizeInfo.winnerCount}名`, inline: true })
-                                        .setColor(0x5865F2)
-                                        .setTimestamp(endTime);
-
+                                    const giveawayEmbed = new EmbedBuilder().setTitle(`🎉 景品: ${prizeInfo.prize}`).setDescription(`リアクションを押して参加しよう！\n**終了日時: <t:${Math.floor(endTime.getTime() / 1000)}:F>**`).addFields({ name: '当選者数', value: `${prizeInfo.winnerCount}名`, inline: true }).setColor(0x5865F2).setTimestamp(endTime);
                                     const participateButton = new ButtonBuilder().setCustomId('giveaway_participate').setLabel('参加する').setStyle(ButtonStyle.Primary).setEmoji('🎉');
                                     const row = new ActionRowBuilder().addComponents(participateButton);
-                                    
                                     const message = await giveawayChannel.send({ embeds: [giveawayEmbed], components: [row] });
-                                    
                                     giveawayEmbed.setFooter({ text: `メッセージID: ${message.id}` });
                                     await message.edit({ embeds: [giveawayEmbed], components: [row] });
-
                                     const sql = 'INSERT INTO giveaways (message_id, guild_id, channel_id, prize, winner_count, end_time) VALUES ($1, $2, $3, $4, $5, $6)';
                                     await pool.query(sql, [message.id, luckyShowMonitor.guild_id, giveawayChannel.id, prizeInfo.prize, prizeInfo.winnerCount, endTime]);
-                                    cache.addGiveaway({
-                                        message_id: message.id, guild_id: luckyShowMonitor.guild_id, channel_id: giveawayChannel.id, prize: prizeInfo.prize, winner_count: prizeInfo.winnerCount, end_time: endTime, status: 'RUNNING', participants: []
-                                    });
+                                    cache.addGiveaway({ message_id: message.id, guild_id: luckyShowMonitor.guild_id, channel_id: giveawayChannel.id, prize: prizeInfo.prize, winner_count: prizeInfo.winnerCount, end_time: endTime, status: 'RUNNING', participants: [] });
                                     console.log(`カレンダーから自動作成された抽選「${prizeInfo.prize}」がチャンネル ${giveawayChannel.id} で開始されました。`);
                                 }
-
                                 if (finalAdditionalMessageText || finalMentionsForSeparatePost) {
                                     let combinedPostContent = '';
                                     if (finalMentionsForSeparatePost) combinedPostContent += finalMentionsForSeparatePost;
@@ -148,7 +120,6 @@ async function checkCalendarEvents(client) {
                         } catch (e) { console.error(`カレンダーイベント ${event.id} からの自動抽選作成に失敗:`, e); }
                         continue;
                     }
-
                     if (eventText.includes(`【${monitor.trigger_keyword}】`)) {
                         await pool.query('INSERT INTO notified_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING', [event.id]);
                         const channel = await client.channels.fetch(monitor.channel_id).catch(() => null);
@@ -239,7 +210,6 @@ async function checkScheduledGiveaways(client) {
                 cache.removeScheduledGiveaway(scheduled.guild_id, scheduled.id);
                 continue;
             }
-
             const channel = await client.channels.fetch(scheduled.giveaway_channel_id).catch(() => null);
             if (!channel) { 
                 await pool.query('DELETE FROM scheduled_giveaways WHERE id = $1', [scheduled.id]); 
@@ -256,16 +226,11 @@ async function checkScheduledGiveaways(client) {
             const participateButton = new ButtonBuilder().setCustomId('giveaway_participate').setLabel('参加する').setStyle(ButtonStyle.Primary).setEmoji('🎉');
             const row = new ActionRowBuilder().addComponents(participateButton);
             const message = await channel.send({ embeds: [giveawayEmbed], components: [row] });
-            
             giveawayEmbed.setFooter({ text: `メッセージID: ${message.id}` });
             await message.edit({ embeds: [giveawayEmbed], components: [row] });
-
             const sql = 'INSERT INTO giveaways (message_id, guild_id, channel_id, prize, winner_count, end_time) VALUES ($1, $2, $3, $4, $5, $6)';
             await pool.query(sql, [message.id, scheduled.guild_id, channel.id, scheduled.prize, scheduled.winner_count, endTime]);
-            cache.addGiveaway({
-                message_id: message.id, guild_id: scheduled.guild_id, channel_id: channel.id, prize: scheduled.prize, winner_count: scheduled.winner_count, end_time: endTime, status: 'RUNNING', participants: []
-            });
-            
+            cache.addGiveaway({ message_id: message.id, guild_id: scheduled.guild_id, channel_id: channel.id, prize: scheduled.prize, winner_count: scheduled.winner_count, end_time: endTime, status: 'RUNNING', participants: [] });
             await pool.query('DELETE FROM scheduled_giveaways WHERE id = $1', [scheduled.id]);
             cache.removeScheduledGiveaway(scheduled.guild_id, scheduled.id);
             console.log(`予約された抽選「${scheduled.prize}」がチャンネル ${channel.id} で開始されました。`);
@@ -298,17 +263,26 @@ async function validateActiveGiveaways(client) {
 
     const pool = await getDBPool();
     for (const giveaway of activeGiveaways) {
+        let channel;
         try {
-            const channel = await client.channels.fetch(giveaway.channel_id);
-            await channel.messages.fetch(giveaway.message_id);
-            
-            // 成功した場合、失敗カウントをリセット
-            if (giveaway.validation_fails > 0) {
-                await pool.query("UPDATE giveaways SET validation_fails = 0 WHERE message_id = $1", [giveaway.message_id]);
+            // ★ 修正: チャンネル取得を try...catch で囲み、null になる可能性をハンドリング
+            channel = await client.channels.fetch(giveaway.channel_id).catch(() => null);
+
+            if (channel) {
+                // チャンネルが見つかった場合のみメッセージの存在確認
+                await channel.messages.fetch(giveaway.message_id);
+                
+                // 成功したので、失敗カウントをリセット
+                if (giveaway.validation_fails > 0) {
+                    await pool.query("UPDATE giveaways SET validation_fails = 0 WHERE message_id = $1", [giveaway.message_id]);
+                }
+            } else {
+                // チャンネルが見つからなかった場合、エラーを意図的に発生させて catch ブロックに渡す
+                throw { code: 10003 }; // 10003 = Unknown Channel
             }
 
         } catch (error) {
-            const FAIL_THRESHOLD = 3; // 3回連続で失敗したらエラー扱い (約30分)
+            const FAIL_THRESHOLD = 3; 
 
             if (error.code === 10003 || error.code === 10008) { // Unknown Channel or Unknown Message
                 const { rows } = await pool.query("UPDATE giveaways SET validation_fails = validation_fails + 1 WHERE message_id = $1 RETURNING *", [giveaway.message_id]);
