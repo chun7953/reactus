@@ -39,17 +39,28 @@ export default {
                 counts.monitors++;
             }
 
+            // ★ 修正箇所: GuildConfigs の復元処理
             await pool.query('DELETE FROM guild_configs WHERE guild_id = $1', [guildId]);
-            const configData = await getSheetData(sheets, auth, spreadsheetId, `MainCalendars_${guildId}!A2:B`);
+            const configData = await getSheetData(sheets, auth, spreadsheetId, `GuildConfigs_${guildId}!A2:C`);
             for(const row of configData) {
-                 await pool.query('INSERT INTO guild_configs (guild_id, main_calendar_id) VALUES ($1, $2) ON CONFLICT (guild_id) DO UPDATE SET main_calendar_id = excluded.main_calendar_id', row);
+                 const guild_id = row[0];
+                 const main_calendar_id = row[1] || null;
+                 // カンマ区切りの文字列をPostgreSQLの配列形式 '{id1,id2}' に変換
+                 const giveaway_manager_roles = row[2] ? `{${row[2]}}` : '{}'; 
+                 
+                 await pool.query(
+                    `INSERT INTO guild_configs (guild_id, main_calendar_id, giveaway_manager_roles) 
+                     VALUES ($1, $2, $3) 
+                     ON CONFLICT (guild_id) 
+                     DO UPDATE SET main_calendar_id = EXCLUDED.main_calendar_id, giveaway_manager_roles = EXCLUDED.giveaway_manager_roles`,
+                    [guild_id, main_calendar_id, giveaway_manager_roles]
+                 );
                  counts.configs++;
             }
             
-            // ★ データベースを復元したので、キャッシュも再構築する
             await initializeCache();
 
-            await interaction.editReply(`✅ 復元完了！ データベースとキャッシュを更新しました。\n(リアクション: ${counts.reactions}件, アナウンス: ${counts.announces}件, カレンダー通知: ${counts.monitors}件, メインカレンダー: ${counts.configs}件)`);
+            await interaction.editReply(`✅ 復元完了！ データベースとキャッシュを更新しました。\n(リアクション: ${counts.reactions}件, アナウンス: ${counts.announces}件, カレンダー通知: ${counts.monitors}件, サーバー設定: ${counts.configs}件)`);
 
         } catch (error) {
             console.error('Restore failed:', error);

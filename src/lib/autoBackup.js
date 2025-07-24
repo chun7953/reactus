@@ -51,9 +51,14 @@ export async function triggerAutoBackup(guildId) {
         monitorValues.unshift(['guild_id', 'channel_id', 'calendar_id', 'trigger_keyword', 'mention_role']);
         await updateSheet(sheets, auth, spreadsheetId, `CalendarMonitors_${guildId}`, 'A1:E', monitorValues);
 
-        // Main Calendar Configs
+        // Guild Configs (Main Calendar & Giveaway Roles)
         const configs = (await pool.query('SELECT * FROM guild_configs WHERE guild_id = $1', [guildId])).rows;
-        const configValues = configs.map(c => [c.guild_id, c.main_calendar_id, c.giveaway_manager_roles]);
+        // ★ 修正: giveaway_manager_roles (配列) をカンマ区切りの文字列に変換
+        const configValues = configs.map(c => [
+            c.guild_id, 
+            c.main_calendar_id, 
+            (c.giveaway_manager_roles || []).join(',') 
+        ]);
         configValues.unshift(['guild_id', 'main_calendar_id', 'giveaway_manager_roles']);
         await updateSheet(sheets, auth, spreadsheetId, `GuildConfigs_${guildId}`, 'A1:C', configValues);
         
