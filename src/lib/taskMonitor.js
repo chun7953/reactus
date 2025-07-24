@@ -242,7 +242,7 @@ async function cleanupGhostGiveaways() {
     const pool = await getDBPool();
     try {
         const result = await pool.query(
-            "SELECT message_id, guild_id FROM giveaways WHERE status = 'RUNNING' AND end_time < NOW()"
+            "SELECT message_id, guild_id FROM giveaways WHERE status = 'RUNNING' AND end_time < NOW() - INTERVAL '5 minutes'"
         );
         if (result.rowCount > 0) {
             console.log(`[TaskMonitor] 古い抽選データ ${result.rowCount}件 をクリーンアップします...`);
