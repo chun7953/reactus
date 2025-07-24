@@ -1,4 +1,4 @@
-// src/lib/taskMonitor.js (最終修正版)
+// src/lib/taskMonitor.js (修正版)
 
 import { google } from 'googleapis';
 import { initializeSheetsAPI } from './sheetsAPI.js';
@@ -245,15 +245,15 @@ async function cleanupGhostGiveaways() {
             "SELECT message_id, guild_id FROM giveaways WHERE status = 'RUNNING' AND end_time < NOW() - INTERVAL '5 minutes'"
         );
         if (result.rowCount > 0) {
-            console.log(`[TaskMonitor] 古い抽選データ ${result.rowCount}件 をクリーンアップします...`);
+            console.log(`[TaskMonitor] 古い実行中抽選データ ${result.rowCount}件 をクリーンアップします...`);
             for (const row of result.rows) {
                 await pool.query("UPDATE giveaways SET status = 'ENDED' WHERE message_id = $1", [row.message_id]);
                 cache.removeGiveaway(row.guild_id, row.message_id);
             }
-            console.log(`[TaskMonitor] クリーンアップ完了。`);
+            console.log(`[TaskMonitor] 実行中抽選のクリーンアップ完了。`);
         }
     } catch (error) {
-        console.error('[TaskMonitor] 古い抽選データのクリーンアップ中にエラー:', error);
+        console.error('[TaskMonitor] 古い実行中抽選データのクリーンアップ中にエラー:', error);
     }
 }
 
@@ -265,19 +265,15 @@ async function validateActiveGiveaways(client) {
     for (const giveaway of activeGiveaways) {
         let channel;
         try {
-            // ★ 修正: チャンネル取得を try...catch で囲み、null になる可能性をハンドリング
             channel = await client.channels.fetch(giveaway.channel_id).catch(() => null);
 
             if (channel) {
-                // チャンネルが見つかった場合のみメッセージの存在確認
                 await channel.messages.fetch(giveaway.message_id);
                 
-                // 成功したので、失敗カウントをリセット
                 if (giveaway.validation_fails > 0) {
                     await pool.query("UPDATE giveaways SET validation_fails = 0 WHERE message_id = $1", [giveaway.message_id]);
                 }
             } else {
-                // チャンネルが見つからなかった場合、エラーを意図的に発生させて catch ブロックに渡す
                 throw { code: 10003 }; // 10003 = Unknown Channel
             }
 
@@ -314,6 +310,24 @@ async function validateActiveGiveaways(client) {
     }
 }
 
+// ★★★ ここからが新しい関数 ★★★
+async function cleanupOldGiveaways() {
+    const pool = await getDBPool();
+    try {
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const result = await pool.query(
+            "DELETE FROM giveaways WHERE status IN ('ENDED', 'ERRORED', 'CANCELLED') AND end_time < $1",
+            [thirtyDaysAgo]
+        );
+        if (result.rowCount > 0) {
+            console.log(`[TaskMonitor] 30日以上経過した古い抽選データ ${result.rowCount}件 を削除しました。`);
+        }
+    } catch (error) {
+        console.error('[TaskMonitor] 古い抽選データのクリーンアップ中にエラー:', error);
+    }
+}
+// ★★★ ここまで ★★★
+
 let highFreqIsRunning = false;
 async function runHighFrequencyTasks(client) {
     if (highFreqIsRunning) return;
@@ -337,6 +351,17 @@ async function runLowFrequencyTasks(client) {
     finally { lowFreqIsRunning = false; }
 }
 
+// ★★★ 新しいデイリータスク用のランナーを追加 ★★★
+let dailyTaskIsRunning = false;
+async function runDailyTasks() {
+    if (dailyTaskIsRunning) return;
+    dailyTaskIsRunning = true;
+    try {
+        await cleanupOldGiveaways();
+    } catch (error) { console.error('[TaskMonitor] デイリータスクループ中にエラー:', error); }
+    finally { dailyTaskIsRunning = false; }
+}
+
 export function startMonitoring(client) {
     const HIGH_FREQ_INTERVAL = 1 * 60 * 1000;
     runHighFrequencyTasks(client);
@@ -346,5 +371,10 @@ export function startMonitoring(client) {
     runLowFrequencyTasks(client);
     setInterval(() => runLowFrequencyTasks(client), LOW_FREQ_INTERVAL);
     
-    console.log('✅ タスク監視サービスを開始しました (高頻度: 1分, 低頻度: 10分)。');
+    // ★★★ デイリータスクの実行を追加 ★★★
+    const DAILY_INTERVAL = 24 * 60 * 60 * 1000;
+    runDailyTasks(); // 起動時に一度実行
+    setInterval(() => runDailyTasks(), DAILY_INTERVAL);
+    
+    console.log('✅ タスク監視サービスを開始しました (高頻度: 1分, 低頻度: 10分, デイリー)。');
 }
