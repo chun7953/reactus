@@ -5,7 +5,7 @@ import { initializeSheetsAPI } from './sheetsAPI.js';
 import { get } from './settingsCache.js';
 import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
 import { logSystemNotice } from './logger.js';
-import { getDBPool } from '../db/database.js';
+import { get, getDBPool } from './settingsCache.js';
 
 function basicDecodeHtmlEntities(text) {
     if (!text || typeof text !== 'string') {
