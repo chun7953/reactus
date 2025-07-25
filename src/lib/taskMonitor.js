@@ -1,11 +1,11 @@
-// src/lib/taskMonitor.js (修正後・完全版)
+// src/lib/taskMonitor.js (最終修正版)
 
 import { google } from 'googleapis';
 import { initializeSheetsAPI } from './sheetsAPI.js';
-import { get } from './settingsCache.js';
+import { get } from './settingsCache.js'; // ★ 修正
 import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
 import { logSystemNotice } from './logger.js';
-import { get, getDBPool } from './settingsCache.js';
+import { getDBPool } from '../db/database.js'; // ★ 修正
 
 function basicDecodeHtmlEntities(text) {
     if (!text || typeof text !== 'string') {
@@ -31,7 +31,7 @@ async function checkCalendarEvents(client) {
         const now = new Date();
         const timeMin = new Date(now.getTime() - 10 * 60 * 1000).toISOString();
         const timeMax = new Date(now.getTime() + 10 * 60 * 1000).toISOString();
-
+        
         for (const monitor of monitors) {
             try {
                 const events = await calendar.events.list({
@@ -54,8 +54,10 @@ async function checkCalendarEvents(client) {
                     eventDescription = basicDecodeHtmlEntities(eventDescription);
                     const eventText = `${event.summary || ''} ${eventDescription}`;
 
-                    // ★ 修正: 必ずイベントが見つかったカレンダーに紐づくmonitor設定を使用する
                     if (monitor.trigger_keyword === 'ラキショ' && eventText.includes('【ラキショ】')) {
+                        const targetChannelId = monitor.channel_id;
+                        const targetMentionRoleId = monitor.mention_role;
+                        
                         await pool.query('INSERT INTO notified_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING', [event.id]);
                         console.log(`[TaskMonitor] 抽選イベントを検出: ${event.summary}`);
                         try {
@@ -85,10 +87,10 @@ async function checkCalendarEvents(client) {
                                 prizesToCreate.push({ prize: '素敵なプレゼント', winnerCount: 1 });
                             }
                             const endTime = new Date(event.end.dateTime || event.end.date);
-                            if (monitor.mention_role) allMentionsForSeparatePost.add(`<@&${monitor.mention_role}>`);
+                            if (targetMentionRoleId) allMentionsForSeparatePost.add(`<@&${targetMentionRoleId}>`);
                             const finalMentionsForSeparatePost = Array.from(allMentionsForSeparatePost).join(' ').trim();
                             const finalAdditionalMessageText = additionalMessageContent.join('\n').trim();
-                            const giveawayChannel = await client.channels.fetch(monitor.channel_id).catch(() => null);
+                            const giveawayChannel = await client.channels.fetch(targetChannelId).catch(() => null);
                             if (giveawayChannel) {
                                 for (const prizeInfo of prizesToCreate) {
                                     const giveawayEmbed = new EmbedBuilder().setTitle(`🎉 景品: ${prizeInfo.prize}`).setDescription(`リアクションを押して参加しよう！\n**終了日時: <t:${Math.floor(endTime.getTime() / 1000)}:F>**`).addFields({ name: '当選者数', value: `${prizeInfo.winnerCount}名`, inline: true }).setColor(0x5865F2).setTimestamp(endTime);
@@ -105,7 +107,7 @@ async function checkCalendarEvents(client) {
                                     await giveawayChannel.send(`${finalMentionsForSeparatePost}\n${finalAdditionalMessageText}`.trim());
                                 }
                             } else {
-                                console.error(`[TaskMonitor ERROR] 【ラキショ】抽選の投稿先チャンネル ${monitor.channel_id} が見つからないか、アクセスできません。`);
+                                console.error(`[TaskMonitor ERROR] 【ラキショ】抽選の投稿先チャンネル ${targetChannelId} が見つからないか、アクセスできません。`);
                             }
                         } catch (e) { console.error(`カレンダーイベント ${event.id} からの自動抽選作成に失敗:`, e); }
                         continue;
