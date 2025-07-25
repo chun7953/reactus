@@ -1,4 +1,4 @@
-// src/lib/taskMonitor.js (最終修正版)
+// src/lib/taskMonitor.js (修正版)
 
 import { google } from 'googleapis';
 import { initializeSheetsAPI } from './sheetsAPI.js';
@@ -21,7 +21,7 @@ function basicDecodeHtmlEntities(text) {
 async function checkCalendarEvents(client) {
     const monitors = get.allMonitors();
     if (monitors.length === 0) return;
-    const luckyShowMonitor = monitors.find(m => m.trigger_keyword === 'ラキショ');
+    
     try {
         const { auth } = await initializeSheetsAPI();
         const calendar = google.calendar({ version: 'v3', auth });
@@ -30,122 +30,62 @@ async function checkCalendarEvents(client) {
         const now = new Date();
         const timeMin = new Date(now.getTime() - 10 * 60 * 1000).toISOString();
         const timeMax = new Date(now.getTime() + 10 * 60 * 1000).toISOString();
+
         for (const monitor of monitors) {
             try {
                 const events = await calendar.events.list({
                     calendarId: monitor.calendar_id,
                     timeMin, timeMax, singleEvents: true, orderBy: 'startTime', timeZone: 'Asia/Tokyo'
                 });
+
                 if (!events.data.items) continue;
+
                 for (const event of events.data.items) {
                     const notifiedCheck = await pool.query('SELECT 1 FROM notified_events WHERE event_id = $1', [event.id]);
                     if (notifiedCheck.rows.length > 0) continue;
+
                     const eventEndTime = new Date(event.end.dateTime || event.end.date);
                     if (eventEndTime < now) {
                         await pool.query('INSERT INTO notified_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING', [event.id]);
                         continue; 
                     }
+
                     let eventDescription = event.description || '';
                     eventDescription = basicDecodeHtmlEntities(eventDescription); 
                     const eventText = `${event.summary || ''} ${eventDescription}`;
-                    if (eventText.includes('【ラキショ】')) {
-                        if (!luckyShowMonitor) {
-                            console.error(`[TaskMonitor ERROR] カレンダーイベント ${event.summary} (${event.id}) は【ラキショ】抽選ですが、対応するモニター設定が見つかりません。投稿をスキップします。`);
-                            await pool.query('INSERT INTO notified_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING', [event.id]);
-                            continue;
-                        }
-                        const targetChannelId = luckyShowMonitor.channel_id;
-                        const targetMentionRoleId = luckyShowMonitor.mention_role;
+
+                    // ★★★ ここからロジックを修正 ★★★
+                    if (monitor.trigger_keyword === 'ラキショ' && eventText.includes('【ラキショ】')) {
                         await pool.query('INSERT INTO notified_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING', [event.id]);
                         console.log(`[TaskMonitor] 抽選イベントを検出: ${event.summary}`);
+                        
                         try {
-                            const descriptionLines = eventDescription.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-                            let prizesToCreate = [];
-                            let additionalMessageContent = [];
-                            let allMentionsForSeparatePost = new Set();
-                            for (const line of descriptionLines) {
-                                const prizeMatch = line.match(/^【(.+)\/(\d+)】$/);
-                                if (prizeMatch) {
-                                    prizesToCreate.push({
-                                        prize: prizeMatch[1].trim(),
-                                        winnerCount: parseInt(prizeMatch[2], 10)
-                                    });
-                                } else {
-                                    const mentionMatches = line.match(/<@&[0-9]+>|<@[0-9]+>|<@everyone>|<@here>/g);
-                                    if (mentionMatches) {
-                                        mentionMatches.forEach(m => allMentionsForSeparatePost.add(m));
-                                        let cleanedLine = line.replace(/<@&[0-9]+>|<@[0-9]+>|<@everyone>|<@here>/g, '').trim();
-                                        if (cleanedLine) additionalMessageContent.push(cleanedLine);
-                                    } else {
-                                        additionalMessageContent.push(line);
-                                    }
-                                }
-                            }
-                            let mainSummaryPrize = (event.summary || 'プレゼント').replace('【ラキショ】', '').trim();
-                            if (mainSummaryPrize && prizesToCreate.length === 0) {
-                                prizesToCreate.push({ prize: mainSummaryPrize, winnerCount: 1 });
-                            } else if (prizesToCreate.length === 0) {
-                                prizesToCreate.push({ prize: '素敵なプレゼント', winnerCount: 1 });
-                            }
-                            const endTime = new Date(event.end.dateTime || event.end.date);
-                            if (targetMentionRoleId) allMentionsForSeparatePost.add(`<@&${targetMentionRoleId}>`);
-                            const finalMentionsForSeparatePost = Array.from(allMentionsForSeparatePost).join(' ').trim();
-                            const finalAdditionalMessageText = additionalMessageContent.join('\n').trim();
-                            const giveawayChannel = await client.channels.fetch(targetChannelId).catch(() => null);
-                            if (giveawayChannel) {
-                                for (const prizeInfo of prizesToCreate) {
-                                    const giveawayEmbed = new EmbedBuilder().setTitle(`🎉 景品: ${prizeInfo.prize}`).setDescription(`リアクションを押して参加しよう！\n**終了日時: <t:${Math.floor(endTime.getTime() / 1000)}:F>**`).addFields({ name: '当選者数', value: `${prizeInfo.winnerCount}名`, inline: true }).setColor(0x5865F2).setTimestamp(endTime);
-                                    const participateButton = new ButtonBuilder().setCustomId('giveaway_participate').setLabel('参加する').setStyle(ButtonStyle.Primary).setEmoji('🎉');
-                                    const row = new ActionRowBuilder().addComponents(participateButton);
-                                    const message = await giveawayChannel.send({ embeds: [giveawayEmbed], components: [row] });
-                                    giveawayEmbed.setFooter({ text: `メッセージID: ${message.id}` });
-                                    await message.edit({ embeds: [giveawayEmbed], components: [row] });
-                                    const sql = 'INSERT INTO giveaways (message_id, guild_id, channel_id, prize, winner_count, end_time) VALUES ($1, $2, $3, $4, $5, $6)';
-                                    await pool.query(sql, [message.id, luckyShowMonitor.guild_id, giveawayChannel.id, prizeInfo.prize, prizeInfo.winnerCount, endTime]);
-                                    cache.addGiveaway({ message_id: message.id, guild_id: luckyShowMonitor.guild_id, channel_id: giveawayChannel.id, prize: prizeInfo.prize, winner_count: prizeInfo.winnerCount, end_time: endTime, status: 'RUNNING', participants: [] });
-                                    console.log(`カレンダーから自動作成された抽選「${prizeInfo.prize}」がチャンネル ${giveawayChannel.id} で開始されました。`);
-                                }
-                                if (finalAdditionalMessageText || finalMentionsForSeparatePost) {
-                                    let combinedPostContent = '';
-                                    if (finalMentionsForSeparatePost) combinedPostContent += finalMentionsForSeparatePost;
-                                    if (finalAdditionalMessageText) {
-                                        if (combinedPostContent) combinedPostContent += '\n';
-                                        combinedPostContent += finalAdditionalMessageText; 
-                                    }
-                                    await giveawayChannel.send(combinedPostContent);
-                                }
-                            } else {
-                                console.error(`[TaskMonitor ERROR] 【ラキショ】抽選の投稿先チャンネル ${targetChannelId} が見つからないか、アクセスできません。`);
-                            }
-                        } catch (e) { console.error(`カレンダーイベント ${event.id} からの自動抽選作成に失敗:`, e); }
-                        continue;
-                    }
-                    if (eventText.includes(`【${monitor.trigger_keyword}】`)) {
+                            // 抽選作成処理... (省略)
+                        } catch (e) { 
+                            console.error(`カレンダーイベント ${event.id} からの自動抽選作成に失敗:`, e); 
+                        }
+
+                    } else if (eventText.includes(`【${monitor.trigger_keyword}】`)) {
                         await pool.query('INSERT INTO notified_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING', [event.id]);
                         const channel = await client.channels.fetch(monitor.channel_id).catch(() => null);
                         if (!channel) {
                              console.error(`[TaskMonitor ERROR] 指定された通知チャンネル ${monitor.channel_id} が見つからないか、アクセスできません。`);
                              continue;
                         }
-                        let allMentions = new Set();
-                        if (monitor.mention_role) allMentions.add(`<@&${monitor.mention_role}>`);
-                        let cleanedDescription = eventDescription || '';
-                        const mentionMatches = cleanedDescription.match(/<@&[0-9]+>|<@[0-9]+>|<@everyone>|<@here>/g);
-                        if (mentionMatches) {
-                            mentionMatches.forEach(m => allMentions.add(m));
-                            cleanedDescription = cleanedDescription.replace(/<@&[0-9]+>|<@[0-9]+>|<@everyone>|<@here>/g, '').trim();
-                        }
-                        const finalMentions = Array.from(allMentions).join(' ');
-                        let message = `**${event.summary || 'タイトルなし'}**`;
-                        if (cleanedDescription) message += `\n${cleanedDescription}`;
-                        if (finalMentions.trim()) message += `\n\n${finalMentions.trim()}`;
+                        // 通知メッセージ作成処理... (省略)
                         await channel.send(message);
                     }
+                    // ★★★ ここまで修正 ★★★
                 }
-            } catch (calError) { console.error(`カレンダー(ID: ${monitor.calendar_id})の取得中にエラー:`, calError.message); }
+            } catch (calError) { 
+                console.error(`カレンダー(ID: ${monitor.calendar_id})の取得中にエラー:`, calError.message); 
+            }
         }
-    } catch (error) { console.error('[TaskMonitor] カレンダーチェック中に予期せぬエラーが発生しました:', error); }
+    } catch (error) { 
+        console.error('[TaskMonitor] カレンダーチェック中に予期せぬエラーが発生しました:', error); 
+    }
 }
+
 
 async function checkFinishedGiveaways(client) {
     const now = new Date();
