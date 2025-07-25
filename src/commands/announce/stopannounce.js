@@ -1,6 +1,8 @@
+// src/commands/announce/stopannounce.js (修正後・完全版)
+
 import { SlashCommandBuilder, PermissionsBitField, MessageFlags } from 'discord.js';
 import { triggerAutoBackup } from '../../lib/autoBackup.js';
-import { cache, getDBPool } from '../../lib/settingsCache.js';
+import { getDBPool } from '../../lib/settingsCache.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -15,7 +17,6 @@ export default {
             const pool = await getDBPool();
             const res = await pool.query('DELETE FROM announcements WHERE guild_id = $1 AND channel_id = $2', [guildId, channelId]);
             if (res.rowCount > 0) {
-                cache.removeAnnouncement(guildId, channelId);
                 const backupSuccess = await triggerAutoBackup(guildId);
                 const backupMessage = backupSuccess ? "設定は自動でバックアップされました。" : "注意: 設定のバックアップに失敗しました。";
                 await interaction.editReply(`✅ このチャンネルのアナウンスを停止しました。${backupMessage}`);

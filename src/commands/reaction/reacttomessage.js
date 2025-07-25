@@ -1,4 +1,4 @@
-// src/commands/reaction/reacttomessage.js
+// src/commands/reaction/reacttomessage.js (修正後・完全版)
 
 import { SlashCommandBuilder, PermissionsBitField, MessageFlags } from 'discord.js';
 import { get } from '../../lib/settingsCache.js';
@@ -29,8 +29,8 @@ export default {
             }
 
             const message = await targetChannel.messages.fetch(messageId);
-            
-            const settings = get.reactionSettings(guildId);
+
+            const settings = await get.reactionSettings(guildId);
             const relevantSetting = settings.find(s =>
                 s.channel_id === targetChannel.id && message.content.includes(s.trigger)
             );

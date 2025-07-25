@@ -1,6 +1,8 @@
+// src/commands/reaction/removereaction.js (修正後・完全版)
+
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { triggerAutoBackup } from '../../lib/autoBackup.js';
-import { cache, getDBPool } from '../../lib/settingsCache.js';
+import { getDBPool } from '../../lib/settingsCache.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -16,7 +18,7 @@ export default {
                 .setRequired(true)),
     async execute(interaction) {
         await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
-        
+
         const { guildId, options } = interaction;
         const channel = options.getChannel('channel');
         const trigger = options.getString('trigger');
@@ -26,7 +28,6 @@ export default {
             const res = await pool.query('DELETE FROM reactions WHERE guild_id = $1 AND channel_id = $2 AND trigger = $3', [guildId, channel.id, trigger]);
 
             if (res.rowCount > 0) {
-                cache.removeReactionSetting(guildId, channel.id, trigger);
                 const backupSuccess = await triggerAutoBackup(guildId);
                 const backupMessage = backupSuccess ? "設定は自動でバックアップされました。" : "注意: 設定のバックアップに失敗しました。";
                 await interaction.editReply(`✅ **設定を解除しました**\nチャンネル: ${channel}\nトリガー: \`${trigger}\`\n${backupMessage}`);

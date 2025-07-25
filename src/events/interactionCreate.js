@@ -1,8 +1,8 @@
-// src/events/interactionCreate.js
+// src/events/interactionCreate.js (修正後・完全版)
 
 import { Events, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle, Collection, EmbedBuilder } from 'discord.js';
 import { logCommandError } from '../lib/logger.js';
-import { getDBPool, cache } from '../lib/settingsCache.js'; // 修正: cacheオブジェクトをインポート
+import { getDBPool } from '../lib/settingsCache.js';
 import { hasGiveawayPermission } from '../lib/permissionUtils.js';
 
 export default {
@@ -37,7 +37,7 @@ export default {
                 if (interaction.replied || interaction.deferred) { await interaction.followUp({ content: errorMessage, flags: [MessageFlags.Ephemeral] }); }
                 else { await interaction.reply({ content: errorMessage, flags: [MessageFlags.Ephemeral] }); }
             }
-        } 
+        }
         else if (interaction.isButton()) {
             if (interaction.customId.startsWith('giveaway_participate')) {
                 await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
@@ -49,14 +49,13 @@ export default {
 
                 const participants = new Set(giveaway.participants || []);
                 let newParticipantsArray;
-                
-                const currentHostValue = interaction.message.embeds[0]?.fields?.[2]?.value || `ボット(${interaction.client.user.username})`; 
-                
+
+                const currentHostValue = interaction.message.embeds[0]?.fields?.[2]?.value || `ボット(${interaction.client.user.username})`;
+
                 if (participants.has(interaction.user.id)) {
                     participants.delete(interaction.user.id);
                     newParticipantsArray = Array.from(participants);
                     await pool.query("UPDATE giveaways SET participants = $1 WHERE message_id = $2", [newParticipantsArray, interaction.message.id]);
-                    cache.updateGiveaway(interaction.guildId, interaction.message.id, { participants: newParticipantsArray }); // 修正: cache.updateGiveaway を使用
                     const newEmbed = EmbedBuilder.from(interaction.message.embeds[0]).setFields({ name: '当選者数', value: `${giveaway.winner_count}名`, inline: true }, { name: '参加者', value: `${participants.size}名`, inline: true }, { name: '主催者', value: currentHostValue });
                     await interaction.message.edit({ embeds: [newEmbed] });
                     await interaction.editReply('✅ 参加を取り消しました。');
@@ -64,7 +63,6 @@ export default {
                     participants.add(interaction.user.id);
                     newParticipantsArray = Array.from(participants);
                     await pool.query("UPDATE giveaways SET participants = $1 WHERE message_id = $2", [newParticipantsArray, interaction.message.id]);
-                    cache.updateGiveaway(interaction.guildId, interaction.message.id, { participants: newParticipantsArray }); // 修正: cache.updateGiveaway を使用
                     const newEmbed = EmbedBuilder.from(interaction.message.embeds[0]).setFields({ name: '当選者数', value: `${giveaway.winner_count}名`, inline: true }, { name: '参加者', value: `${participants.size}名`, inline: true }, { name: '主催者', value: currentHostValue });
                     await interaction.message.edit({ embeds: [newEmbed] });
                     await interaction.editReply('✅ 抽選に参加しました！');

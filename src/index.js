@@ -1,13 +1,12 @@
-// src/index.js (修正版)
+// src/index.js (修正後・完全版)
 
-import { Client, GatewayIntentBits, Collection } from 'discord.js';
+import { Client, GatewayIntentBits, Collection, Options } from 'discord.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import config from './config.js';
 import { startServer } from './web/server.js';
-// import { startMonitoring } from './lib/taskMonitor.js'; // ★ 不要になったので削除
-import { initializeCache } from './lib/settingsCache.js';
+import { getDBPool } from './lib/settingsCache.js';
 import { logGlobalError } from './lib/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -30,7 +29,18 @@ const client = new Client({
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildEmojisAndStickers,
-    ]
+    ],
+    makeCache: Options.cacheWithLimits({
+		MessageManager: 0,
+		UserManager: {
+			maxSize: 50,
+			keepOverLimit: user => user.id === client.user.id,
+		},
+        GuildMemberManager: {
+            maxSize: 50,
+            keepOverLimit: member => member.id === client.user.id,
+        },
+	}),
 });
 
 client.commands = new Collection();
@@ -62,9 +72,8 @@ for (const file of eventFiles) {
 (async () => {
     try {
         console.log("--- Initializing Modules ---");
-        await initializeCache(); // DB接続とキャッシュの初期化
+        await getDBPool(); // DB接続のみを確立
         startServer();
-        // startMonitoring(client); // ★ この行を削除
         if (!config.discord.token) {
             throw new Error("Discord token is not configured in environment variables.");
         }

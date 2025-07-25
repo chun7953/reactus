@@ -1,7 +1,7 @@
-// src/commands/giveaway/permission.js
+// src/commands/giveaway/permission.js (修正後)
 
 import { SlashCommandBuilder, MessageFlags, PermissionsBitField } from 'discord.js';
-import { get, cache, getDBPool } from '../../lib/settingsCache.js';
+import { get, getDBPool } from '../../lib/settingsCache.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -29,7 +29,7 @@ export default {
         await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
         const subcommand = interaction.options.getSubcommand();
         const role = interaction.options.getRole('role');
-        const config = get.guildConfig(interaction.guildId);
+        const config = await get.guildConfig(interaction.guildId);
         const managerRoles = new Set(config?.giveaway_manager_roles || []);
         const pool = await getDBPool();
 
@@ -39,13 +39,11 @@ export default {
             }
             managerRoles.add(role.id);
             const newRoles = Array.from(managerRoles);
-            
+
             await pool.query(
                 'INSERT INTO guild_configs (guild_id, giveaway_manager_roles) VALUES ($1, $2) ON CONFLICT (guild_id) DO UPDATE SET giveaway_manager_roles = EXCLUDED.giveaway_manager_roles',
                 [interaction.guildId, newRoles]
             );
-            
-            cache.setGuildConfig({ ...config, giveaway_manager_roles: newRoles });
 
             await interaction.editReply(`✅ ロール ${role} にGiveawayの管理権限を付与しました。`);
 
@@ -57,8 +55,6 @@ export default {
             const newRoles = Array.from(managerRoles);
 
             await pool.query('UPDATE guild_configs SET giveaway_manager_roles = $1 WHERE guild_id = $2', [newRoles, interaction.guildId]);
-            
-            cache.setGuildConfig({ ...config, giveaway_manager_roles: newRoles });
 
             await interaction.editReply(`✅ ロール ${role} からGiveawayの管理権限を削除しました。`);
 
