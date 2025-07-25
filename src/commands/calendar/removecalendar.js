@@ -1,6 +1,8 @@
+// src/commands/calendar/removecalendar.js (修正後・完全版)
+
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { triggerAutoBackup } from '../../lib/autoBackup.js';
-import { cache, getDBPool } from '../../lib/settingsCache.js';
+import { getDBPool } from '../../lib/settingsCache.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -22,8 +24,6 @@ export default {
             const res = await pool.query(sql, [guildId, channelId, triggerKeyword]);
 
             if (res.rowCount > 0) {
-                cache.removeCalendarMonitor(guildId, channelId, triggerKeyword);
-                
                 const backupSuccess = await triggerAutoBackup(guildId);
                 const backupMessage = backupSuccess ? "設定は自動でバックアップされました。" : "注意: 設定のバックアップに失敗しました。";
                 await interaction.editReply(`✅ **設定を解除しました。**${backupMessage}`);

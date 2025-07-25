@@ -1,10 +1,10 @@
-// src/commands/admin/register-main-calendar.js
+// src/commands/admin/register-main-calendar.js (修正後・完全版)
 
 import { SlashCommandBuilder, PermissionsBitField, MessageFlags } from 'discord.js';
 import { initializeSheetsAPI } from '../../lib/sheetsAPI.js';
 import { google } from 'googleapis';
 import { triggerAutoBackup } from '../../lib/autoBackup.js';
-import { get, cache, getDBPool } from '../../lib/settingsCache.js';
+import { get, getDBPool } from '../../lib/settingsCache.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -33,12 +33,12 @@ export default {
                 throw apiError;
             }
             const pool = await getDBPool();
-            const config = get.guildConfig(guildId);
-            const sql = `INSERT INTO guild_configs (guild_id, main_calendar_id) VALUES ($1, $2) ON CONFLICT (guild_id) DO UPDATE SET main_calendar_id = excluded.main_calendar_id`;
+            const sql = `
+                INSERT INTO guild_configs (guild_id, main_calendar_id) VALUES ($1, $2)
+                ON CONFLICT (guild_id) DO UPDATE SET main_calendar_id = EXCLUDED.main_calendar_id
+            `;
             await pool.query(sql, [guildId, calendarId]);
-            
-            cache.setGuildConfig({ ...config, main_calendar_id: calendarId });
-            
+
             const backupSuccess = await triggerAutoBackup(guildId);
             const backupMessage = backupSuccess ? "\n設定は自動でバックアップされました。" : "\n注意: 設定のバックアップに失敗しました。";
 

@@ -1,4 +1,4 @@
-// src/commands/utility/listsettings.js
+// src/commands/utility/listsettings.js (修正後・完全版)
 
 import { SlashCommandBuilder, PermissionsBitField, MessageFlags } from 'discord.js';
 import { get } from '../../lib/settingsCache.js';
@@ -13,15 +13,15 @@ export default {
 
         try {
             let response = '### ⚙️ 現在のサーバー設定一覧\n';
-            
-            const config = get.guildConfig(guild.id);
+
+            const config = await get.guildConfig(guild.id);
             if (config && config.main_calendar_id) {
                 response += `**メインカレンダー**: \`${config.main_calendar_id}\`\n\n`;
             } else {
                 response += '**メインカレンダー**: 未設定\n\n';
             }
 
-            const reactionSettings = get.reactionSettings(guild.id);
+            const reactionSettings = await get.reactionSettings(guild.id);
             const accessibleReactions = reactionSettings.filter(row => guild.channels.cache.get(row.channel_id)?.permissionsFor(user).has(PermissionsBitField.Flags.ViewChannel));
             if (accessibleReactions.length > 0) {
                 response += '**自動リアクション設定**\n';
@@ -30,7 +30,7 @@ export default {
                 });
             }
 
-            const calendarSettings = get.monitorsByGuild(guild.id);
+            const calendarSettings = await get.monitorsByGuild(guild.id);
             const accessibleCalendars = calendarSettings.filter(row => guild.channels.cache.get(row.channel_id)?.permissionsFor(user).has(PermissionsBitField.Flags.ViewChannel));
             if (accessibleCalendars.length > 0) {
                 response += '\n**カレンダー通知設定**\n';
@@ -38,7 +38,7 @@ export default {
                     response += `・ <#${row.channel_id}> | キーワード: \`【${row.trigger_keyword}】\` | カレンダーID: \`${row.calendar_id}\`\n`;
                 });
             }
-            
+
             if (accessibleReactions.length === 0 && accessibleCalendars.length === 0) {
                 response += 'リアクションやカレンダーの個別設定はありません。';
             }
