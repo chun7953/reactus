@@ -13,3 +13,7 @@ generateRefreshToken.js
 
 # データフォルダ（機密情報や生成データを含む場合）
 /data/
+Dockerfile
+fly.toml
+.dockerignore
+backup.sql
