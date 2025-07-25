@@ -2,10 +2,9 @@
 
 import { google } from 'googleapis';
 import { initializeSheetsAPI } from './sheetsAPI.js';
-import { get } from './settingsCache.js'; // ★ 修正
+import { get, getDBPool } from './settingsCache.js';
 import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
 import { logSystemNotice } from './logger.js';
-import { getDBPool } from '../db/database.js'; // ★ 修正
 
 function basicDecodeHtmlEntities(text) {
     if (!text || typeof text !== 'string') {
