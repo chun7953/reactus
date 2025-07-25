@@ -1,6 +1,6 @@
-// src/commands/giveaway/giveaway.js (修正後)
+// src/commands/giveaway/giveaway.js (修正後・完全版)
 
-import { SlashCommandBuilder, MessageFlags, ChannelType, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, PermissionsBitField, Collection } from 'discord.js';
+import { SlashCommandBuilder, MessageFlags, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, PermissionsBitField } from 'discord.js';
 import { getDBPool, get } from '../../lib/settingsCache.js';
 import { parseDuration } from '../../lib/timeUtils.js';
 import { hasGiveawayPermission } from '../../lib/permissionUtils.js';
@@ -145,7 +145,8 @@ export default {
         else if (subcommand === 'end') {
             await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
             const messageId = interaction.options.getString('message_id');
-            const giveaway = (await get.activeGiveaways(interaction.guildId)).find(g => g.message_id === messageId);
+            const activeGiveaways = await get.activeGiveaways(interaction.guildId);
+            const giveaway = activeGiveaways.find(g => g.message_id === messageId);
             if (!giveaway) { return interaction.editReply('エラー: 指定されたIDの進行中抽選が見つかりません。');}
             const newEndTime = new Date();
             await pool.query("UPDATE giveaways SET end_time = $1 WHERE message_id = $2", [newEndTime, messageId]);
