@@ -14,7 +14,8 @@ export async function initializeSheetsAPI() {
         throw new Error('GOOGLE_SHEETS_CREDENTIALS environment variable not set.');
     }
 
-    const credentials = JSON.parse(credentialsJson);
+const decodedCredentials = Buffer.from(credentialsJson, 'base64').toString('utf-8');
+const credentials = JSON.parse(decodedCredentials);
 
     auth = new google.auth.GoogleAuth({
         credentials: {
