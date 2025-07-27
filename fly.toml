@@ -16,6 +16,12 @@ primary_region = 'nrt'
   min_machines_running = 1
   processes = ['app']
 
+    [[http_service.checks]]
+    interval = "10s"
+    timeout = "2s"
+    method = "GET"
+    path = "/"
+
 [[vm]]
   cpu_kind = "shared"
   cpus = 1
