@@ -1,3 +1,5 @@
+// src/config.js
+
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -8,7 +10,7 @@ export default {
         clientId: process.env.CLIENT_ID,
     },
     web: {
-        port: process.env.PORT || 80,
+        port: 8080, // ← process.env.PORT || 80 から 8080 に変更
     },
     database: {
         connectionString: process.env.DATABASE_URL,
