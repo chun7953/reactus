@@ -60,7 +60,14 @@ for (const file of eventFiles) {
     import(`./events/${file}`).then(eventModule => {
         const event = eventModule.default;
         if (event.once) {
-            client.once(event.name, (...args) => event.execute(...args));
+            // readyイベントが完了してからWebサーバーを起動するように変更
+            client.once(event.name, (...args) => {
+                event.execute(...args);
+                // Discordの準備が完全に整った後にWebサーバーを起動する
+                if (event.name === Events.ClientReady) {
+                    startServer();
+                }
+            });
         } else {
             client.on(event.name, (...args) => event.execute(...args));
         }
@@ -72,15 +79,12 @@ for (const file of eventFiles) {
         console.log("--- Initializing Modules ---");
         await getDBPool();
         
-        // Webサーバーを起動し、起動が完了してからDiscordにログインする
-        startServer(async () => {
-            if (!config.discord.token) {
-                throw new Error("Discord token is not configured in environment variables.");
-            }
-            console.log("Attempting to login to Discord...");
-            await client.login(config.discord.token);
+        if (!config.discord.token) {
+            throw new Error("Discord token is not configured in environment variables.");
+        }
+        console.log("Attempting to login to Discord...");
+        await client.login(config.discord.token);
 
-        });
     } catch (error) {
         console.error("--- CRITICAL ERROR DURING BOT INITIALIZATION ---");
         console.error(error);
