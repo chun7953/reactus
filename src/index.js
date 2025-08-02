@@ -1,5 +1,3 @@
-// src/index.js (修正後・完全版)
-
 import { Client, GatewayIntentBits, Collection, Options } from 'discord.js';
 import fs from 'fs';
 import path from 'path';
@@ -72,13 +70,17 @@ for (const file of eventFiles) {
 (async () => {
     try {
         console.log("--- Initializing Modules ---");
-        await getDBPool(); // DB接続のみを確立
-        startServer();
-        if (!config.discord.token) {
-            throw new Error("Discord token is not configured in environment variables.");
-        }
-        console.log("Attempting to login to Discord...");
-        await client.login(config.discord.token);
+        await getDBPool();
+        
+        // Webサーバーを起動し、起動が完了してからDiscordにログインする
+        startServer(async () => {
+            if (!config.discord.token) {
+                throw new Error("Discord token is not configured in environment variables.");
+            }
+            console.log("Attempting to login to Discord...");
+            await client.login(config.discord.token);
+
+        });
     } catch (error) {
         console.error("--- CRITICAL ERROR DURING BOT INITIALIZATION ---");
         console.error(error);

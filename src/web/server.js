@@ -9,27 +9,21 @@ const __dirname = path.dirname(__filename);
 const publicPath = path.resolve(__dirname, '..', '..', 'public');
 
 const server = http.createServer((req, res) => {
-    // URLに基づいて処理を分岐
     if (req.url === '/') {
-        // ルートパスへのアクセス
         const filePath = path.join(publicPath, 'index.html');
         serveFile(res, filePath, 'text/html');
     } else if (req.url.startsWith('/common/') || req.url.startsWith('/images/')) {
-        // CSSや画像ファイルへのアクセス
         const filePath = path.join(publicPath, req.url);
         const contentType = getContentType(filePath);
         serveFile(res, filePath, contentType);
     } else if (req.url.startsWith('/interactions')) {
-        // Discordからのリダイレクト
         res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
         res.end('Reactus bot is running. This window can be closed.');
     } else if (req.url === '/privacy.html') {
-        // プライバシーポリシーページ
         const filePath = path.join(publicPath, 'privacy.html');
         serveFile(res, filePath, 'text/html');
     }
     else {
-        // 404 Not Found
         res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
         res.end('Not Found');
     }
@@ -57,9 +51,10 @@ function getContentType(filePath) {
     }
 }
 
-export function startServer() {
+export function startServer(callback) {
     server.listen(config.web.port, '0.0.0.0', () => {
         console.log(`Server is running on http://localhost:${config.web.port}`);
+        if (callback) callback();
     }).on('error', (error) => {
         console.error('Error starting server:', error);
     });
