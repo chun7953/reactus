@@ -1,9 +1,11 @@
+// src/index.js
+
 import { Client, GatewayIntentBits, Collection, Options } from 'discord.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import config from './config.js';
-import { startServer } from './web/server.js';
+// web/server.jsのインポートはここでは不要
 import { getDBPool } from './lib/settingsCache.js';
 import { logGlobalError } from './lib/logger.js';
 
@@ -60,14 +62,7 @@ for (const file of eventFiles) {
     import(`./events/${file}`).then(eventModule => {
         const event = eventModule.default;
         if (event.once) {
-            // readyイベントが完了してからWebサーバーを起動するように変更
-            client.once(event.name, (...args) => {
-                event.execute(...args);
-                // Discordの準備が完全に整った後にWebサーバーを起動する
-                if (event.name === Events.ClientReady) {
-                    startServer();
-                }
-            });
+            client.once(event.name, (...args) => event.execute(...args));
         } else {
             client.on(event.name, (...args) => event.execute(...args));
         }

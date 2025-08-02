@@ -1,6 +1,8 @@
-// /src/events/ready.js (修正版)
+// src/events/ready.js
+
 import { Events } from 'discord.js';
-import { startMonitoring } from '../lib/taskMonitor.js'; // ★ インポートを追加
+import { startMonitoring } from '../lib/taskMonitor.js';
+import { startServer } from '../web/server.js'; // startServerをインポート
 
 export default {
     name: Events.ClientReady,
@@ -8,7 +10,10 @@ export default {
     execute(client) {
         console.log(`Ready! Logged in as ${client.user.tag}`);
         
-        // ★ ログインと準備が完全に完了してから、タスク監視を開始する
+        // タスク監視を開始
         startMonitoring(client);
+
+        // Discordボットの準備が整ったこのタイミングでWebサーバーを起動
+        startServer();
     },
 };
