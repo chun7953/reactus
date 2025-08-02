@@ -21,6 +21,7 @@ primary_region = 'nrt'
     timeout = "2s"
     method = "GET"
     path = "/"
+    grace_period = "15s" # この行を追加
 
 [[vm]]
   cpu_kind = "shared"
