@@ -16,12 +16,12 @@ primary_region = 'nrt'
   min_machines_running = 1
   processes = ['app']
 
-    [[http_service.checks]]
-    interval = "10s"
-    timeout = "2s"
-    method = "GET"
-    path = "/"
-    grace_period = "20s"
+[[http_service.checks]]
+  grace_period = "45s" # ← 20sから変更
+  interval = "10s"
+  method = "GET"
+  path = "/"
+  timeout = "2s"
 
 [[vm]]
   cpu_kind = "shared"
