@@ -9,6 +9,7 @@ export default {
     execute(client) {
         console.log(`Ready! Logged in as ${client.user.tag}`);
         
+        // ログインと準備が完全に完了してから、タスク監視を開始する
         startMonitoring(client);
     },
 };

@@ -1,6 +1,6 @@
 // src/index.js
 
-import { Client, GatewayIntentBits, Collection, Options, Events } from 'discord.js'; // ★★★ Eventsをここに追加 ★★★
+import { Client, GatewayIntentBits, Collection, Options, Events } from 'discord.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -62,22 +62,23 @@ for (const file of eventFiles) {
     import(`./events/${file}`).then(eventModule => {
         const event = eventModule.default;
         if (event.once) {
-            client.once(event.name, (...args) => {
-                event.execute(...args);
-                // ClientReadyイベントの後にサーバーを起動する
-                if (event.name === Events.ClientReady) {
-                    startServer();
-                }
-            });
+            client.once(event.name, (...args) => event.execute(...args));
         } else {
             client.on(event.name, (...args) => event.execute(...args));
         }
     }).catch(err => console.error(`Failed to load event ${file}:`, err));
 }
 
+
+// --- 新しい起動処理 ---
+
+// 1. Webサーバーを即座に起動し、ヘルスチェックに応答できるようにする
+startServer();
+
+// 2. Botの初期化処理を非同期で開始する
 (async () => {
     try {
-        console.log("--- Initializing Modules ---");
+        console.log("--- Initializing Bot Modules ---");
         await getDBPool();
         
         if (!config.discord.token) {
