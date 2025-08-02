@@ -1,6 +1,6 @@
 // src/index.js
 
-import { Client, GatewayIntentBits, Collection, Options, Events } from 'discord.js'; // ★ここにEventsを追加
+import { Client, GatewayIntentBits, Collection, Options, Events } from 'discord.js'; // ★★★ Eventsをここに追加 ★★★
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
