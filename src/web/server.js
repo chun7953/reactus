@@ -58,7 +58,6 @@ function getContentType(filePath) {
 }
 
 export function startServer() {
-    // listenメソッドにホスト名 '0.0.0.0' を追加
     server.listen(config.web.port, '0.0.0.0', () => {
         console.log(`Server is running on http://localhost:${config.web.port}`);
     }).on('error', (error) => {
