@@ -48,7 +48,7 @@ client.cooldowns = new Collection();
 const commandFolders = fs.readdirSync(path.join(__dirname, 'commands'));
 for (const folder of commandFolders) {
     if (folder.startsWith('_')) continue;
-    const commandFiles = fs.readdirSync(path.join(__dirname, 'commands', folder)).filter(file => file.endsWith('.js'));
+    const commandFiles = fs.readdirSync(path.join(__dirname, 'commands', folder)).filter(file => file.endsWith('.js') && !file.startsWith('_'));
     for (const file of commandFiles) {
         import(`./commands/${folder}/${file}`).then(commandModule => {
             const command = commandModule.default;
