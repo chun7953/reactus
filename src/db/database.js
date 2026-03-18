@@ -1,4 +1,4 @@
-// src/db/database.js (修正版)
+// src/db/database.js
 
 import pg from 'pg';
 import config from '../config.js';
@@ -12,12 +12,21 @@ export async function initializeDatabase() {
         console.error("DATABASE_URL environment variable not found. Bot cannot start.");
         process.exit(1);
     }
-    pool = new Pool({
+pool = new Pool({
         connectionString: config.database.connectionString,
         ssl: {
             rejectUnauthorized: false
-        }
+        },
+        // --- 追加: アイドル接続の切断対策 ---
+        idleTimeoutMillis: 10000,      // 10秒間使われなかった接続は閉じる(Fly.ioの強制切断より早く閉じる)
+        connectionTimeoutMillis: 5000, // 接続のタイムアウトを5秒に設定
+        max: 10                        // 最大接続数を制限
     });
+
+    pool.on('error', (err, client) => {
+        console.error('Unexpected error on idle client', err);
+    });
+
     try {
         await pool.query('SELECT NOW()');
         console.log('✅ PostgreSQL Database connected successfully.');
