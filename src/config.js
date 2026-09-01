@@ -14,6 +14,7 @@ export default {
     },
     database: {
         connectionString: process.env.DATABASE_URL,
+        migrationTargetConnectionString: process.env.MIGRATION_TARGET_DATABASE_URL,
     },
     sheets: {
         spreadsheetId: process.env.SPREADSHEET_ID,
