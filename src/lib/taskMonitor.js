@@ -13,6 +13,7 @@ import {
     recoverStaleGiveawayClaims,
 } from './giveawayLifecycle.js';
 import { buildCalendarNotificationKey } from './calendarNotificationKey.js';
+import { createMonitorController } from './monitorController.js';
 
 function basicDecodeHtmlEntities(text) {
     if (!text || typeof text !== 'string') {
@@ -312,51 +313,43 @@ async function cleanupOldGiveaways() {
     }
 }
 
-let highFreqIsRunning = false;
 async function runHighFrequencyTasks(client) {
-    if (highFreqIsRunning) return;
-    highFreqIsRunning = true;
     try {
         await recoverInterruptedGiveaways();
         await checkFinishedGiveaways(client);
         await validateActiveGiveaways(client);
         await checkScheduledGiveaways(client);
     } catch (error) { console.error('[TaskMonitor] 高頻度タスクループ中にエラー:', error); }
-    finally { highFreqIsRunning = false; }
 }
 
-let lowFreqIsRunning = false;
 async function runLowFrequencyTasks(client) {
-    if (lowFreqIsRunning) return;
-    lowFreqIsRunning = true;
     try {
         await checkCalendarEvents(client);
     } catch (error) { console.error('[TaskMonitor] 低頻度タスクループ中にエラー:', error); }
-    finally { lowFreqIsRunning = false; }
 }
 
-let dailyTaskIsRunning = false;
 async function runDailyTasks() {
-    if (dailyTaskIsRunning) return;
-    dailyTaskIsRunning = true;
     try {
         await cleanupOldGiveaways();
     } catch (error) { console.error('[TaskMonitor] デイリータスクループ中にエラー:', error); }
-    finally { dailyTaskIsRunning = false; }
 }
 
-export function startMonitoring(client) {
-    const HIGH_FREQ_INTERVAL = 1 * 60 * 1000;
-    runHighFrequencyTasks(client);
-    setInterval(() => runHighFrequencyTasks(client), HIGH_FREQ_INTERVAL);
+const monitorController = createMonitorController([
+    { name: '高頻度', intervalMs: 1 * 60 * 1000, run: runHighFrequencyTasks },
+    { name: '低頻度', intervalMs: 10 * 60 * 1000, run: runLowFrequencyTasks },
+    { name: 'デイリー', intervalMs: 24 * 60 * 60 * 1000, run: runDailyTasks },
+]);
 
-    const LOW_FREQ_INTERVAL = 10 * 60 * 1000;
-    runLowFrequencyTasks(client);
-    setInterval(() => runLowFrequencyTasks(client), LOW_FREQ_INTERVAL);
-    
-    const DAILY_INTERVAL = 24 * 60 * 60 * 1000;
-    runDailyTasks();
-    setInterval(() => runDailyTasks(), DAILY_INTERVAL);
-    
-    console.log('✅ タスク監視サービスを開始しました (高頻度: 1分, 低頻度: 10分, デイリー)。');
+export function startMonitoring(client) {
+    const started = monitorController.start(client);
+    if (started) {
+        console.log('✅ タスク監視サービスを開始しました (高頻度: 1分, 低頻度: 10分, デイリー)。');
+    }
+    return started;
+}
+
+export async function stopMonitoring(options) {
+    const drained = await monitorController.stop(options);
+    console.log(`✅ タスク監視サービスを停止しました (実行中タスク: ${drained ? 'なし' : '待機時間超過'})。`);
+    return drained;
 }
