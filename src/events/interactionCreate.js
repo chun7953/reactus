@@ -4,6 +4,7 @@ import { Events, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle, Col
 import { logCommandError } from '../lib/logger.js';
 import { getDBPool } from '../lib/settingsCache.js';
 import { hasGiveawayPermission } from '../lib/permissionUtils.js';
+import { toggleGiveawayParticipant } from '../lib/giveawayParticipation.js';
 
 export default {
     name: Events.InteractionCreate,
@@ -42,31 +43,24 @@ export default {
             if (interaction.customId.startsWith('giveaway_participate')) {
                 await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
                 const pool = await getDBPool();
-                const result = await pool.query("SELECT prize, participants, winner_count FROM giveaways WHERE message_id = $1 AND status = 'RUNNING'", [interaction.message.id]);
-                const giveaway = result.rows[0];
+                const giveaway = await toggleGiveawayParticipant(
+                    pool,
+                    interaction.message.id,
+                    interaction.user.id,
+                );
 
                 if (!giveaway) return interaction.editReply('このGiveawayは終了またはキャンセルされました。');
 
-                const participants = new Set(giveaway.participants || []);
-                let newParticipantsArray;
-
                 const currentHostValue = interaction.message.embeds[0]?.fields?.[2]?.value || `ボット(${interaction.client.user.username})`;
-
-                if (participants.has(interaction.user.id)) {
-                    participants.delete(interaction.user.id);
-                    newParticipantsArray = Array.from(participants);
-                    await pool.query("UPDATE giveaways SET participants = $1 WHERE message_id = $2", [newParticipantsArray, interaction.message.id]);
-                    const newEmbed = EmbedBuilder.from(interaction.message.embeds[0]).setFields({ name: '当選者数', value: `${giveaway.winner_count}名`, inline: true }, { name: '参加者', value: `${participants.size}名`, inline: true }, { name: '主催者', value: currentHostValue });
-                    await interaction.message.edit({ embeds: [newEmbed] });
-                    await interaction.editReply('✅ 参加を取り消しました。');
-                } else {
-                    participants.add(interaction.user.id);
-                    newParticipantsArray = Array.from(participants);
-                    await pool.query("UPDATE giveaways SET participants = $1 WHERE message_id = $2", [newParticipantsArray, interaction.message.id]);
-                    const newEmbed = EmbedBuilder.from(interaction.message.embeds[0]).setFields({ name: '当選者数', value: `${giveaway.winner_count}名`, inline: true }, { name: '参加者', value: `${participants.size}名`, inline: true }, { name: '主催者', value: currentHostValue });
-                    await interaction.message.edit({ embeds: [newEmbed] });
-                    await interaction.editReply('✅ 抽選に参加しました！');
-                }
+                const newEmbed = EmbedBuilder.from(interaction.message.embeds[0]).setFields(
+                    { name: '当選者数', value: `${giveaway.winner_count}名`, inline: true },
+                    { name: '参加者', value: `${giveaway.participants.length}名`, inline: true },
+                    { name: '主催者', value: currentHostValue },
+                );
+                await interaction.message.edit({ embeds: [newEmbed] });
+                await interaction.editReply(
+                    giveaway.joined ? '✅ 抽選に参加しました！' : '✅ 参加を取り消しました。',
+                );
                 return;
             }
 
