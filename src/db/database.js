@@ -7,12 +7,16 @@ import { migrateDatabase } from './migrateDatabase.js';
 const { Pool } = pg;
 let pool;
 
+const DB_CONNECTION_TIMEOUT_MS = 15000;
+const DB_CONNECT_ATTEMPTS = 3;
+const DB_RETRY_BASE_DELAY_MS = 1000;
+
 function createPool(connectionString, max = 5) {
     const result = new Pool({
         connectionString,
         ssl: { rejectUnauthorized: false },
         idleTimeoutMillis: 10000,
-        connectionTimeoutMillis: 5000,
+        connectionTimeoutMillis: DB_CONNECTION_TIMEOUT_MS,
         max,
         application_name: 'reactus',
     });
@@ -22,6 +26,33 @@ function createPool(connectionString, max = 5) {
     });
     return result;
 }
+
+export async function queryWithRetry(db, sql, {
+    attempts = DB_CONNECT_ATTEMPTS,
+    baseDelayMs = DB_RETRY_BASE_DELAY_MS,
+    onRetry = ({ attempt, delayMs, error }) => {
+        console.warn(
+            `Database connection attempt ${attempt}/${attempts} failed; retrying in ${delayMs}ms: ${error.message}`,
+        );
+    },
+} = {}) {
+    if (!Number.isInteger(attempts) || attempts < 1) {
+        throw new RangeError('attempts must be a positive integer');
+    }
+
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+        try {
+            return await db.query(sql);
+        } catch (error) {
+            if (attempt === attempts) throw error;
+
+            const delayMs = baseDelayMs * attempt;
+            onRetry({ attempt, delayMs, error });
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+    }
+}
+
 export async function initializeDatabase() {
     if (pool) return pool;
     if (!config.database.connectionString) {
@@ -35,7 +66,7 @@ export async function initializeDatabase() {
     try {
         if (targetConnectionString && targetConnectionString !== config.database.connectionString) {
             const targetPool = createPool(targetConnectionString, 5);
-            await targetPool.query('SELECT NOW()');
+            await queryWithRetry(targetPool, 'SELECT NOW()');
             await createTables(targetPool);
 
             const result = await migrateDatabase(sourcePool, targetPool);
@@ -49,7 +80,7 @@ export async function initializeDatabase() {
             pool = targetPool;
         } else {
             pool = sourcePool;
-            await pool.query('SELECT NOW()');
+            await queryWithRetry(pool, 'SELECT NOW()');
             await createTables(pool);
         }
 
