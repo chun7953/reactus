@@ -36,3 +36,6 @@ jobs:
 
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
+
+      - name: Build production image
+        run: docker build --tag reactus-ci .
