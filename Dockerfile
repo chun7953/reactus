@@ -1,12 +1,12 @@
-# 安定したNode.js 20のスリムバージョンをベースイメージとして使用
-FROM node:20-slim
+# Node.js 24 LTS の固定バージョンを使用
+FROM node:24.20.0-slim
 
 # アプリケーションの作業ディレクトリを作成
 WORKDIR /app
 
-# 最初にpackage.jsonをコピーして、効率的に依存関係をインストール
+# lockfileどおりの依存関係を再現可能な形でインストール
 COPY package*.json ./
-RUN npm install --omit=dev
+RUN npm ci --omit=dev
 
 # アプリケーションのソースコードをすべてコピー
 COPY . .
