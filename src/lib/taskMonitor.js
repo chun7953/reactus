@@ -6,6 +6,12 @@ import { get, getDBPool } from './settingsCache.js';
 import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
 import { logSystemNotice } from './logger.js';
 import { deliverAndRecordNotification, recordNotification } from './notificationDelivery.js';
+import {
+    claimFinishedGiveaway,
+    completeClaimedGiveaway,
+    failClaimedGiveaway,
+    recoverStaleGiveawayClaims,
+} from './giveawayLifecycle.js';
 
 function basicDecodeHtmlEntities(text) {
     if (!text || typeof text !== 'string') {
@@ -146,20 +152,23 @@ async function checkFinishedGiveaways(client) {
     const finishedGiveaways = activeGiveaways.filter(g => new Date(g.end_time) <= now);
     if (finishedGiveaways.length === 0) return;
     const pool = await getDBPool();
-    for (const giveaway of finishedGiveaways) {
+    for (const candidate of finishedGiveaways) {
+        let giveaway;
         try {
+            giveaway = await claimFinishedGiveaway(pool, candidate.message_id);
+            if (!giveaway) continue;
+
             const channel = await client.channels.fetch(giveaway.channel_id).catch(() => null);
             if (!channel) {
-                await pool.query("UPDATE giveaways SET status = 'ERRORED' WHERE message_id = $1", [giveaway.message_id]);
+                await failClaimedGiveaway(pool, giveaway.message_id);
                 continue;
             }
             const message = await channel.messages.fetch(giveaway.message_id).catch(() => null);
             if (!message) {
-                await pool.query("UPDATE giveaways SET status = 'ERRORED' WHERE message_id = $1", [giveaway.message_id]);
+                await failClaimedGiveaway(pool, giveaway.message_id);
                 continue;
             }
-            const participantsResult = await pool.query("SELECT participants FROM giveaways WHERE message_id = $1", [giveaway.message_id]);
-            const participants = participantsResult.rows[0]?.participants || [];
+            const participants = giveaway.participants || [];
             let winners = [];
             if (participants.length > 0) {
                 const shuffled = [...participants].sort(() => 0.5 - Math.random());
@@ -175,11 +184,11 @@ async function checkFinishedGiveaways(client) {
             await channel.send({ content: winnerMentions, embeds: [resultEmbed] });
             const endedEmbed = EmbedBuilder.from(message.embeds[0]).setDescription(`**終了しました**\n参加者: ${participants.length}名\n当選者: ${winnerMentions || 'なし'}`).setColor(0x95A5A6);
             await message.edit({ embeds: [endedEmbed], components: [] });
-            await pool.query("UPDATE giveaways SET status = 'ENDED', winners = $1 WHERE message_id = $2", [winners, giveaway.message_id]);
+            await completeClaimedGiveaway(pool, giveaway.message_id, winners);
             console.log(`抽選「${giveaway.prize}」が終了しました。当選者が発表されました。`);
         } catch (error) {
-            console.error(`抽選 ${giveaway.message_id} の処理中にエラー:`, error);
-            await pool.query("UPDATE giveaways SET status = 'ERRORED' WHERE message_id = $1", [giveaway.message_id]);
+            console.error(`抽選 ${candidate.message_id} の処理中にエラー:`, error);
+            if (giveaway) await failClaimedGiveaway(pool, candidate.message_id);
         }
     }
 }
@@ -223,21 +232,15 @@ async function checkScheduledGiveaways(client) {
     }
 }
 
-async function cleanupGhostGiveaways() {
+async function recoverInterruptedGiveaways() {
     const pool = await getDBPool();
     try {
-        const result = await pool.query(
-            "SELECT message_id, guild_id FROM giveaways WHERE status = 'RUNNING' AND end_time < NOW() - INTERVAL '5 minutes'"
-        );
+        const result = await recoverStaleGiveawayClaims(pool);
         if (result.rowCount > 0) {
-            console.log(`[TaskMonitor] 古い実行中抽選データ ${result.rowCount}件 をクリーンアップします...`);
-            for (const row of result.rows) {
-                await pool.query("UPDATE giveaways SET status = 'ENDED' WHERE message_id = $1", [row.message_id]);
-            }
-            console.log(`[TaskMonitor] 実行中抽選のクリーンアップ完了。`);
+            console.log(`[TaskMonitor] 中断された抽選処理 ${result.rowCount}件 を再試行対象に戻しました。`);
         }
     } catch (error) {
-        console.error('[TaskMonitor] 古い実行中抽選データのクリーンアップ中にエラー:', error);
+        console.error('[TaskMonitor] 中断された抽選処理の復旧中にエラー:', error);
     }
 }
 
@@ -308,9 +311,9 @@ async function runHighFrequencyTasks(client) {
     if (highFreqIsRunning) return;
     highFreqIsRunning = true;
     try {
-        await cleanupGhostGiveaways();
-        await validateActiveGiveaways(client);
+        await recoverInterruptedGiveaways();
         await checkFinishedGiveaways(client);
+        await validateActiveGiveaways(client);
         await checkScheduledGiveaways(client);
     } catch (error) { console.error('[TaskMonitor] 高頻度タスクループ中にエラー:', error); }
     finally { highFreqIsRunning = false; }
