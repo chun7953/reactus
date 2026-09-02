@@ -11,6 +11,7 @@ import {
 } from 'discord.js';
 import {
     BackupValidationError,
+    getBackupMetadataSpec,
     getBackupSheetSpecs,
     validateBackup,
 } from '../../lib/backupValidation.js';
@@ -39,11 +40,15 @@ async function fetchAndValidateBackup(sheets, auth, spreadsheetId, guildId) {
     const sheetTitles = (spreadsheet.data.sheets || [])
         .map(sheet => sheet.properties?.title)
         .filter(Boolean);
+    const metadataSpec = getBackupMetadataSpec(guildId);
+    const readSpecs = sheetTitles.includes(metadataSpec.sheetName)
+        ? [...specs, metadataSpec]
+        : specs;
 
     const response = await sheets.spreadsheets.values.batchGet({
         auth,
         spreadsheetId,
-        ranges: specs.map(spec => `${spec.sheetName}!${spec.range}`),
+        ranges: readSpecs.map(spec => `${spec.sheetName}!${spec.range}`),
     });
 
     return validateBackup(guildId, sheetTitles, response.data.valueRanges || []);
@@ -52,11 +57,18 @@ async function fetchAndValidateBackup(sheets, auth, spreadsheetId, guildId) {
 async function requestConfirmation(interaction, backup) {
     const confirmId = `restore_confirm_${interaction.id}`;
     const cancelId = `restore_cancel_${interaction.id}`;
-    const warning = backup.isEmpty
-        ? '⚠️ バックアップは全項目0件です。実行すると、このサーバーの全設定が削除されます。'
-        : '現在の設定は、次のバックアップ内容で上書きされます。';
-    const confirmLabel = backup.isEmpty ? '全設定を削除' : 'この内容で復元';
-    const confirmStyle = backup.isEmpty ? ButtonStyle.Danger : ButtonStyle.Primary;
+    let warning = '現在の設定は、次のバックアップ内容で上書きされます。';
+    let confirmLabel = 'この内容で復元';
+    let confirmStyle = ButtonStyle.Primary;
+    if (backup.isEmpty) {
+        warning = '⚠️ バックアップは全項目0件です。実行すると、このサーバーの全設定が削除されます。';
+        confirmLabel = '全設定を削除';
+        confirmStyle = ButtonStyle.Danger;
+    } else if (backup.isLegacy) {
+        warning = '⚠️ 旧形式バックアップのため、4シートが同じ世代か確認できません。内容を確認して復元してください。';
+        confirmLabel = '旧形式から復元';
+        confirmStyle = ButtonStyle.Danger;
+    }
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId(confirmId).setLabel(confirmLabel).setStyle(confirmStyle),
         new ButtonBuilder().setCustomId(cancelId).setLabel('キャンセル').setStyle(ButtonStyle.Secondary),
