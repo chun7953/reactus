@@ -353,3 +353,7 @@ export async function stopMonitoring(options) {
     console.log(`✅ タスク監視サービスを停止しました (実行中タスク: ${drained ? 'なし' : '待機時間超過'})。`);
     return drained;
 }
+
+export function getMonitoringStatus() {
+    return monitorController.getStatus();
+}

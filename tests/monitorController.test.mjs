@@ -27,7 +27,7 @@ test('monitor controller starts each task once and ignores duplicate starts', as
 
     assert.equal(controller.start({}), true);
     assert.equal(controller.start({}), false);
-    await Promise.resolve();
+    await new Promise(resolve => setImmediate(resolve));
     assert.equal(runs, 1);
     assert.equal(callbacks.length, 1);
 
@@ -39,13 +39,14 @@ test('monitor controller prevents overlapping executions of one task', async () 
     const activeRun = deferred();
     let intervalCallback;
     let runs = 0;
+    let block = false;
     const controller = createMonitorController([
         {
             name: 'slow',
             intervalMs: 1000,
             run: async () => {
                 runs += 1;
-                await activeRun.promise;
+                if (block) await activeRun.promise;
             },
         },
     ], {
@@ -58,10 +59,13 @@ test('monitor controller prevents overlapping executions of one task', async () 
     });
 
     controller.start({});
+    await new Promise(resolve => setImmediate(resolve));
+    block = true;
+    intervalCallback();
     await Promise.resolve();
     intervalCallback();
     await Promise.resolve();
-    assert.equal(runs, 1);
+    assert.equal(runs, 2);
 
     activeRun.resolve();
     assert.equal(await controller.stop(), true);
@@ -91,11 +95,12 @@ test('monitor controller runs startup tasks sequentially', async () => {
     });
 
     controller.start({});
+    const ready = controller.whenReady();
     await Promise.resolve();
     assert.deepEqual(runs, ['first']);
 
     firstRun.resolve();
-    await new Promise(resolve => setImmediate(resolve));
+    await ready;
     assert.deepEqual(runs, ['first', 'second']);
     assert.equal(await controller.stop(), true);
 });
@@ -126,13 +131,14 @@ test('monitor controller reports a drain timeout without starting new work', asy
     let clock = 0;
     let intervalCallback;
     let runs = 0;
+    let block = false;
     const controller = createMonitorController([
         {
             name: 'blocked',
             intervalMs: 1000,
             run: () => {
                 runs += 1;
-                return new Promise(() => {});
+                return block ? new Promise(() => {}) : undefined;
             },
         },
     ], {
@@ -147,9 +153,43 @@ test('monitor controller reports a drain timeout without starting new work', asy
     });
 
     controller.start({});
+    await new Promise(resolve => setImmediate(resolve));
+    block = true;
+    intervalCallback();
     await Promise.resolve();
     assert.equal(await controller.stop({ timeoutMs: 50, pollIntervalMs: 10 }), false);
     intervalCallback();
     await Promise.resolve();
-    assert.equal(runs, 1);
+    assert.equal(runs, 2);
+});
+
+test('monitor controller exposes task runs, failures, and lifecycle state', async () => {
+    let clock = 1000;
+    const controller = createMonitorController([
+        {
+            name: 'observable',
+            intervalMs: 5000,
+            run: async () => {
+                clock += 25;
+                throw new Error('expected failure');
+            },
+        },
+    ], {
+        setIntervalFn: () => 1,
+        clearIntervalFn() {},
+        now: () => clock,
+        logger: silentLogger,
+    });
+
+    controller.start({});
+    await new Promise(resolve => setImmediate(resolve));
+    const status = controller.getStatus();
+    assert.equal(status.started, true);
+    assert.equal(status.initializing, false);
+    assert.deepEqual(status.activeTasks, []);
+    assert.equal(status.tasks[0].runs, 1);
+    assert.equal(status.tasks[0].failures, 1);
+    assert.equal(status.tasks[0].lastDurationMs, 25);
+    assert.match(status.tasks[0].lastFailedAt, /^1970-/);
+    await controller.stop();
 });

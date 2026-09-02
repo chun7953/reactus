@@ -29,19 +29,45 @@ export function createMonitorController(tasks, {
 
     let started = false;
     let stopping = false;
+    let generation = 0;
+    let initialRunPromise;
     let intervalHandles = [];
     const activeTasks = new Set();
+    const taskStats = new Map(tasks.map(task => [task.name, {
+        runs: 0,
+        failures: 0,
+        lastStartedAt: null,
+        lastSucceededAt: null,
+        lastFailedAt: null,
+        lastDurationMs: null,
+    }]));
+
+    function timestamp(value) {
+        return new Date(value).toISOString();
+    }
 
     function runTask(task, context) {
         if (stopping || activeTasks.has(task.name)) return Promise.resolve(false);
 
+        const startedAt = now();
+        const stats = taskStats.get(task.name);
         activeTasks.add(task.name);
+        stats.runs += 1;
+        stats.lastStartedAt = timestamp(startedAt);
         return Promise.resolve()
             .then(() => task.run(context))
+            .then(() => {
+                stats.lastSucceededAt = timestamp(now());
+            })
             .catch(error => {
+                stats.failures += 1;
+                stats.lastFailedAt = timestamp(now());
                 logger.error(`[TaskMonitor] ${task.name}タスクループ中にエラー:`, error);
             })
-            .finally(() => activeTasks.delete(task.name))
+            .finally(() => {
+                stats.lastDurationMs = Math.max(0, now() - startedAt);
+                activeTasks.delete(task.name);
+            })
             .then(() => true);
     }
 
@@ -60,10 +86,16 @@ export function createMonitorController(tasks, {
 
         started = true;
         stopping = false;
-        intervalHandles = tasks.map(task => (
-            setIntervalFn(() => void runTask(task, context), task.intervalMs)
-        ));
-        void runInitialTasks(context);
+        generation += 1;
+        const startGeneration = generation;
+        const pendingInitialRun = runInitialTasks(context).finally(() => {
+            if (initialRunPromise === pendingInitialRun) initialRunPromise = undefined;
+            if (!started || stopping || generation !== startGeneration) return;
+            intervalHandles = tasks.map(task => (
+                setIntervalFn(() => void runTask(task, context), task.intervalMs)
+            ));
+        });
+        initialRunPromise = pendingInitialRun;
         return true;
     }
 
@@ -72,6 +104,7 @@ export function createMonitorController(tasks, {
         pollIntervalMs = DEFAULT_POLL_INTERVAL_MS,
     } = {}) {
         stopping = true;
+        generation += 1;
         for (const handle of intervalHandles) clearIntervalFn(handle);
         intervalHandles = [];
         started = false;
@@ -85,5 +118,24 @@ export function createMonitorController(tasks, {
         return activeTasks.size === 0;
     }
 
-    return { start, stop };
+    function getStatus() {
+        return {
+            started,
+            stopping,
+            initializing: Boolean(initialRunPromise),
+            activeTasks: [...activeTasks],
+            tasks: tasks.map(task => ({
+                name: task.name,
+                intervalMs: task.intervalMs,
+                running: activeTasks.has(task.name),
+                ...taskStats.get(task.name),
+            })),
+        };
+    }
+
+    function whenReady() {
+        return initialRunPromise || Promise.resolve();
+    }
+
+    return { start, stop, getStatus, whenReady };
 }

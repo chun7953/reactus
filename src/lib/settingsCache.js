@@ -2,17 +2,11 @@
 
 import { closeDatabase, initializeDatabase } from '../db/database.js';
 
-let pool;
-
 export async function getDBPool() {
-    if (!pool) {
-        pool = await initializeDatabase();
-    }
-    return pool;
+    return initializeDatabase();
 }
 
 export async function closeDBPool() {
-    pool = undefined;
     return closeDatabase();
 }
 

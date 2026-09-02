@@ -8,3 +8,11 @@ test('production container runs Node directly so Fly signals reach the bot', asy
     assert.match(dockerfile, /^CMD \["node", "src\/index\.js"\]$/m);
     assert.doesNotMatch(dockerfile, /^CMD \["npm", "start"\]$/m);
 });
+
+test('Fly checks application readiness instead of only accepting a TCP connection', async () => {
+    const config = await readFile('fly.toml', 'utf8');
+
+    assert.match(config, /^\[\[http_service\.checks\]\]$/m);
+    assert.match(config, /^\s*path = "\/readyz"$/m);
+    assert.doesNotMatch(config, /^\[\[tcp_checks\]\]$/m);
+});

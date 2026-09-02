@@ -5,7 +5,6 @@ import config from '../config.js';
 import { migrateDatabase } from './migrateDatabase.js';
 
 const { Pool } = pg;
-let pool;
 
 const DB_CONNECTION_TIMEOUT_MS = 15000;
 const DB_CONNECT_ATTEMPTS = 3;
@@ -53,55 +52,6 @@ export async function queryWithRetry(db, sql, {
     }
 }
 
-export async function initializeDatabase() {
-    if (pool) return pool;
-    if (!config.database.connectionString) {
-        console.error('DATABASE_URL environment variable not found. Bot cannot start.');
-        process.exit(1);
-    }
-
-    const sourcePool = createPool(config.database.connectionString, 2);
-    const targetConnectionString = config.database.migrationTargetConnectionString;
-
-    try {
-        if (targetConnectionString && targetConnectionString !== config.database.connectionString) {
-            const targetPool = createPool(targetConnectionString, 5);
-            await queryWithRetry(targetPool, 'SELECT NOW()');
-            await createTables(targetPool);
-
-            const result = await migrateDatabase(sourcePool, targetPool);
-            if (result.migrated) {
-                console.log('✅ Database migration completed:', result.counts);
-            } else {
-                console.log('✅ Database migration was already completed.');
-            }
-
-            await sourcePool.end();
-            pool = targetPool;
-        } else {
-            pool = sourcePool;
-            await queryWithRetry(pool, 'SELECT NOW()');
-            await createTables(pool);
-        }
-
-        console.log('✅ PostgreSQL Database connected successfully.');
-        return pool;
-    } catch (err) {
-        console.error('PostgreSQL initialization or migration error:', err);
-        await sourcePool.end().catch(() => {});
-        process.exit(1);
-    }
-}
-
-export async function closeDatabase() {
-    const activePool = pool;
-    pool = undefined;
-    if (!activePool) return false;
-
-    await activePool.end();
-    return true;
-}
-
 async function createTables(db) {
     await db.query(`CREATE TABLE IF NOT EXISTS reactions ( guild_id TEXT NOT NULL, channel_id TEXT NOT NULL, emojis TEXT NOT NULL, trigger TEXT NOT NULL, PRIMARY KEY (guild_id, channel_id, trigger) );`);
     await db.query(`CREATE TABLE IF NOT EXISTS announcements ( guild_id TEXT NOT NULL, channel_id TEXT NOT NULL, message TEXT NOT NULL, PRIMARY KEY (guild_id, channel_id) );`);
@@ -113,3 +63,113 @@ async function createTables(db) {
     await db.query(`ALTER TABLE giveaways ADD COLUMN IF NOT EXISTS validation_fails INTEGER DEFAULT 0;`);
     console.log('✅ Tables checked/created successfully.');
 }
+
+export function createDatabaseManager({
+    connectionString,
+    migrationTargetConnectionString,
+    createPoolFn = createPool,
+    createTablesFn = createTables,
+    migrateDatabaseFn = migrateDatabase,
+    logger = console,
+} = {}) {
+    let pool;
+    let initializationPromise;
+    let closePromise;
+    let closed = false;
+
+    async function initializeOnce() {
+        if (!connectionString) {
+            throw new Error('DATABASE_URL environment variable not found. Bot cannot start.');
+        }
+
+        const sourcePool = createPoolFn(connectionString, 2);
+        let targetPool;
+
+        try {
+            if (migrationTargetConnectionString && migrationTargetConnectionString !== connectionString) {
+                targetPool = createPoolFn(migrationTargetConnectionString, 5);
+                await queryWithRetry(targetPool, 'SELECT NOW()');
+                await createTablesFn(targetPool);
+
+                const result = await migrateDatabaseFn(sourcePool, targetPool);
+                if (result.migrated) {
+                    logger.log('✅ Database migration completed:', result.counts);
+                } else {
+                    logger.log('✅ Database migration was already completed.');
+                }
+
+                await sourcePool.end();
+                pool = targetPool;
+            } else {
+                await queryWithRetry(sourcePool, 'SELECT NOW()');
+                await createTablesFn(sourcePool);
+                pool = sourcePool;
+            }
+
+            logger.log('✅ PostgreSQL Database connected successfully.');
+            return pool;
+        } catch (error) {
+            const pools = new Set([sourcePool, targetPool].filter(Boolean));
+            await Promise.allSettled([...pools].map(candidate => candidate.end()));
+            throw new Error('PostgreSQL initialization or migration failed.', { cause: error });
+        }
+    }
+
+    function initializeDatabase() {
+        if (pool) return Promise.resolve(pool);
+        if (closed) return Promise.reject(new Error('Database manager is closed.'));
+        if (initializationPromise) return initializationPromise;
+        if (closePromise) return Promise.reject(new Error('Database manager is closing.'));
+
+        const pending = initializeOnce();
+        initializationPromise = pending;
+        pending.then(
+            () => {
+                if (initializationPromise === pending) initializationPromise = undefined;
+            },
+            () => {
+                if (initializationPromise === pending) initializationPromise = undefined;
+            },
+        );
+        return pending;
+    }
+
+    function closeDatabase() {
+        if (closePromise) return closePromise;
+
+        const pending = (async () => {
+            closed = true;
+            if (initializationPromise) {
+                await initializationPromise.catch(() => {});
+            }
+
+            const activePool = pool;
+            pool = undefined;
+            if (!activePool) return false;
+
+            await activePool.end();
+            return true;
+        })();
+
+        closePromise = pending;
+        pending.then(
+            () => {
+                if (closePromise === pending) closePromise = undefined;
+            },
+            () => {
+                if (closePromise === pending) closePromise = undefined;
+            },
+        );
+        return pending;
+    }
+
+    return { initializeDatabase, closeDatabase };
+}
+
+const databaseManager = createDatabaseManager({
+    connectionString: config.database.connectionString,
+    migrationTargetConnectionString: config.database.migrationTargetConnectionString,
+});
+
+export const initializeDatabase = databaseManager.initializeDatabase;
+export const closeDatabase = databaseManager.closeDatabase;
