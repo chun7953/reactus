@@ -2,13 +2,16 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+    BACKUP_SCHEMA_VERSION,
     BackupValidationError,
+    getBackupMetadataSpec,
     getBackupSheetSpecs,
     validateBackup,
 } from '../src/lib/backupValidation.js';
 
 const guildId = '123456789';
 const specs = getBackupSheetSpecs(guildId);
+const metadataSpec = getBackupMetadataSpec(guildId);
 const sheetTitles = specs.map(spec => spec.sheetName);
 
 function createValueRanges(rows = {}) {
@@ -32,6 +35,50 @@ test('validateBackup accepts a complete backup and reports its counts', () => {
         guildConfigs: 1,
     });
     assert.equal(result.isEmpty, false);
+    assert.equal(result.isLegacy, true);
+    assert.equal(result.metadata, null);
+});
+
+test('validateBackup accepts generation metadata for an atomic backup', () => {
+    const completedAt = '2026-09-02T12:34:56.000Z';
+    const valueRanges = createValueRanges();
+    valueRanges.push({
+        values: [
+            metadataSpec.headers,
+            [BACKUP_SCHEMA_VERSION, guildId, 'backup-123', completedAt],
+        ],
+    });
+
+    const result = validateBackup(
+        guildId,
+        [...sheetTitles, metadataSpec.sheetName],
+        valueRanges,
+    );
+
+    assert.equal(result.isLegacy, false);
+    assert.deepEqual(result.metadata, { backupId: 'backup-123', completedAt });
+});
+
+test('validateBackup rejects invalid generation metadata', () => {
+    const valueRanges = createValueRanges();
+    valueRanges.push({
+        values: [
+            metadataSpec.headers,
+            ['999', guildId, 'backup-123', 'not-a-date'],
+        ],
+    });
+
+    assert.throws(
+        () => validateBackup(
+            guildId,
+            [...sheetTitles, metadataSpec.sheetName],
+            valueRanges,
+        ),
+        error => (
+            error instanceof BackupValidationError
+            && error.message.includes('世代情報')
+        ),
+    );
 });
 
 test('validateBackup rejects a missing required sheet', () => {
