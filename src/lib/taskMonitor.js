@@ -5,6 +5,7 @@ import { initializeSheetsAPI } from './sheetsAPI.js';
 import { get, getDBPool } from './settingsCache.js';
 import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
 import { logSystemNotice } from './logger.js';
+import { deliverAndRecordNotification, recordNotification } from './notificationDelivery.js';
 
 function basicDecodeHtmlEntities(text) {
     if (!text || typeof text !== 'string') {
@@ -45,7 +46,7 @@ async function checkCalendarEvents(client) {
 
                     const eventEndTime = new Date(event.end.dateTime || event.end.date);
                     if (eventEndTime < now) {
-                        await pool.query('INSERT INTO notified_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING', [event.id]);
+                        await recordNotification(pool, event.id);
                         continue;
                     }
 
@@ -54,7 +55,6 @@ async function checkCalendarEvents(client) {
                     const eventText = `${event.summary || ''} ${eventDescription}`;
 
                     if (monitor.trigger_keyword === 'ラキショ' && eventText.includes('【ラキショ】')) {
-                        await pool.query('INSERT INTO notified_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING', [event.id]);
                         console.log(`[TaskMonitor] 抽選イベントを検出: ${event.summary}`);
                         try {
                             const descriptionLines = eventDescription.split('\n').map(line => line.trim()).filter(line => line.length > 0);
@@ -102,6 +102,7 @@ async function checkCalendarEvents(client) {
                                 if (finalAdditionalMessageText || finalMentionsForSeparatePost) {
                                     await giveawayChannel.send(`${finalMentionsForSeparatePost}\n${finalAdditionalMessageText}`.trim());
                                 }
+                                await recordNotification(pool, event.id);
                             } else {
                                 console.error(`[TaskMonitor ERROR] 【ラキショ】抽選の投稿先チャンネル ${monitor.channel_id} が見つからないか、アクセスできません。`);
                             }
@@ -110,7 +111,6 @@ async function checkCalendarEvents(client) {
                     }
 
                     if (eventText.includes(`【${monitor.trigger_keyword}】`)) {
-                        await pool.query('INSERT INTO notified_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING', [event.id]);
                         const channel = await client.channels.fetch(monitor.channel_id).catch(() => null);
                         if (!channel) {
                              console.error(`[TaskMonitor ERROR] 指定された通知チャンネル ${monitor.channel_id} が見つからないか、アクセスできません。`);
@@ -128,7 +128,11 @@ async function checkCalendarEvents(client) {
                         let message = `**${event.summary || 'タイトルなし'}**`;
                         if (cleanedDescription) message += `\n${cleanedDescription}`;
                         if (finalMentions.trim()) message += `\n\n${finalMentions.trim()}`;
-                        await channel.send(message);
+                        try {
+                            await deliverAndRecordNotification(pool, event.id, () => channel.send(message));
+                        } catch (sendError) {
+                            console.error(`[TaskMonitor ERROR] カレンダーイベント ${event.id} の通知送信に失敗:`, sendError);
+                        }
                     }
                 }
             } catch (calError) { console.error(`カレンダー(ID: ${monitor.calendar_id})の取得中にエラー:`, calError.message); }
