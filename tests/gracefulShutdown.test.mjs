@@ -103,3 +103,20 @@ test('closeHttpServer is a no-op when the server is not listening', async () => 
     await closeHttpServer(undefined);
     await closeHttpServer({ listening: false });
 });
+
+test('graceful shutdown preserves a startup failure exit code', async () => {
+    const exits = [];
+    const timer = createTimerHarness();
+    const shutdown = createGracefulShutdown({
+        client: { destroy() {} },
+        server: { listening: false },
+        stopMonitoring: async () => true,
+        closeDatabase: async () => {},
+        exit: code => exits.push(code),
+        logger: silentLogger,
+        ...timer,
+    });
+
+    assert.equal(await shutdown('STARTUP_FAILURE', { exitCode: 1 }), 1);
+    assert.deepEqual(exits, [1]);
+});

@@ -42,7 +42,7 @@ export function createGracefulShutdown({
         }
     }
 
-    return function shutdown(signal) {
+    return function shutdown(signal, { exitCode = 0 } = {}) {
         if (shutdownPromise) return shutdownPromise;
 
         shutdownPromise = (async () => {
@@ -65,10 +65,10 @@ export function createGracefulShutdown({
             await runStep('データベース接続', closeDatabase, errors);
 
             clearTimeoutFn(forceExitTimer);
-            const exitCode = errors.length === 0 ? 0 : 1;
-            logger.log(`[Shutdown] 終了処理が完了しました (exit=${exitCode})。`);
-            requestExit(exitCode);
-            return exitCode;
+            const finalExitCode = errors.length === 0 ? exitCode : 1;
+            logger.log(`[Shutdown] 終了処理が完了しました (exit=${finalExitCode})。`);
+            requestExit(finalExitCode);
+            return finalExitCode;
         })();
 
         return shutdownPromise;

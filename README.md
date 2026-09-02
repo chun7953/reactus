@@ -1,6 +1,6 @@
 # Reactus Bot
 
-![Node.js](https://img.shields.io/badge/node-20.x-green.svg)
+![Node.js](https://img.shields.io/badge/node-24.x-green.svg)
 ![Discord.js](https://img.shields.io/badge/discord.js-v14-blue.svg)
 ![License](https://img.shields.io/badge/license-ISC-lightgrey.svg)
 
@@ -29,7 +29,7 @@ Reactusは、Discordサーバー向けの多機能ボットです。
 ## 🚀 セットアップとデプロイ手順
 
 ### 1. 前提条件
--   Node.js (v20.x)
+-   Node.js (v24.x)
 -   Git
 -   Fly.ioアカウントおよび`flyctl`コマンドラインツール
 -   Google Cloud Platformアカウント
@@ -59,18 +59,24 @@ Reactusは、Discordサーバー向けの多機能ボットです。
     -   プロジェクトのルートディレクトリで `fly launch` を実行します。
     -   アプリ名やリージョン（例: nrt - Tokyo）などを設定します。
     -   `fly.toml` ファイルが生成されます。
-2.  **PostgreSQLデータベースの作成**:
-    -   `fly postgres create` を実行して、PostgreSQLデータベースを作成します。
-    -   `fly postgres attach <DATABASE_NAME>` を実行して、アプリにデータベースを接続します。これにより `DATABASE_URL` がSecretとして自動的に設定されます。
+2.  **Supabase PostgreSQLの接続情報を用意**:
+    -   Supabaseの「Connect」から接続文字列を取得します。
+    -   Fly.ioのような常駐VMではDirect connection、IPv4接続が必要な場合はShared PoolerのSession modeを使用します。
 3.  **環境変数（Secrets）を設定**:
     -   `flyctl secrets set` コマンドを使用して、以下の変数を設定します。
         -   `flyctl secrets set TOKEN="あなたのDiscordボットのトークン"`
+        -   `flyctl secrets set DATABASE_URL="SupabaseのPostgreSQL接続文字列"`
         -   `flyctl secrets set CLIENT_ID="あなたのDiscordボットのクライアントID"`
         -   `flyctl secrets set SPREADSHEET_ID="手順2-5で取得したスプレッドシートのID"`
         -   `flyctl secrets set GOOGLE_SHEETS_CREDENTIALS="手順2-3でダウンロードしたJSONファイルの中身をすべてコピー＆ペースト"`
 4.  **デプロイ**:
     -   `fly deploy` コマンドを実行して、アプリケーションをデプロイします。
     -   GitHubリポジトリと連携している場合、mainブランチへのプッシュで自動的にデプロイが実行されます（`.github/workflows/fly-deploy.yml`）。
+
+### ヘルスチェック
+
+-   `/healthz`: プロセスの稼働状態を返します。
+-   `/readyz`: DB、Discord、監視サービスを含む初期化が完了した場合だけHTTP 200を返します。Fly.ioのデプロイ判定にはこちらを使用します。
 
 ### 4. スラッシュコマンドの登録・更新
 
