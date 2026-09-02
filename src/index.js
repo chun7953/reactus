@@ -6,8 +6,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import config from './config.js';
 import { startServer } from './web/server.js';
-import { getDBPool } from './lib/settingsCache.js';
+import { closeDBPool, getDBPool } from './lib/settingsCache.js';
 import { logGlobalError } from './lib/logger.js';
+import { stopMonitoring } from './lib/taskMonitor.js';
+import { createGracefulShutdown } from './lib/gracefulShutdown.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -73,7 +75,21 @@ for (const file of eventFiles) {
 // --- 新しい起動処理 ---
 
 // 1. Webサーバーを即座に起動し、ヘルスチェックに応答できるようにする
-startServer();
+const webServer = startServer();
+let isShuttingDown = false;
+const shutdown = createGracefulShutdown({
+    client,
+    server: webServer,
+    stopMonitoring,
+    closeDatabase: closeDBPool,
+});
+
+for (const signal of ['SIGINT', 'SIGTERM']) {
+    process.once(signal, () => {
+        isShuttingDown = true;
+        void shutdown(signal);
+    });
+}
 
 // 2. Botの初期化処理を非同期で開始する
 (async () => {
@@ -88,12 +104,10 @@ startServer();
         await client.login(config.discord.token);
 
     } catch (error) {
+        if (isShuttingDown) return;
         console.error("--- CRITICAL ERROR DURING BOT INITIALIZATION ---");
         console.error(error);
         logGlobalError(error, 'Bot Initialization');
         process.exit(1);
     }
 })();
-
-process.on('SIGINT', () => process.exit());
-process.on('SIGTERM', () => process.exit());

@@ -93,6 +93,15 @@ export async function initializeDatabase() {
     }
 }
 
+export async function closeDatabase() {
+    const activePool = pool;
+    pool = undefined;
+    if (!activePool) return false;
+
+    await activePool.end();
+    return true;
+}
+
 async function createTables(db) {
     await db.query(`CREATE TABLE IF NOT EXISTS reactions ( guild_id TEXT NOT NULL, channel_id TEXT NOT NULL, emojis TEXT NOT NULL, trigger TEXT NOT NULL, PRIMARY KEY (guild_id, channel_id, trigger) );`);
     await db.query(`CREATE TABLE IF NOT EXISTS announcements ( guild_id TEXT NOT NULL, channel_id TEXT NOT NULL, message TEXT NOT NULL, PRIMARY KEY (guild_id, channel_id) );`);

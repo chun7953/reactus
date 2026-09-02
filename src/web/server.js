@@ -58,4 +58,5 @@ export function startServer(callback) {
     }).on('error', (error) => {
         console.error('Error starting server:', error);
     });
+    return server;
 }

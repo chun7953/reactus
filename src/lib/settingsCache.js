@@ -1,6 +1,6 @@
 // src/lib/settingsCache.js (修正後・完全版)
 
-import { initializeDatabase } from '../db/database.js';
+import { closeDatabase, initializeDatabase } from '../db/database.js';
 
 let pool;
 
@@ -9,6 +9,11 @@ export async function getDBPool() {
         pool = await initializeDatabase();
     }
     return pool;
+}
+
+export async function closeDBPool() {
+    pool = undefined;
+    return closeDatabase();
 }
 
 // --- Getter Functions (データベースから直接取得) ---
