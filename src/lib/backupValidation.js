@@ -5,6 +5,8 @@ export class BackupValidationError extends Error {
     }
 }
 
+export const BACKUP_SCHEMA_VERSION = '1';
+
 const BACKUP_SECTIONS = [
     {
         key: 'reactions',
@@ -53,9 +55,22 @@ export function getBackupSheetSpecs(guildId) {
     }));
 }
 
+export function getBackupMetadataSpec(guildId) {
+    if (!guildId) throw new Error('guildId is required');
+
+    return {
+        key: 'metadata',
+        sheetName: `BackupMeta_${guildId}`,
+        range: 'A1:D',
+        headers: ['schema_version', 'guild_id', 'backup_id', 'completed_at'],
+    };
+}
+
 export function validateBackup(guildId, sheetTitles, valueRanges) {
     const specs = getBackupSheetSpecs(guildId);
+    const metadataSpec = getBackupMetadataSpec(guildId);
     const availableTitles = new Set(sheetTitles || []);
+    const hasMetadata = availableTitles.has(metadataSpec.sheetName);
     const missingSheets = specs
         .filter(spec => !availableTitles.has(spec.sheetName))
         .map(spec => spec.sheetName);
@@ -66,7 +81,8 @@ export function validateBackup(guildId, sheetTitles, valueRanges) {
         );
     }
 
-    if (!Array.isArray(valueRanges) || valueRanges.length !== specs.length) {
+    const expectedRangeCount = specs.length + (hasMetadata ? 1 : 0);
+    if (!Array.isArray(valueRanges) || valueRanges.length !== expectedRangeCount) {
         throw new BackupValidationError('バックアップシートをすべて読み込めませんでした。');
     }
 
@@ -111,9 +127,38 @@ export function validateBackup(guildId, sheetTitles, valueRanges) {
         counts[spec.key] = rows.length;
     });
 
+    let metadata = null;
+    if (hasMetadata) {
+        const values = valueRanges[specs.length]?.values || [];
+        const header = values[0] || [];
+        const rows = values.slice(1).filter(row => !isBlankRow(row));
+
+        if (!headersMatch(header, metadataSpec.headers) || rows.length !== 1) {
+            throw new BackupValidationError('バックアップ世代情報が壊れています。');
+        }
+
+        const [schemaVersion, metadataGuildId, backupId, completedAt] = rows[0];
+        if (
+            String(schemaVersion ?? '') !== BACKUP_SCHEMA_VERSION
+            || String(metadataGuildId ?? '') !== String(guildId)
+            || !backupId
+            || !completedAt
+            || Number.isNaN(Date.parse(completedAt))
+        ) {
+            throw new BackupValidationError('バックアップ世代情報が無効です。');
+        }
+
+        metadata = {
+            backupId: String(backupId),
+            completedAt: String(completedAt),
+        };
+    }
+
     return {
         data,
         counts,
         isEmpty: Object.values(counts).every(count => count === 0),
+        isLegacy: !hasMetadata,
+        metadata,
     };
 }
