@@ -12,4 +12,4 @@ RUN npm ci --omit=dev
 COPY . .
 
 # ボットを起動するコマンド
-CMD ["npm", "start"]
+CMD ["node", "src/index.js"]
