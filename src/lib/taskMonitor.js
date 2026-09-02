@@ -12,6 +12,7 @@ import {
     failClaimedGiveaway,
     recoverStaleGiveawayClaims,
 } from './giveawayLifecycle.js';
+import { buildCalendarNotificationKey } from './calendarNotificationKey.js';
 
 function basicDecodeHtmlEntities(text) {
     if (!text || typeof text !== 'string') {
@@ -47,12 +48,17 @@ async function checkCalendarEvents(client) {
                 if (!events.data.items) continue;
 
                 for (const event of events.data.items) {
-                    const notifiedCheck = await pool.query('SELECT 1 FROM notified_events WHERE event_id = $1', [event.id]);
+                    const notificationKey = buildCalendarNotificationKey(monitor, event.id);
+                    // Read the legacy raw event ID during the transition to avoid one-time duplicate posts.
+                    const notifiedCheck = await pool.query(
+                        'SELECT 1 FROM notified_events WHERE event_id = ANY($1::TEXT[]) LIMIT 1',
+                        [[event.id, notificationKey]],
+                    );
                     if (notifiedCheck.rows.length > 0) continue;
 
                     const eventEndTime = new Date(event.end.dateTime || event.end.date);
                     if (eventEndTime < now) {
-                        await recordNotification(pool, event.id);
+                        await recordNotification(pool, notificationKey);
                         continue;
                     }
 
@@ -108,7 +114,7 @@ async function checkCalendarEvents(client) {
                                 if (finalAdditionalMessageText || finalMentionsForSeparatePost) {
                                     await giveawayChannel.send(`${finalMentionsForSeparatePost}\n${finalAdditionalMessageText}`.trim());
                                 }
-                                await recordNotification(pool, event.id);
+                                await recordNotification(pool, notificationKey);
                             } else {
                                 console.error(`[TaskMonitor ERROR] 【ラキショ】抽選の投稿先チャンネル ${monitor.channel_id} が見つからないか、アクセスできません。`);
                             }
@@ -135,7 +141,7 @@ async function checkCalendarEvents(client) {
                         if (cleanedDescription) message += `\n${cleanedDescription}`;
                         if (finalMentions.trim()) message += `\n\n${finalMentions.trim()}`;
                         try {
-                            await deliverAndRecordNotification(pool, event.id, () => channel.send(message));
+                            await deliverAndRecordNotification(pool, notificationKey, () => channel.send(message));
                         } catch (sendError) {
                             console.error(`[TaskMonitor ERROR] カレンダーイベント ${event.id} の通知送信に失敗:`, sendError);
                         }
