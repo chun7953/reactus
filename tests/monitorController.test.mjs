@@ -67,6 +67,39 @@ test('monitor controller prevents overlapping executions of one task', async () 
     assert.equal(await controller.stop(), true);
 });
 
+test('monitor controller runs startup tasks sequentially', async () => {
+    const firstRun = deferred();
+    const runs = [];
+    const controller = createMonitorController([
+        {
+            name: 'first',
+            intervalMs: 1000,
+            run: async () => {
+                runs.push('first');
+                await firstRun.promise;
+            },
+        },
+        {
+            name: 'second',
+            intervalMs: 2000,
+            run: async () => { runs.push('second'); },
+        },
+    ], {
+        setIntervalFn: () => 1,
+        clearIntervalFn() {},
+        logger: silentLogger,
+    });
+
+    controller.start({});
+    await Promise.resolve();
+    assert.deepEqual(runs, ['first']);
+
+    firstRun.resolve();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(runs, ['first', 'second']);
+    assert.equal(await controller.stop(), true);
+});
+
 test('monitor controller waits for active tasks during shutdown', async () => {
     const activeRun = deferred();
     let waits = 0;

@@ -45,6 +45,13 @@ export function createMonitorController(tasks, {
             .then(() => true);
     }
 
+    async function runInitialTasks(context) {
+        for (const task of tasks) {
+            if (stopping) return;
+            await runTask(task, context);
+        }
+    }
+
     function start(context) {
         if (started) {
             logger.warn('[TaskMonitor] 監視サービスは既に起動しています。重複起動を無視します。');
@@ -53,10 +60,10 @@ export function createMonitorController(tasks, {
 
         started = true;
         stopping = false;
-        intervalHandles = tasks.map(task => {
-            void runTask(task, context);
-            return setIntervalFn(() => void runTask(task, context), task.intervalMs);
-        });
+        intervalHandles = tasks.map(task => (
+            setIntervalFn(() => void runTask(task, context), task.intervalMs)
+        ));
+        void runInitialTasks(context);
         return true;
     }
 
