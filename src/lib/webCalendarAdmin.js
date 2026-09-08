@@ -12,6 +12,12 @@ import {
 } from './calendarPostAssets.js';
 import { listAllCalendarEvents } from './calendarEventPager.js';
 import { recurrenceBeforeTarget, recurringTargetStart } from './calendarSeriesSplit.js';
+import { resolveCalendarEventPrivateProperties } from './calendarEventMetadata.js';
+import {
+    buildCalendarRoutingProperties,
+    calendarDisplaySummary,
+    resolveCalendarRoute,
+} from './calendarRouting.js';
 
 function cleanKeyword(value) {
     return String(value || '').replace(/[【】]/g, '').trim();
@@ -80,10 +86,10 @@ async function findMonitor(guildId, monitorId, type) {
     if (!monitor) throw new Error('投稿先のカレンダー設定が見つかりません。');
     const keyword = cleanKeyword(monitor.trigger_keyword);
     if (type === 'giveaway' && keyword !== 'ラキショ') {
-        throw new Error('抽選には「ラキショ」のカレンダー設定を選択してください。');
+        throw new Error('選択した投稿先は抽選用に設定されていません。');
     }
     if (type === 'post' && keyword === 'ラキショ') {
-        throw new Error('通常投稿には抽選以外のカレンダー設定を選択してください。');
+        throw new Error('選択した投稿先は通常投稿用に設定されていません。');
     }
     return monitor;
 }
@@ -117,6 +123,7 @@ export async function createWebSchedule(guildId, payload) {
         if (image) assetId = await storeCalendarPostImageBuffer(guildId, image);
         const privateProperties = {
             ...mentionProperties,
+            ...buildCalendarRoutingProperties(monitor, type),
             ...(assetId ? { reactusAssetId: assetId } : {}),
         };
         const { calendar, auth } = await calendarClient();
@@ -129,13 +136,12 @@ export async function createWebSchedule(guildId, payload) {
                 throw new Error('予定の長さは1〜1440分で指定してください。');
             }
             const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
-            const trigger = cleanKeyword(monitor.trigger_keyword);
             return await insertEvent({
                 calendar,
                 auth,
                 monitor,
                 requestBody: {
-                    summary: `【${trigger}】${title}`,
+                    summary: title,
                     description: String(payload.body || ''),
                     start: { dateTime: formatJstDateTime(start), timeZone: 'Asia/Tokyo' },
                     end: { dateTime: formatJstDateTime(end), timeZone: 'Asia/Tokyo' },
@@ -166,7 +172,7 @@ export async function createWebSchedule(guildId, payload) {
             auth,
             monitor,
             requestBody: {
-                summary: `【ラキショ】${prizes[0].prize}`,
+                summary: prizes[0].prize,
                 description,
                 start: { dateTime: formatJstDateTime(start), timeZone: 'Asia/Tokyo' },
                 end: { dateTime: formatJstDateTime(end), timeZone: 'Asia/Tokyo' },
@@ -196,6 +202,7 @@ export async function listWebSchedules(guildId, days = 90, pastDays = 0) {
     const timeMin = new Date(now.getTime() - safePastDays * 24 * 60 * 60 * 1000);
     const timeMax = new Date(now.getTime() + safeDays * 24 * 60 * 60 * 1000);
     const rows = [];
+    const masterMetadataCache = new Map();
     for (const [calendarId, calendarMonitors] of byCalendar) {
         const events = await listAllCalendarEvents(calendar, {
             calendarId,
@@ -207,22 +214,28 @@ export async function listWebSchedules(guildId, days = 90, pastDays = 0) {
             timeZone: 'Asia/Tokyo',
         });
         for (const event of events) {
-            const text = `${event.summary || ''}\n${event.description || ''}`;
-            const monitor = calendarMonitors.find(candidate => text.includes(`【${cleanKeyword(candidate.trigger_keyword)}】`));
-            if (!monitor) continue;
+            const privateProperties = await resolveCalendarEventPrivateProperties(
+                calendar,
+                calendarId,
+                event,
+                masterMetadataCache,
+            );
+            const route = resolveCalendarRoute(event, calendarMonitors, privateProperties);
+            if (!route) continue;
+            const monitor = route.monitor;
             rows.push({
                 id: event.id,
                 calendarId,
                 monitorId: monitor.id,
                 channelId: monitor.channel_id,
                 triggerKeyword: cleanKeyword(monitor.trigger_keyword),
-                type: cleanKeyword(monitor.trigger_keyword) === 'ラキショ' ? 'giveaway' : 'post',
-                summary: event.summary || 'タイトルなし',
+                type: route.type,
+                summary: calendarDisplaySummary(event, route),
                 description: event.description || '',
                 start: event.start?.dateTime || event.start?.date || null,
                 end: event.end?.dateTime || event.end?.date || null,
                 recurringEventId: event.recurringEventId || null,
-                hasImage: Boolean(event.extendedProperties?.private?.reactusAssetId),
+                hasImage: Boolean(privateProperties.reactusAssetId),
                 htmlLink: event.htmlLink || null,
                 isPast: new Date(event.end?.dateTime || event.end?.date || event.start?.dateTime || event.start?.date) < now,
             });
@@ -247,10 +260,9 @@ export async function deleteWebSchedule(guildId, { calendarId, eventId, scope = 
     try {
         const response = await calendar.events.get({ calendarId, eventId });
         const event = response.data;
-        const text = `${event.summary || ''}\n${event.description || ''}`;
-        if (!calendarMonitors.some(monitor => text.includes(`【${cleanKeyword(monitor.trigger_keyword)}】`))) {
-            throw new Error('Reactusが管理している予定ではありません。');
-        }
+        const privateProperties = await resolveCalendarEventPrivateProperties(calendar, calendarId, event);
+        const route = resolveCalendarRoute(event, calendarMonitors, privateProperties);
+        if (!route) throw new Error('Reactusが管理している予定ではありません。');
 
         let master = null;
         if (event.recurringEventId) {
