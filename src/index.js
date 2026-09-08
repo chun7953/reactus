@@ -40,6 +40,7 @@ client.cooldowns = new Collection();
 
 const runtimeStatus = createRuntimeStatus();
 const webServer = startServer({
+    client,
     getStatus: () => runtimeStatus.snapshot({ monitoring: getMonitoringStatus() }),
 });
 const shutdown = createGracefulShutdown({
