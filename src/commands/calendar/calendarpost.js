@@ -232,12 +232,12 @@ export default {
                 .setDescription('期間付き抽選をカレンダーへ登録します。')
                 .addStringOption(option => option.setName('prize').setDescription('景品').setRequired(true))
                 .addIntegerOption(option => option.setName('winners').setDescription('当選人数').setRequired(true).setMinValue(1).setMaxValue(100))
+                .addStringOption(option => option.setName('start_time').setDescription('抽選開始日時 (例: 2026-09-19 22:00)').setRequired(true))
+                .addStringOption(option => option.setName('end_time').setDescription('抽選終了日時 (例: 2026-09-20 22:00)').setRequired(true))
                 .addStringOption(option => option.setName('prize2').setDescription('追加景品2'))
                 .addIntegerOption(option => option.setName('winners2').setDescription('追加景品2の当選人数').setMinValue(1).setMaxValue(100))
                 .addStringOption(option => option.setName('prize3').setDescription('追加景品3'))
                 .addIntegerOption(option => option.setName('winners3').setDescription('追加景品3の当選人数').setMinValue(1).setMaxValue(100))
-                .addStringOption(option => option.setName('start_time').setDescription('抽選開始日時 (例: 2026-09-19 22:00)').setRequired(true))
-                .addStringOption(option => option.setName('end_time').setDescription('抽選終了日時 (例: 2026-09-20 22:00)').setRequired(true))
                 .addStringOption(option => option.setName('message').setDescription('抽選と一緒に投稿する本文'))
                 .addAttachmentOption(option => option.setName('image').setDescription('抽選と一緒に投稿する画像'));
             addRepeatOptions(subcommand);
