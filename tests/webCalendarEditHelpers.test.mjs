@@ -65,7 +65,10 @@ test('webScheduleDetail exposes every giveaway prize without a three-prize cap',
         { name: '景品D', winners: 4 },
     ]);
     assert.equal(detail.message, 'お知らせ本文');
-    assert.deepEqual(detail.mention, { mode: 'role', roleId: '987654321' });
+    assert.deepEqual(detail.mention, {
+        mode: 'custom',
+        targets: [{ type: 'role', id: '987654321' }],
+    });
     assert.equal(detail.hasImage, true);
     assert.deepEqual(detail.recurrence, { unit: 'week', interval: 5, weekdays: ['SU'] });
 });
@@ -83,7 +86,33 @@ test('webScheduleDetail exposes normal post title, body, duration and default me
     assert.equal(detail.title, '定期投稿');
     assert.equal(detail.body, '本文');
     assert.equal(detail.durationMinutes, 45);
-    assert.deepEqual(detail.mention, { mode: 'default', roleId: null });
+    assert.deepEqual(detail.mention, { mode: 'default', targets: [] });
+});
+
+test('webScheduleDetail restores structured rich mention targets', () => {
+    const event = {
+        id: 'event-3',
+        summary: '【告知】対象指定',
+        description: '本文',
+        start: { dateTime: '2026-09-20T10:00:00+09:00' },
+        end: { dateTime: '2026-09-20T10:30:00+09:00' },
+        extendedProperties: {
+            private: {
+                reactusMentionMode: 'none',
+                reactusMentionTargets: 'r:111111111111111111,u:222222222222222222,everyone,here',
+            },
+        },
+    };
+    const detail = webScheduleDetail(event, { ...monitor, trigger_keyword: '告知' });
+    assert.deepEqual(detail.mention, {
+        mode: 'custom',
+        targets: [
+            { type: 'role', id: '111111111111111111' },
+            { type: 'user', id: '222222222222222222' },
+            { type: 'everyone' },
+            { type: 'here' },
+        ],
+    });
 });
 
 test('formatWebDateTime returns a datetime-local value in JST', () => {
