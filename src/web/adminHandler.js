@@ -17,10 +17,8 @@ import {
     updateWebSchedule,
 } from '../lib/webCalendarEditService.js';
 import {
-    applyWebCalendarExtras,
     createWebReactionRule,
     deleteWebReactionRule,
-    getWebCalendarExtras,
     guildEmojiPayload,
     listWebReactionRules,
     textChannelPayload,
@@ -124,14 +122,8 @@ async function bootstrap(auth) {
     ]);
     const reactionRules = await listWebReactionRules(auth.session.guild_id, auth.guild);
     return {
-        guild: {
-            id: auth.guild.id,
-            name: auth.guild.name,
-        },
-        user: {
-            id: auth.member.id,
-            displayName: auth.member.displayName,
-        },
+        guild: { id: auth.guild.id, name: auth.guild.name },
+        user: { id: auth.member.id, displayName: auth.member.displayName },
         monitors: monitors.map(monitor => ({
             id: monitor.id,
             channelId: monitor.channel_id,
@@ -187,93 +179,55 @@ export function createAdminHandler({ client }) {
                 sendJson(req, res, 200, await bootstrap(auth));
                 return true;
             }
-
             if (pathname === '/api/admin/events' && req.method === 'GET') {
                 const days = Number(searchParams.get('days') || 90);
-                const events = await listWebSchedules(auth.session.guild_id, days);
-                sendJson(req, res, 200, { events });
+                sendJson(req, res, 200, { events: await listWebSchedules(auth.session.guild_id, days) });
                 return true;
             }
-
             if (pathname === '/api/admin/event' && req.method === 'GET') {
-                const request = {
+                const detail = await getWebScheduleDetail(auth.session.guild_id, {
                     calendarId: searchParams.get('calendarId'),
                     eventId: searchParams.get('eventId'),
                     scope: searchParams.get('scope') || 'instance',
-                };
-                const [detail, calendarOptions] = await Promise.all([
-                    getWebScheduleDetail(auth.session.guild_id, request),
-                    getWebCalendarExtras(auth.session.guild_id, request),
-                ]);
-                sendJson(req, res, 200, { event: { ...detail, calendarOptions } });
+                });
+                sendJson(req, res, 200, { event: detail });
                 return true;
             }
-
             if (pathname === '/api/admin/schedules' && req.method === 'POST') {
-                const body = await readJson(req);
-                let event = await createWebSchedule(auth.session.guild_id, body);
-                event = await applyWebCalendarExtras(auth.session.guild_id, body, event);
-                sendJson(req, res, 201, {
-                    ok: true,
-                    event: {
-                        id: event.id,
-                        summary: event.summary,
-                        htmlLink: event.htmlLink || null,
-                    },
-                });
+                const event = await createWebSchedule(auth.session.guild_id, await readJson(req));
+                sendJson(req, res, 201, { ok: true, event: { id: event.id, summary: event.summary, htmlLink: event.htmlLink || null } });
                 return true;
             }
-
             if (pathname === '/api/admin/update' && req.method === 'POST') {
-                const body = await readJson(req);
-                let event = await updateWebSchedule(auth.session.guild_id, body);
-                event = await applyWebCalendarExtras(auth.session.guild_id, body, event);
-                sendJson(req, res, 200, {
-                    ok: true,
-                    event: {
-                        id: event.id,
-                        summary: event.summary,
-                        htmlLink: event.htmlLink || null,
-                    },
-                });
+                const event = await updateWebSchedule(auth.session.guild_id, await readJson(req));
+                sendJson(req, res, 200, { ok: true, event: { id: event.id, summary: event.summary, htmlLink: event.htmlLink || null } });
                 return true;
             }
-
             if (pathname === '/api/admin/delete' && req.method === 'POST') {
-                const body = await readJson(req);
-                const result = await deleteWebSchedule(auth.session.guild_id, body);
-                sendJson(req, res, 200, { ok: true, ...result });
+                sendJson(req, res, 200, { ok: true, ...(await deleteWebSchedule(auth.session.guild_id, await readJson(req))) });
                 return true;
             }
-
             if (pathname === '/api/admin/reactions' && req.method === 'POST') {
-                const body = await readJson(req);
-                const rule = await createWebReactionRule(auth.session.guild_id, body, auth.guild);
+                const rule = await createWebReactionRule(auth.session.guild_id, await readJson(req), auth.guild);
                 sendJson(req, res, 201, await withBackup(auth.session.guild_id, { ok: true, rule }));
                 return true;
             }
-
             if (pathname === '/api/admin/reactions/update' && req.method === 'POST') {
-                const body = await readJson(req);
-                const rule = await updateWebReactionRule(auth.session.guild_id, body, auth.guild);
+                const rule = await updateWebReactionRule(auth.session.guild_id, await readJson(req), auth.guild);
                 sendJson(req, res, 200, await withBackup(auth.session.guild_id, { ok: true, rule }));
                 return true;
             }
-
             if (pathname === '/api/admin/reactions/delete' && req.method === 'POST') {
-                const body = await readJson(req);
-                const result = await deleteWebReactionRule(auth.session.guild_id, body);
+                const result = await deleteWebReactionRule(auth.session.guild_id, await readJson(req));
                 sendJson(req, res, 200, await withBackup(auth.session.guild_id, { ok: true, ...result }));
                 return true;
             }
-
             if (pathname === '/api/admin/logout' && req.method === 'POST') {
                 await revokeWebAdminSession(auth.token);
                 res.writeHead(204, { 'Set-Cookie': clearSessionCookie(), 'Cache-Control': 'no-store' });
                 res.end();
                 return true;
             }
-
             sendJson(req, res, 404, { error: 'Not Found' });
             return true;
         } catch (error) {
