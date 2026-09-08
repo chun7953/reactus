@@ -1,3 +1,5 @@
+import './admin-preview.js';
+
 function setTextIfChanged(node, value) {
   if (node && node.textContent !== value) node.textContent = value;
 }
