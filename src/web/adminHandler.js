@@ -27,6 +27,11 @@ import {
     updateWebCalendarMonitor,
 } from '../lib/webCalendarMonitorService.js';
 import {
+    deleteWebAnnouncement,
+    listWebAnnouncements,
+    saveWebAnnouncement,
+} from '../lib/webAnnouncementService.js';
+import {
     createWebReactionRule,
     deleteWebReactionRule,
     guildEmojiPayload,
@@ -304,6 +309,20 @@ export function createAdminHandler({ client }) {
             }
             if (pathname === '/api/admin/delete' && req.method === 'POST') {
                 sendJson(req, res, 200, { ok: true, ...(await deleteWebSchedule(auth.session.guild_id, await readJson(req))) });
+                return true;
+            }
+            if (pathname === '/api/admin/announcements' && req.method === 'GET') {
+                sendJson(req, res, 200, { announcements: await listWebAnnouncements(auth.session.guild_id, auth.guild) });
+                return true;
+            }
+            if (pathname === '/api/admin/announcements' && req.method === 'POST') {
+                const announcement = await saveWebAnnouncement(auth.session.guild_id, await readJson(req), auth.guild);
+                sendJson(req, res, 200, await withBackup(auth.session.guild_id, { ok: true, announcement }));
+                return true;
+            }
+            if (pathname === '/api/admin/announcements/delete' && req.method === 'POST') {
+                const result = await deleteWebAnnouncement(auth.session.guild_id, await readJson(req), auth.guild);
+                sendJson(req, res, 200, await withBackup(auth.session.guild_id, { ok: true, ...result }));
                 return true;
             }
             if (pathname === '/api/admin/reactions' && req.method === 'POST') {
