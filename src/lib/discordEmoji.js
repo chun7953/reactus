@@ -85,3 +85,10 @@ export function descriptorsForClient(csv, guildEmojiIds = null) {
     if (!String(csv || '').trim()) return [];
     return normalizeDiscordEmojiList(String(csv).split(','), { guildEmojiIds });
 }
+
+export function resolveDiscordReactionValues(csv, guild) {
+    const emojiById = new Map([...guild.emojis.cache.values()].map(emoji => [emoji.id, emoji]));
+    const emojiIds = new Set(emojiById.keys());
+    const descriptors = descriptorsForClient(csv, emojiIds);
+    return descriptors.map(item => item.type === 'unicode' ? item.value : emojiById.get(item.id));
+}
