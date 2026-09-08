@@ -8,14 +8,14 @@ import {
     revokeWebAdminSession,
 } from '../lib/webAdminAuth.js';
 import {
-    createWebSchedule,
     deleteWebSchedule,
     listWebSchedules,
 } from '../lib/webCalendarAdmin.js';
 import {
+    createWebSchedule,
     getWebScheduleDetail,
     updateWebSchedule,
-} from '../lib/webCalendarEditService.js';
+} from '../lib/webCalendarMentionService.js';
 import { duplicateWebSchedule } from '../lib/webCalendarDuplicateService.js';
 import {
     createWebReactionRule,
@@ -157,8 +157,6 @@ async function searchGuildMembers(guild, rawQuery) {
     const query = String(rawQuery || '').trim().slice(0, 100);
     if (!query) return [];
 
-    // Pasting a Discord user ID should resolve directly, even when the REST
-    // member-search endpoint would not match that numeric string as a name.
     if (/^\d{15,22}$/.test(query)) {
         const exact = await guild.members.fetch(query).catch(() => null);
         if (exact) return [memberPayload(exact)];
