@@ -66,7 +66,6 @@ test('mergeDuplicatePrivateProperties inherits master metadata while instance ov
         ),
         {
             reactusMentionMode: 'none',
-            reactusMentionRoleId: '1111111111',
             reactusAssetId: 'master-image',
         },
     );
