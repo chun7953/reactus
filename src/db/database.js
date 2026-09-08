@@ -65,6 +65,8 @@ async function createTables(db) {
     await db.query(`CREATE TABLE IF NOT EXISTS web_admin_sessions ( session_hash TEXT PRIMARY KEY, guild_id TEXT NOT NULL, user_id TEXT NOT NULL, expires_at TIMESTAMP WITH TIME ZONE NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL );`);
     await db.query(`CREATE INDEX IF NOT EXISTS web_admin_login_tokens_expires_at_idx ON web_admin_login_tokens (expires_at);`);
     await db.query(`CREATE INDEX IF NOT EXISTS web_admin_sessions_expires_at_idx ON web_admin_sessions (expires_at);`);
+    await db.query(`ALTER TABLE web_admin_login_tokens ENABLE ROW LEVEL SECURITY;`);
+    await db.query(`ALTER TABLE web_admin_sessions ENABLE ROW LEVEL SECURITY;`);
     await db.query(`ALTER TABLE giveaways ADD COLUMN IF NOT EXISTS validation_fails INTEGER DEFAULT 0;`);
     console.log('✅ Tables checked/created successfully.');
 }
