@@ -24,6 +24,7 @@ export async function initializeSheetsAPI() {
         },
         scopes: [
             'https://www.googleapis.com/auth/spreadsheets',
+            'https://www.googleapis.com/auth/calendar.readonly',
             'https://www.googleapis.com/auth/calendar.events',
         ],
     });
