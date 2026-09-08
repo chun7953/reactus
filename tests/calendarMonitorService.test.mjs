@@ -66,12 +66,12 @@ test('normalizeMonitorPayload rejects DM channels and the everyone role', () => 
     }, fakeGuild()), /このサーバーのロール/);
 });
 
-test('normalizeMonitorPayload rejects missing and oversized trigger keywords', () => {
+test('normalizeMonitorPayload rejects missing and oversized matching keywords', () => {
     assert.throws(() => normalizeMonitorPayload({
         channelId: '111111111111111111',
         calendarId: 'calendar@example.com',
         triggerKeyword: '【】',
-    }, fakeGuild()), /トリガーキーワード/);
+    }, fakeGuild()), /予定を見分ける合図/);
 
     assert.throws(() => normalizeMonitorPayload({
         channelId: '111111111111111111',
