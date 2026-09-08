@@ -2,16 +2,16 @@ import { google } from 'googleapis';
 import { initializeSheetsAPI } from './sheetsAPI.js';
 import { get } from './settingsCache.js';
 import { parseJstDateTime } from './calendarScheduling.js';
-import { parseTriggeredSummary } from './calendarEditHelpers.js';
 import { cloneCalendarPostImage, deleteCalendarPostImage } from './calendarPostAssets.js';
 import {
     buildDuplicatedEventBody,
     mergeDuplicatePrivateProperties,
 } from './calendarDuplicateHelpers.js';
-
-function cleanKeyword(value) {
-    return String(value || '').replace(/[【】]/g, '').trim();
-}
+import {
+    buildCalendarRoutingProperties,
+    calendarDisplaySummary,
+    resolveCalendarRoute,
+} from './calendarRouting.js';
 
 function parseRequiredDateTime(value) {
     const result = parseJstDateTime(String(value || '').replace('T', ' '));
@@ -58,10 +58,6 @@ export async function duplicateWebSchedule(guildId, { calendarId, eventId, start
         throw error;
     }
 
-    const trigger = parseTriggeredSummary(source.summary || '').trigger;
-    const monitor = calendarMonitors.find(candidate => cleanKeyword(candidate.trigger_keyword) === trigger);
-    if (!monitor) throw new Error('Reactusが管理している予定ではありません。');
-
     let sourcePrivate;
     try {
         sourcePrivate = await effectivePrivateProperties(calendar, calendarId, source);
@@ -69,6 +65,9 @@ export async function duplicateWebSchedule(guildId, { calendarId, eventId, start
         if (error?.code === 403) throw new Error(permissionHelp(auth, calendarId));
         throw error;
     }
+    const route = resolveCalendarRoute(source, calendarMonitors, sourcePrivate);
+    if (!route) throw new Error('Reactusが管理している予定ではありません。');
+
     const sourceAssetId = sourcePrivate.reactusAssetId || null;
     const sourceWithEffectiveMetadata = {
         ...source,
@@ -87,8 +86,16 @@ export async function duplicateWebSchedule(guildId, { calendarId, eventId, start
 
         const requestBody = buildDuplicatedEventBody(sourceWithEffectiveMetadata, newStart, {
             assetId: clonedAssetId,
-            fallbackSummary: `【${cleanKeyword(monitor.trigger_keyword)}】複製`,
+            fallbackSummary: '複製',
         });
+        requestBody.summary = calendarDisplaySummary(source, route);
+        requestBody.extendedProperties = {
+            ...(requestBody.extendedProperties || {}),
+            private: {
+                ...(requestBody.extendedProperties?.private || {}),
+                ...buildCalendarRoutingProperties(route.monitor, route.type),
+            },
+        };
 
         const response = await calendar.events.insert({ calendarId, requestBody });
         return response.data;
