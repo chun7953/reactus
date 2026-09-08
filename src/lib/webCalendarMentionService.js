@@ -99,10 +99,6 @@ function payloadWithRichMention(payload) {
 
     const next = {
         ...payload,
-        // The mature delivery path already knows how to suppress the default
-        // monitor role with mode=none and parse explicit Discord mention tokens
-        // from the event body. Keep using that path while metadata stores the
-        // structured targets for the admin UI.
         mention: { mode: 'none' },
     };
     if (payload?.type === 'giveaway') {
@@ -136,7 +132,8 @@ export async function createWebSchedule(guildId, payload) {
 export async function updateWebSchedule(guildId, payload) {
     const transformed = payloadWithRichMention(payload);
     const event = await updateBaseSchedule(guildId, transformed.payload);
-    if (transformed.mention.mode !== 'custom') return event;
+    // Always rewrite the rich-mention metadata after an edit. This also
+    // removes stale reactusMentionTargets when switching back to default/none.
     return patchMentionMetadata(guildId, payload.monitorId, event, transformed.mention);
 }
 
@@ -151,9 +148,6 @@ export async function getWebScheduleDetail(guildId, request) {
         targets.push({ type: 'role', id: String(detail.mention.roleId) });
     }
 
-    // Existing manually-authored events can combine the monitor's default role
-    // with explicit mentions in the description. Preserve that behavior when
-    // the admin UI first turns such an event into the structured model.
     if (targets.length && detail.mention?.mode === 'default') {
         const monitor = await monitorFor(guildId, detail.monitorId);
         if (monitor?.mention_role) targets.unshift({ type: 'role', id: String(monitor.mention_role) });
