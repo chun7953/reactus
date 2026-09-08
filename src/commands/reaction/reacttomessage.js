@@ -1,7 +1,8 @@
-// src/commands/reaction/reacttomessage.js (修正後・完全版)
+// src/commands/reaction/reacttomessage.js
 
 import { SlashCommandBuilder, PermissionsBitField, MessageFlags } from 'discord.js';
 import { get } from '../../lib/settingsCache.js';
+import { resolveDiscordReactionValues } from '../../lib/discordEmoji.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -29,7 +30,6 @@ export default {
             }
 
             const message = await targetChannel.messages.fetch(messageId);
-
             const settings = await get.reactionSettings(guildId);
             const relevantSetting = settings.find(s =>
                 s.channel_id === targetChannel.id && message.content.includes(s.trigger)
@@ -39,15 +39,24 @@ export default {
                 return interaction.editReply('このメッセージに適用できる自動リアクション設定（トリガーワード）が見つかりませんでした。');
             }
 
-            const emojis = relevantSetting.emojis.split(',');
+            let reactions;
+            try {
+                reactions = resolveDiscordReactionValues(relevantSetting.emojis, interaction.guild);
+            } catch (error) {
+                return interaction.editReply(`この設定には現在Discordで使えない絵文字が含まれています。管理画面で修正してください。\n${error.message}`);
+            }
+
             let reactedCount = 0;
-            for (const emoji of emojis) {
-                await message.react(emoji.trim()).catch(err => console.error(`Failed to react with ${emoji}:`, err));
-                reactedCount++;
+            for (const reaction of reactions) {
+                try {
+                    await message.react(reaction);
+                    reactedCount += 1;
+                } catch (error) {
+                    console.error('[reacttomessage] リアクション追加に失敗:', error);
+                }
             }
 
             await interaction.editReply(`✅ ${reactedCount}個のリアクションをメッセージに適用しました。`);
-
         } catch (error) {
             console.error('Error in reacttomessage command:', error);
             await interaction.editReply('メッセージが見つからないか、リアクションの適用中にエラーが発生しました。');

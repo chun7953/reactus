@@ -1,6 +1,7 @@
 import { PermissionsBitField } from 'discord.js';
 import config from '../config.js';
 import { get } from '../lib/settingsCache.js';
+import { triggerAutoBackup } from '../lib/autoBackup.js';
 import {
     consumeWebAdminLogin,
     getWebAdminSession,
@@ -15,6 +16,14 @@ import {
     getWebScheduleDetail,
     updateWebSchedule,
 } from '../lib/webCalendarEditService.js';
+import {
+    createWebReactionRule,
+    deleteWebReactionRule,
+    guildEmojiPayload,
+    listWebReactionRules,
+    textChannelPayload,
+    updateWebReactionRule,
+} from '../lib/webAdminExtrasService.js';
 
 const SESSION_COOKIE = 'reactus_admin';
 const MAX_JSON_BYTES = 12 * 1024 * 1024;
@@ -105,18 +114,16 @@ async function authorize(req, client) {
 }
 
 async function bootstrap(auth) {
-    const monitors = await get.monitorsByGuild(auth.session.guild_id);
-    const channels = await auth.guild.channels.fetch();
-    const roles = await auth.guild.roles.fetch();
+    const [monitors, channels, roles] = await Promise.all([
+        get.monitorsByGuild(auth.session.guild_id),
+        auth.guild.channels.fetch(),
+        auth.guild.roles.fetch(),
+        auth.guild.emojis.fetch().catch(() => null),
+    ]);
+    const reactionRules = await listWebReactionRules(auth.session.guild_id, auth.guild);
     return {
-        guild: {
-            id: auth.guild.id,
-            name: auth.guild.name,
-        },
-        user: {
-            id: auth.member.id,
-            displayName: auth.member.displayName,
-        },
+        guild: { id: auth.guild.id, name: auth.guild.name },
+        user: { id: auth.member.id, displayName: auth.member.displayName },
         monitors: monitors.map(monitor => ({
             id: monitor.id,
             channelId: monitor.channel_id,
@@ -129,7 +136,15 @@ async function bootstrap(auth) {
             .filter(role => role.id !== auth.guild.id)
             .sort((a, b) => b.position - a.position)
             .map(role => ({ id: role.id, name: role.name })),
+        channels: textChannelPayload(auth.guild),
+        guildEmojis: guildEmojiPayload(auth.guild),
+        reactionRules,
     };
+}
+
+async function withBackup(guildId, result) {
+    const backupOk = await triggerAutoBackup(guildId).catch(() => false);
+    return { ...result, backupOk };
 }
 
 export function createAdminHandler({ client }) {
@@ -164,14 +179,11 @@ export function createAdminHandler({ client }) {
                 sendJson(req, res, 200, await bootstrap(auth));
                 return true;
             }
-
             if (pathname === '/api/admin/events' && req.method === 'GET') {
                 const days = Number(searchParams.get('days') || 90);
-                const events = await listWebSchedules(auth.session.guild_id, days);
-                sendJson(req, res, 200, { events });
+                sendJson(req, res, 200, { events: await listWebSchedules(auth.session.guild_id, days) });
                 return true;
             }
-
             if (pathname === '/api/admin/event' && req.method === 'GET') {
                 const detail = await getWebScheduleDetail(auth.session.guild_id, {
                     calendarId: searchParams.get('calendarId'),
@@ -181,49 +193,41 @@ export function createAdminHandler({ client }) {
                 sendJson(req, res, 200, { event: detail });
                 return true;
             }
-
             if (pathname === '/api/admin/schedules' && req.method === 'POST') {
-                const body = await readJson(req);
-                const event = await createWebSchedule(auth.session.guild_id, body);
-                sendJson(req, res, 201, {
-                    ok: true,
-                    event: {
-                        id: event.id,
-                        summary: event.summary,
-                        htmlLink: event.htmlLink || null,
-                    },
-                });
+                const event = await createWebSchedule(auth.session.guild_id, await readJson(req));
+                sendJson(req, res, 201, { ok: true, event: { id: event.id, summary: event.summary, htmlLink: event.htmlLink || null } });
                 return true;
             }
-
             if (pathname === '/api/admin/update' && req.method === 'POST') {
-                const body = await readJson(req);
-                const event = await updateWebSchedule(auth.session.guild_id, body);
-                sendJson(req, res, 200, {
-                    ok: true,
-                    event: {
-                        id: event.id,
-                        summary: event.summary,
-                        htmlLink: event.htmlLink || null,
-                    },
-                });
+                const event = await updateWebSchedule(auth.session.guild_id, await readJson(req));
+                sendJson(req, res, 200, { ok: true, event: { id: event.id, summary: event.summary, htmlLink: event.htmlLink || null } });
                 return true;
             }
-
             if (pathname === '/api/admin/delete' && req.method === 'POST') {
-                const body = await readJson(req);
-                const result = await deleteWebSchedule(auth.session.guild_id, body);
-                sendJson(req, res, 200, { ok: true, ...result });
+                sendJson(req, res, 200, { ok: true, ...(await deleteWebSchedule(auth.session.guild_id, await readJson(req))) });
                 return true;
             }
-
+            if (pathname === '/api/admin/reactions' && req.method === 'POST') {
+                const rule = await createWebReactionRule(auth.session.guild_id, await readJson(req), auth.guild);
+                sendJson(req, res, 201, await withBackup(auth.session.guild_id, { ok: true, rule }));
+                return true;
+            }
+            if (pathname === '/api/admin/reactions/update' && req.method === 'POST') {
+                const rule = await updateWebReactionRule(auth.session.guild_id, await readJson(req), auth.guild);
+                sendJson(req, res, 200, await withBackup(auth.session.guild_id, { ok: true, rule }));
+                return true;
+            }
+            if (pathname === '/api/admin/reactions/delete' && req.method === 'POST') {
+                const result = await deleteWebReactionRule(auth.session.guild_id, await readJson(req));
+                sendJson(req, res, 200, await withBackup(auth.session.guild_id, { ok: true, ...result }));
+                return true;
+            }
             if (pathname === '/api/admin/logout' && req.method === 'POST') {
                 await revokeWebAdminSession(auth.token);
                 res.writeHead(204, { 'Set-Cookie': clearSessionCookie(), 'Cache-Control': 'no-store' });
                 res.end();
                 return true;
             }
-
             sendJson(req, res, 404, { error: 'Not Found' });
             return true;
         } catch (error) {
