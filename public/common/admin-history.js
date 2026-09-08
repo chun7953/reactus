@@ -3,6 +3,7 @@ const q = selector => document.querySelector(selector);
 const historyState = {
   events: [],
   filter: 'past',
+  duplicateEvent: null,
 };
 
 async function api(path, options = {}) {
@@ -52,6 +53,12 @@ function installStyles() {
     .history-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
     .history-actions select{width:auto;min-width:130px}
     .history-past{opacity:.78}
+    .duplicate-dialog{max-width:520px;width:calc(100% - 32px);border:1px solid #344152;border-radius:14px;background:#121923;color:inherit;padding:0;box-shadow:0 24px 70px #0009}
+    .duplicate-dialog::backdrop{background:#0009}
+    .duplicate-dialog form{padding:20px;display:grid;gap:14px}
+    .duplicate-dialog h3{margin:0}
+    .duplicate-dialog .dialog-actions{display:flex;gap:8px;justify-content:flex-end}
+    .duplicate-dialog input{width:100%}
     @media(max-width:760px){.history-row{grid-template-columns:1fr}.history-actions{justify-content:flex-start}.history-actions select{width:100%}}
   `;
   document.head.append(style);
@@ -97,6 +104,73 @@ async function deleteEvent(event, scope) {
   }
 }
 
+function installDuplicateDialog() {
+  if (q('#duplicateDialog')) return q('#duplicateDialog');
+  const dialog = document.createElement('dialog');
+  dialog.id = 'duplicateDialog';
+  dialog.className = 'duplicate-dialog';
+  dialog.innerHTML = `
+    <form id="duplicateForm">
+      <div>
+        <p class="eyebrow">DUPLICATE</p>
+        <h3>予定を複製</h3>
+        <p id="duplicateSummary" class="hint"></p>
+      </div>
+      <label>
+        <span>新しい開始日時</span>
+        <input id="duplicateStart" type="datetime-local" required>
+      </label>
+      <p class="hint">本文・複数景品・当選人数・メンション・画像・予定時間を引き継ぎます。複製先は単発予定として作成します。</p>
+      <div class="dialog-actions">
+        <button id="duplicateCancel" type="button" class="small">キャンセル</button>
+        <button id="duplicateSubmit" type="submit" class="primary">複製する</button>
+      </div>
+    </form>`;
+  document.body.append(dialog);
+
+  q('#duplicateCancel').addEventListener('click', () => {
+    historyState.duplicateEvent = null;
+    dialog.close();
+  });
+  dialog.addEventListener('cancel', () => { historyState.duplicateEvent = null; });
+  q('#duplicateForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    const source = historyState.duplicateEvent;
+    if (!source) return;
+    const startTime = q('#duplicateStart').value;
+    if (!startTime) return notice('複製先の開始日時を選択してください。', true);
+    const button = q('#duplicateSubmit');
+    button.disabled = true;
+    button.textContent = '複製中…';
+    try {
+      const result = await api('/api/admin/duplicate', {
+        method: 'POST',
+        body: JSON.stringify({ calendarId: source.calendarId, eventId: source.id, startTime }),
+      });
+      dialog.close();
+      historyState.duplicateEvent = null;
+      notice(`「${result.event.summary}」を複製しました。`);
+      await loadHistory();
+      document.querySelector('#refreshEvents')?.click();
+    } catch (error) {
+      notice(error.message, true);
+    } finally {
+      button.disabled = false;
+      button.textContent = '複製する';
+    }
+  });
+  return dialog;
+}
+
+function openDuplicateDialog(event) {
+  const dialog = installDuplicateDialog();
+  historyState.duplicateEvent = event;
+  q('#duplicateSummary').textContent = `複製元: ${event.summary || 'タイトルなし'} (${formatDate(event.start)})`;
+  q('#duplicateStart').value = '';
+  dialog.showModal();
+  q('#duplicateStart').focus();
+}
+
 function rowFor(event) {
   const row = document.createElement('div');
   row.className = `history-row${event.isPast ? ' history-past' : ''}`;
@@ -116,6 +190,14 @@ function rowFor(event) {
 
   const actions = document.createElement('div');
   actions.className = 'history-actions';
+
+  const duplicate = document.createElement('button');
+  duplicate.type = 'button';
+  duplicate.className = 'small';
+  duplicate.textContent = '複製';
+  duplicate.addEventListener('click', () => openDuplicateDialog(event));
+  actions.append(duplicate);
+
   if (event.htmlLink) {
     const open = document.createElement('a');
     open.href = event.htmlLink;
@@ -192,7 +274,7 @@ function installPanel() {
   section.className = 'panel';
   section.innerHTML = `
     <div class="section-head">
-      <div><p class="eyebrow">HISTORY</p><h2>予定履歴・削除</h2></div>
+      <div><p class="eyebrow">HISTORY</p><h2>予定履歴・管理</h2></div>
       <button id="historyRefresh" class="ghost" type="button">更新</button>
     </div>
     <div class="history-toolbar">
@@ -203,7 +285,7 @@ function installPanel() {
       </div>
       <input id="historySearch" type="search" placeholder="タイトル・本文を検索">
     </div>
-    <p class="hint">定期予定は「この予定のみ / これ以降 / すべて」を明示して削除できます。</p>
+    <p class="hint">予定を複製して再利用できます。定期予定は「この予定のみ / これ以降 / すべて」を明示して削除できます。</p>
     <div id="historyList" class="history-list"><p class="muted">読み込み中…</p></div>`;
   app.append(section);
 
@@ -221,6 +303,7 @@ function installPanel() {
 }
 
 installStyles();
+installDuplicateDialog();
 const observer = new MutationObserver(() => installPanel());
 observer.observe(document.documentElement, { childList: true, subtree: true });
 installPanel();
