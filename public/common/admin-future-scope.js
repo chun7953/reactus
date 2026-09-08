@@ -5,6 +5,7 @@ import './admin-calendar-edit.js';
 import './admin-calendar-quick-create.js';
 import './admin-calendar-drag.js';
 import './admin-announcements.js';
+import './admin-announcement-readability.js';
 import './admin-announcement-safety.js';
 import './admin-japanese-ui.js';
 
