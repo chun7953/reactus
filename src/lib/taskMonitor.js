@@ -15,6 +15,8 @@ import {
 import { buildCalendarNotificationKey } from './calendarNotificationKey.js';
 import { getCalendarPostImage } from './calendarPostAssets.js';
 import { createMonitorController } from './monitorController.js';
+import { resolveCalendarEventPrivateProperties } from './calendarEventMetadata.js';
+import { eventMentionTokens, extractDiscordMentions } from './calendarMentions.js';
 
 function basicDecodeHtmlEntities(text) {
     if (!text || typeof text !== 'string') {
@@ -28,21 +30,12 @@ function basicDecodeHtmlEntities(text) {
                .replace(/&apos;/g, "'");
 }
 
-function eventMentions(event, monitor) {
-    const properties = event.extendedProperties?.private || {};
-    const mode = properties.reactusMentionMode;
-    const mentions = new Set();
-
-    if (mode === 'role' && properties.reactusMentionRoleId) {
-        mentions.add(`<@&${properties.reactusMentionRoleId}>`);
-    } else if (mode !== 'none' && monitor.mention_role) {
-        mentions.add(`<@&${monitor.mention_role}>`);
-    }
-    return mentions;
+function eventMentions(properties, monitor) {
+    return new Set(eventMentionTokens(properties, monitor.mention_role));
 }
 
-async function eventImageFile(event) {
-    const assetId = event.extendedProperties?.private?.reactusAssetId;
+async function eventImageFile(properties) {
+    const assetId = properties?.reactusAssetId;
     if (!assetId) return null;
     try {
         const asset = await getCalendarPostImage(assetId);
@@ -69,6 +62,7 @@ async function checkCalendarEvents(client) {
         const now = new Date();
         const timeMin = new Date(now.getTime() - 10 * 60 * 1000).toISOString();
         const timeMax = new Date(now.getTime() + 10 * 60 * 1000).toISOString();
+        const masterMetadataCache = new Map();
         
         for (const monitor of monitors) {
             try {
@@ -93,6 +87,12 @@ async function checkCalendarEvents(client) {
                         continue;
                     }
 
+                    const privateProperties = await resolveCalendarEventPrivateProperties(
+                        calendar,
+                        monitor.calendar_id,
+                        event,
+                        masterMetadataCache,
+                    );
                     let eventDescription = event.description || '';
                     eventDescription = basicDecodeHtmlEntities(eventDescription);
                     const eventText = `${event.summary || ''} ${eventDescription}`;
@@ -103,20 +103,15 @@ async function checkCalendarEvents(client) {
                             const descriptionLines = eventDescription.split('\n').map(line => line.trim()).filter(line => line.length > 0);
                             let prizesToCreate = [];
                             let additionalMessageContent = [];
-                            let allMentionsForSeparatePost = eventMentions(event, monitor);
+                            let allMentionsForSeparatePost = eventMentions(privateProperties, monitor);
                             for (const line of descriptionLines) {
                                 const prizeMatch = line.match(/^【(.+)\/(\d+)】$/);
                                 if (prizeMatch) {
                                     prizesToCreate.push({ prize: prizeMatch[1].trim(), winnerCount: parseInt(prizeMatch[2], 10) });
                                 } else {
-                                    const mentionMatches = line.match(/<@&[0-9]+>|<@[0-9]+>|<@everyone>|<@here>/g);
-                                    if (mentionMatches) {
-                                        mentionMatches.forEach(m => allMentionsForSeparatePost.add(m));
-                                        let cleanedLine = line.replace(/<@&[0-9]+>|<@[0-9]+>|<@everyone>|<@here>/g, '').trim();
-                                        if (cleanedLine) additionalMessageContent.push(cleanedLine);
-                                    } else {
-                                        additionalMessageContent.push(line);
-                                    }
+                                    const parsedMentions = extractDiscordMentions(line);
+                                    parsedMentions.mentions.forEach(mention => allMentionsForSeparatePost.add(mention));
+                                    if (parsedMentions.cleaned) additionalMessageContent.push(parsedMentions.cleaned);
                                 }
                             }
                             let mainSummaryPrize = (event.summary || 'プレゼント').replace('【ラキショ】', '').trim();
@@ -128,7 +123,7 @@ async function checkCalendarEvents(client) {
                             const endTime = new Date(event.end.dateTime || event.end.date);
                             const finalMentionsForSeparatePost = Array.from(allMentionsForSeparatePost).join(' ').trim();
                             const finalAdditionalMessageText = additionalMessageContent.join('\n').trim();
-                            const imageFile = await eventImageFile(event);
+                            const imageFile = await eventImageFile(privateProperties);
                             const giveawayChannel = await client.channels.fetch(monitor.channel_id).catch(() => null);
                             if (giveawayChannel) {
                                 for (const prizeInfo of prizesToCreate) {
@@ -163,18 +158,15 @@ async function checkCalendarEvents(client) {
                              console.error(`[TaskMonitor ERROR] 指定された通知チャンネル ${monitor.channel_id} が見つからないか、アクセスできません。`);
                              continue;
                         }
-                        let allMentions = eventMentions(event, monitor);
-                        let cleanedDescription = eventDescription || '';
-                        const mentionMatches = cleanedDescription.match(/<@&[0-9]+>|<@[0-9]+>|<@everyone>|<@here>/g);
-                        if (mentionMatches) {
-                            mentionMatches.forEach(m => allMentions.add(m));
-                            cleanedDescription = cleanedDescription.replace(/<@&[0-9]+>|<@[0-9]+>|<@everyone>|<@here>/g, '').trim();
-                        }
+                        let allMentions = eventMentions(privateProperties, monitor);
+                        const parsedDescription = extractDiscordMentions(eventDescription);
+                        parsedDescription.mentions.forEach(mention => allMentions.add(mention));
+                        const cleanedDescription = parsedDescription.cleaned;
                         const finalMentions = Array.from(allMentions).join(' ');
                         let message = `**${event.summary || 'タイトルなし'}**`;
                         if (cleanedDescription) message += `\n${cleanedDescription}`;
                         if (finalMentions.trim()) message += `\n\n${finalMentions.trim()}`;
-                        const imageFile = await eventImageFile(event);
+                        const imageFile = await eventImageFile(privateProperties);
                         try {
                             await deliverAndRecordNotification(pool, notificationKey, () => channel.send(imageFile
                                 ? { content: message, files: [imageFile] }
