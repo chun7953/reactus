@@ -31,9 +31,9 @@ function normalizeMonitorPayload(payload, guild) {
         throw new Error('Discordサーバー内のテキストチャンネルを選択してください。');
     }
 
-    if (!triggerKeyword) throw new Error('トリガーキーワードを入力してください。');
+    if (!triggerKeyword) throw new Error('予定を見分ける合図（キーワード）を入力してください。');
     if (triggerKeyword.length > MAX_TRIGGER_LENGTH) {
-        throw new Error(`トリガーキーワードは${MAX_TRIGGER_LENGTH}文字以内にしてください。`);
+        throw new Error(`予定を見分ける合図は${MAX_TRIGGER_LENGTH}文字以内にしてください。`);
     }
 
     if (mentionRoleId) {

@@ -128,7 +128,7 @@ function appendReactionPreview(container, content) {
 
   const meta = document.createElement('div');
   meta.className = 'discord-preview-meta';
-  meta.textContent = `自動リアクション（トリガー: ${rule.trigger}）`;
+  meta.textContent = `自動リアクション（反応する言葉: ${rule.trigger}）`;
   container.append(meta);
 
   if (rule.invalid) {

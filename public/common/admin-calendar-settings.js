@@ -174,11 +174,11 @@ function installPanel() {
   panel.innerHTML = `
     <div class="section-head">
       <div>
-        <p class="eyebrow">CALENDAR INTEGRATION</p>
+        <p class="eyebrow">カレンダー連携</p>
         <h2>カレンダー連携設定</h2>
       </div>
     </div>
-    <p class="hint">普段の予定作成では触る必要のない接続設定です。投稿先やトリガーを追加・変更するときだけ使用します。</p>
+    <p class="hint">普段の予定作成では触る必要のない接続設定です。投稿先や、予定を見分ける合図を追加・変更するときだけ使用します。</p>
     <details class="calendar-settings-details">
       <summary>接続設定を開く</summary>
       <div class="calendar-settings-body">
@@ -194,19 +194,19 @@ function installPanel() {
         </div>
 
         <div class="calendar-settings-block">
-          <strong>投稿・抽選の監視設定</strong>
+          <strong>投稿先とカレンダーの設定</strong>
           <form id="calendarSettingForm">
             <div class="grid two">
               <label><span>投稿先チャンネル</span><select id="calendarSettingChannel" required></select></label>
-              <label><span>トリガーキーワード</span><input id="calendarSettingTrigger" maxlength="100" required placeholder="例: ご連絡 / ラキショ"></label>
+              <label><span>予定を見分ける合図（キーワード）</span><input id="calendarSettingTrigger" maxlength="100" required placeholder="例: ご連絡 / ラキショ"></label>
             </div>
             <div class="grid two">
               <label><span>GoogleカレンダーID</span><input id="calendarSettingCalendarId" required autocomplete="off" placeholder="example@gmail.com"></label>
-              <label><span>既定メンションロール</span><select id="calendarSettingRole"></select></label>
+              <label><span>いつも付けるメンション</span><select id="calendarSettingRole"></select></label>
             </div>
-            <p class="hint">抽選用はトリガーを「ラキショ」にします。予定ごとのメンション設定は、予定作成画面でこの既定値を上書きできます。</p>
+            <p class="hint">抽選用は、予定を見分ける合図を「ラキショ」にします。予定ごとのメンション設定は、予定作成画面でこの既定値を上書きできます。</p>
             <div class="actions">
-              <button id="calendarSettingSave" type="submit" class="primary">監視設定を追加</button>
+              <button id="calendarSettingSave" type="submit" class="primary">投稿先の設定を追加</button>
               <button id="calendarSettingCancel" type="button" class="small hidden">編集をやめる</button>
             </div>
           </form>
