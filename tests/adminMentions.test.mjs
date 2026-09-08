@@ -45,3 +45,10 @@ test('calendar admin routes create, read and update through the rich mention ser
     assert.match(service, /patchMentionMetadata/);
     assert.match(service, /extractTargets/);
 });
+
+test('calendar editor merges structured metadata with inline legacy mention tokens', async () => {
+    const service = await readFile(servicePath, 'utf8');
+    assert.match(service, /detail\.mention\?\.mode === 'custom' \? \(detail\.mention\.targets \|\| \[\]\) : \[\]/);
+    assert.match(service, /\.\.\.extracted\.targets/);
+    assert.match(service, /targets = uniqueTargets\(targets\)/);
+});
