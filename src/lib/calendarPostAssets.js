@@ -68,6 +68,16 @@ export async function getCalendarPostImage(assetId) {
     return result.rows[0] || null;
 }
 
+export async function cloneCalendarPostImage(guildId, assetId) {
+    const source = await getCalendarPostImage(assetId);
+    if (!source) return null;
+    return insertCalendarPostImage(guildId, {
+        filename: source.filename,
+        contentType: source.content_type,
+        data: source.data,
+    });
+}
+
 export async function deleteCalendarPostImage(assetId) {
     if (!assetId) return false;
     const pool = await getDBPool();
