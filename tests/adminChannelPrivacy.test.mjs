@@ -4,18 +4,26 @@ import test from 'node:test';
 
 const handlerPath = new URL('../src/web/adminHandler.js', import.meta.url);
 
-test('web admin exposes only channels the signed-in moderator can view and manage', async () => {
+test('web admin hides channels the signed-in moderator cannot view', async () => {
   const source = await readFile(handlerPath, 'utf8');
+  assert.match(source, /function canViewChannel/);
   assert.match(source, /permissions\?\.has\(PermissionsBitField\.Flags\.ViewChannel\)/);
-  assert.match(source, /permissions\?\.has\(PermissionsBitField\.Flags\.ManageMessages\)/);
-  assert.match(source, /const allowedChannelIds = manageableChannelIds\(auth\)/);
+  assert.match(source, /const visibleIds = visibleChannelIds\(auth\)/);
   assert.match(source, /visibleMonitors = monitors\.filter/);
   assert.match(source, /reactionRules = \(await listWebReactionRules/);
   assert.match(source, /announcements: announcements\.filter/);
   assert.match(source, /events: events\.filter/);
 });
 
-test('channel-targeting web admin writes re-check channel access server-side', async () => {
+test('bootstrap distinguishes visible channels from channels the moderator can manage', async () => {
+  const source = await readFile(handlerPath, 'utf8');
+  assert.match(source, /function canManageChannel/);
+  assert.match(source, /PermissionsBitField\.Flags\.ManageMessages/);
+  assert.match(source, /canManage: manageableIds\.has\(String\(channel\.id\)\)/);
+  assert.match(source, /canManage: manageableIds\.has\(String\(monitor\.channel_id\)\)/);
+});
+
+test('channel-targeting web admin writes re-check manage access server-side', async () => {
   const source = await readFile(handlerPath, 'utf8');
   assert.match(source, /await requireManageableChannel\(auth, payload\?\.channelId\)/);
   assert.match(source, /await requireMonitorAccess\(auth, payload\?\.monitorId\)/);
