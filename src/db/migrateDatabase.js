@@ -6,7 +6,6 @@ const TABLES = [
     { name: 'notified_events', columns: ['event_id', 'notified_at'] },
     { name: 'giveaways', columns: ['message_id', 'guild_id', 'channel_id', 'prize', 'winner_count', 'end_time', 'status', 'winners', 'participants', 'validation_fails'] },
     { name: 'scheduled_giveaways', columns: ['id', 'guild_id', 'prize', 'winner_count', 'giveaway_channel_id', 'start_time', 'duration_hours', 'end_time', 'schedule_cron', 'confirmation_channel_id', 'confirmation_role_id'] },
-    { name: 'calendar_post_assets', columns: ['id', 'guild_id', 'filename', 'content_type', 'size_bytes', 'data', 'created_at'] },
 ];
 
 const MIGRATION_NAME = 'fly_postgres_to_supabase_v1';
