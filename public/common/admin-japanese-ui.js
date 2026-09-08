@@ -7,7 +7,6 @@ const japaneseLabels = new Map([
   ['DISCORD PREVIEW', 'Discord投稿イメージ'],
   ['CALENDAR INTEGRATION', 'カレンダー連携'],
   ['DUPLICATE', '予定を複製'],
-  ['HISTORY', '予定の履歴'],
 ]);
 
 const beginnerFriendlyText = new Map([
