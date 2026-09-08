@@ -4,6 +4,8 @@ import { Events, MessageFlags } from 'discord.js';
 import { get } from '../lib/settingsCache.js';
 import { applyConfiguredAutoReactions } from '../lib/autoReactionService.js';
 
+const announcementQueues = new Map();
+
 async function handleAutoReaction(message) {
     try {
         await applyConfiguredAutoReactions(message);
@@ -32,13 +34,25 @@ async function handleAutoAnnounce(message) {
     }
 }
 
+function enqueueAutoAnnounce(message) {
+    const key = `${message.guild.id}:${message.channel.id}`;
+    const previous = announcementQueues.get(key) || Promise.resolve();
+    const current = previous
+        .catch(() => {})
+        .then(() => handleAutoAnnounce(message));
+    announcementQueues.set(key, current);
+    return current.finally(() => {
+        if (announcementQueues.get(key) === current) announcementQueues.delete(key);
+    });
+}
+
 export default {
     name: Events.MessageCreate,
     async execute(message) {
         if (!message.guild) return;
         await Promise.all([
             handleAutoReaction(message),
-            handleAutoAnnounce(message),
+            enqueueAutoAnnounce(message),
         ]);
     },
 };
