@@ -14,8 +14,14 @@ function createPool(connectionString, max = 5) {
     const result = new Pool({
         connectionString,
         ssl: { rejectUnauthorized: false },
-        idleTimeoutMillis: 10000,
+        // Reactus is a long-running Fly machine. Closing every idle client after
+        // 10 seconds forced the next request to establish a brand-new Supabase
+        // connection, and those reconnects could intermittently time out. Keep
+        // established clients alive and let TCP keepalive detect dead sockets.
+        idleTimeoutMillis: 0,
         connectionTimeoutMillis: DB_CONNECTION_TIMEOUT_MS,
+        keepAlive: true,
+        keepAliveInitialDelayMillis: 10000,
         max,
         application_name: 'reactus',
     });
