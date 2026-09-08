@@ -1,7 +1,10 @@
+const ANNOUNCEMENTS_PER_PAGE = 8;
+
 const announcementState = {
   bootstrap: null,
   announcements: [],
   editingChannelId: null,
+  page: 0,
 };
 
 const aq = selector => document.querySelector(selector);
@@ -26,8 +29,12 @@ function announcementNotice(message, error = false) {
   window.setTimeout(() => node.classList.add('hidden'), 8000);
 }
 
+function channelInfo(channelId) {
+  return announcementState.bootstrap?.channels?.find(item => String(item.id) === String(channelId)) || null;
+}
+
 function channelLabel(channelId) {
-  const channel = announcementState.bootstrap?.channels?.find(item => String(item.id) === String(channelId));
+  const channel = channelInfo(channelId);
   return channel ? `#${channel.name}` : `#${channelId}`;
 }
 
@@ -47,7 +54,7 @@ function populateAnnouncementChannels() {
   addOption(target, '', '案内を表示するチャンネルを選択');
   addOption(link, '', '本文に入れるチャンネルを選択');
   for (const channel of announcementState.bootstrap?.channels || []) {
-    addOption(target, channel.id, `#${channel.name}`);
+    if (channel.canManage) addOption(target, channel.id, `#${channel.name}`);
     addOption(link, channel.id, `#${channel.name}`);
   }
 }
@@ -101,6 +108,7 @@ function resetAnnouncementForm() {
 }
 
 function startAnnouncementEdit(item) {
+  if (!channelInfo(item.channelId)?.canManage) return;
   announcementState.editingChannelId = String(item.channelId);
   aq('#announcementChannel').value = String(item.channelId);
   aq('#announcementChannel').disabled = true;
@@ -128,38 +136,62 @@ function announcementCard(item) {
 
   const actions = document.createElement('div');
   actions.className = 'event-actions';
-  const edit = document.createElement('button');
-  edit.type = 'button';
-  edit.className = 'small';
-  edit.textContent = '編集';
-  edit.addEventListener('click', () => startAnnouncementEdit(item));
-  const remove = document.createElement('button');
-  remove.type = 'button';
-  remove.className = 'small danger';
-  remove.textContent = '停止';
-  remove.addEventListener('click', async () => {
-    const ok = window.confirm(
-      `${channelLabel(item.channelId)} の「チャンネル下部の案内」を停止しますか？\n\n` +
-      '表示中の案内メッセージも削除します。ほかの通常メッセージは削除しません。',
-    );
-    if (!ok) return;
-    remove.disabled = true;
-    try {
-      await announcementApi('/api/admin/announcements/delete', {
-        method: 'POST',
-        body: JSON.stringify({ channelId: item.channelId }),
-      });
-      announcementNotice(`${channelLabel(item.channelId)} の下部案内を停止しました。`);
-      if (announcementState.editingChannelId === String(item.channelId)) resetAnnouncementForm();
-      await loadAnnouncements();
-    } catch (error) {
-      remove.disabled = false;
-      announcementNotice(error.message, true);
-    }
-  });
-  actions.append(edit, remove);
+  const manageable = Boolean(channelInfo(item.channelId)?.canManage);
+  if (!manageable) {
+    const readonly = document.createElement('span');
+    readonly.className = 'muted';
+    readonly.textContent = '閲覧のみ';
+    actions.append(readonly);
+  } else {
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.className = 'small';
+    edit.textContent = '編集';
+    edit.addEventListener('click', () => startAnnouncementEdit(item));
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'small danger';
+    remove.textContent = '停止';
+    remove.addEventListener('click', async () => {
+      const ok = window.confirm(
+        `${channelLabel(item.channelId)} の「チャンネル下部の案内」を停止しますか？\n\n` +
+        '表示中の案内メッセージも削除します。ほかの通常メッセージは削除しません。',
+      );
+      if (!ok) return;
+      remove.disabled = true;
+      try {
+        await announcementApi('/api/admin/announcements/delete', {
+          method: 'POST',
+          body: JSON.stringify({ channelId: item.channelId }),
+        });
+        announcementNotice(`${channelLabel(item.channelId)} の下部案内を停止しました。`);
+        if (announcementState.editingChannelId === String(item.channelId)) resetAnnouncementForm();
+        await loadAnnouncements();
+      } catch (error) {
+        remove.disabled = false;
+        announcementNotice(error.message, true);
+      }
+    });
+    actions.append(edit, remove);
+  }
   card.append(main, actions);
   return card;
+}
+
+function renderAnnouncementPagination() {
+  const controls = aq('#announcementPagination');
+  if (!controls) return;
+  const total = announcementState.announcements.length;
+  const pageCount = Math.max(1, Math.ceil(total / ANNOUNCEMENTS_PER_PAGE));
+  announcementState.page = Math.min(announcementState.page, pageCount - 1);
+
+  const status = aq('#announcementPageStatus');
+  const prev = aq('#announcementPrev');
+  const next = aq('#announcementNext');
+  controls.classList.toggle('hidden', total <= ANNOUNCEMENTS_PER_PAGE);
+  if (status) status.textContent = `${announcementState.page + 1} / ${pageCount}ページ · ${total}件`;
+  if (prev) prev.disabled = announcementState.page <= 0;
+  if (next) next.disabled = announcementState.page >= pageCount - 1;
 }
 
 function renderAnnouncementList() {
@@ -169,11 +201,18 @@ function renderAnnouncementList() {
   if (!announcementState.announcements.length) {
     const empty = document.createElement('p');
     empty.className = 'muted';
-    empty.textContent = '現在、チャンネル下部の案内は設定されていません。';
+    empty.textContent = '現在、表示できるチャンネルには案内が設定されていません。';
     list.append(empty);
+    renderAnnouncementPagination();
     return;
   }
-  for (const item of announcementState.announcements) list.append(announcementCard(item));
+
+  const pageCount = Math.max(1, Math.ceil(announcementState.announcements.length / ANNOUNCEMENTS_PER_PAGE));
+  announcementState.page = Math.min(announcementState.page, pageCount - 1);
+  const start = announcementState.page * ANNOUNCEMENTS_PER_PAGE;
+  const pageItems = announcementState.announcements.slice(start, start + ANNOUNCEMENTS_PER_PAGE);
+  for (const item of pageItems) list.append(announcementCard(item));
+  renderAnnouncementPagination();
 }
 
 async function loadAnnouncements() {
@@ -224,6 +263,8 @@ function installAnnouncementStyles() {
     .announcement-card{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:12px;border:1px solid #293746;border-radius:10px;background:#101821}
     .announcement-card-main{min-width:0;flex:1}
     .announcement-card-text{margin-top:7px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:180px;overflow:auto;color:#c7d0db;line-height:1.45}
+    .announcement-pagination{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;flex-wrap:wrap}
+    .announcement-pagination-actions{display:flex;gap:7px}
     @media(max-width:800px){.announcement-layout{grid-template-columns:1fr}.announcement-card{flex-direction:column}.announcement-card .event-actions{width:100%}.announcement-link-row>*{width:100%}}
   `;
   document.head.append(style);
@@ -276,8 +317,15 @@ function installAnnouncementPanel() {
       </form>
       <div>
         <strong>現在設定されている案内</strong>
-        <p class="hint">「編集」で内容を直せます。「停止」にすると、現在表示中の案内も消えます。</p>
+        <p class="hint">自分が見られるチャンネルの案内だけを表示します。管理権限のないチャンネルは閲覧のみです。</p>
         <div id="announcementList" class="announcement-list"><p class="muted">読み込み中…</p></div>
+        <div id="announcementPagination" class="announcement-pagination hidden">
+          <span id="announcementPageStatus" class="muted"></span>
+          <div class="announcement-pagination-actions">
+            <button id="announcementPrev" class="small" type="button">← 前へ</button>
+            <button id="announcementNext" class="small" type="button">次へ →</button>
+          </div>
+        </div>
       </div>
     </div>`;
 
@@ -299,6 +347,17 @@ async function initializeAnnouncements() {
     return true;
   }
 
+  aq('#announcementPrev').addEventListener('click', () => {
+    if (announcementState.page <= 0) return;
+    announcementState.page -= 1;
+    renderAnnouncementList();
+  });
+  aq('#announcementNext').addEventListener('click', () => {
+    const pageCount = Math.ceil(announcementState.announcements.length / ANNOUNCEMENTS_PER_PAGE);
+    if (announcementState.page >= pageCount - 1) return;
+    announcementState.page += 1;
+    renderAnnouncementList();
+  });
   aq('#announcementMessage').addEventListener('input', () => {
     updateAnnouncementCount();
     renderAnnouncementPreview();
