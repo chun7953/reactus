@@ -1,9 +1,13 @@
+function setTextIfChanged(node, value) {
+  if (node && node.textContent !== value) node.textContent = value;
+}
+
 function installFutureScope() {
   const select = document.querySelector('#editScope');
   if (!select) return false;
 
   const instance = [...select.options].find(option => option.value === 'instance');
-  if (instance) instance.textContent = 'この予定のみ';
+  setTextIfChanged(instance, 'この予定のみ');
 
   let future = [...select.options].find(option => option.value === 'future');
   if (!future) {
@@ -15,17 +19,15 @@ function installFutureScope() {
   }
 
   const series = [...select.options].find(option => option.value === 'series');
-  if (series) series.textContent = 'すべての予定';
+  setTextIfChanged(series, 'すべての予定');
   return true;
 }
 
 function updateHint() {
   const select = document.querySelector('#editScope');
   const hint = document.querySelector('#editBannerHint');
-  if (!select || !hint) return;
-  if (select.value === 'future') {
-    hint.textContent = '選んだ回より前はそのまま残し、この回以降を新しい定期予定として編集します。';
-  }
+  if (!select || !hint || select.value !== 'future') return;
+  setTextIfChanged(hint, '選んだ回より前はそのまま残し、この回以降を新しい定期予定として編集します。');
 }
 
 const observer = new MutationObserver(() => {
