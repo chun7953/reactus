@@ -322,7 +322,7 @@ async function reloadToolsBootstrap() {
 async function saveRule() {
   const channelId = q('#reactionChannel').value;
   const trigger = q('#reactionTrigger').value.trim();
-  if (!trigger) return notice('トリガーを入力してください。', true);
+  if (!trigger) return notice('反応する言葉を入力してください。', true);
   if (!toolsState.draft.length) return notice('絵文字を1つ以上選択してください。', true);
   const payload = { channelId, trigger, emojis:toolsState.draft };
   const endpoint = toolsState.editing ? '/api/admin/reactions/update' : '/api/admin/reactions';

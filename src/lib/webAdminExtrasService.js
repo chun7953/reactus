@@ -44,7 +44,7 @@ function validateRulePayload(payload, guild) {
     const channelId = String(payload?.channelId || '').trim();
     const trigger = String(payload?.trigger || '').trim();
     if (!/^\d+$/.test(channelId)) throw new Error('チャンネルを選択してください。');
-    if (!trigger) throw new Error('トリガーを入力してください。');
+    if (!trigger) throw new Error('反応する言葉を入力してください。');
     if (trigger.length > 200) throw new Error('トリガーが長すぎます。');
     const channel = guild.channels.cache.get(channelId);
     if (!channel?.isTextBased?.()) throw new Error('リアクション対象のテキストチャンネルを選択してください。');
