@@ -181,7 +181,8 @@ export function createAdminHandler({ client }) {
             }
             if (pathname === '/api/admin/events' && req.method === 'GET') {
                 const days = Number(searchParams.get('days') || 90);
-                sendJson(req, res, 200, { events: await listWebSchedules(auth.session.guild_id, days) });
+                const pastDays = Number(searchParams.get('pastDays') || 0);
+                sendJson(req, res, 200, { events: await listWebSchedules(auth.session.guild_id, days, pastDays) });
                 return true;
             }
             if (pathname === '/api/admin/event' && req.method === 'GET') {

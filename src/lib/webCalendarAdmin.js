@@ -11,6 +11,7 @@ import {
     storeCalendarPostImageBuffer,
 } from './calendarPostAssets.js';
 import { listAllCalendarEvents } from './calendarEventPager.js';
+import { recurrenceBeforeTarget, recurringTargetStart } from './calendarSeriesSplit.js';
 
 function cleanKeyword(value) {
     return String(value || '').replace(/[【】]/g, '').trim();
@@ -179,8 +180,9 @@ export async function createWebSchedule(guildId, payload) {
     }
 }
 
-export async function listWebSchedules(guildId, days = 90) {
+export async function listWebSchedules(guildId, days = 90, pastDays = 0) {
     const safeDays = Math.max(1, Math.min(365, Number(days) || 90));
+    const safePastDays = Math.max(0, Math.min(365, Number(pastDays) || 0));
     const monitors = await get.monitorsByGuild(guildId);
     const byCalendar = new Map();
     for (const monitor of monitors) {
@@ -191,12 +193,13 @@ export async function listWebSchedules(guildId, days = 90) {
 
     const { calendar } = await calendarClient();
     const now = new Date();
+    const timeMin = new Date(now.getTime() - safePastDays * 24 * 60 * 60 * 1000);
     const timeMax = new Date(now.getTime() + safeDays * 24 * 60 * 60 * 1000);
     const rows = [];
     for (const [calendarId, calendarMonitors] of byCalendar) {
         const events = await listAllCalendarEvents(calendar, {
             calendarId,
-            timeMin: now.toISOString(),
+            timeMin: timeMin.toISOString(),
             timeMax: timeMax.toISOString(),
             singleEvents: true,
             orderBy: 'startTime',
@@ -221,6 +224,7 @@ export async function listWebSchedules(guildId, days = 90) {
                 recurringEventId: event.recurringEventId || null,
                 hasImage: Boolean(event.extendedProperties?.private?.reactusAssetId),
                 htmlLink: event.htmlLink || null,
+                isPast: new Date(event.end?.dateTime || event.end?.date || event.start?.dateTime || event.start?.date) < now,
             });
         }
     }
@@ -228,7 +232,14 @@ export async function listWebSchedules(guildId, days = 90) {
     return rows;
 }
 
+function sameOccurrenceStart(instance, master) {
+    const instanceStart = recurringTargetStart(instance).getTime();
+    const masterStart = new Date(master.start?.dateTime || master.start?.date).getTime();
+    return Number.isFinite(masterStart) && instanceStart === masterStart;
+}
+
 export async function deleteWebSchedule(guildId, { calendarId, eventId, scope = 'instance' }) {
+    if (!['instance', 'future', 'series'].includes(scope)) throw new Error('削除範囲が正しくありません。');
     const monitors = await get.monitorsByGuild(guildId);
     const calendarMonitors = monitors.filter(monitor => monitor.calendar_id === calendarId);
     if (calendarMonitors.length === 0) throw new Error('このカレンダーを操作する権限がありません。');
@@ -240,18 +251,39 @@ export async function deleteWebSchedule(guildId, { calendarId, eventId, scope = 
         if (!calendarMonitors.some(monitor => text.includes(`【${cleanKeyword(monitor.trigger_keyword)}】`))) {
             throw new Error('Reactusが管理している予定ではありません。');
         }
-        const deleteSeries = scope === 'series' && event.recurringEventId;
-        const deleteId = deleteSeries ? event.recurringEventId : event.id;
-        let assetId = event.extendedProperties?.private?.reactusAssetId || null;
-        if (deleteSeries && !assetId) {
-            const master = await calendar.events.get({ calendarId, eventId: event.recurringEventId });
-            assetId = master.data.extendedProperties?.private?.reactusAssetId || null;
+
+        let master = null;
+        if (event.recurringEventId) {
+            master = (await calendar.events.get({ calendarId, eventId: event.recurringEventId })).data;
         }
+
+        if (scope === 'future') {
+            if (!master) throw new Error('「これ以降を削除」は繰り返し予定の各回で使用してください。');
+            const assetId = master.extendedProperties?.private?.reactusAssetId || null;
+            if (sameOccurrenceStart(event, master)) {
+                await calendar.events.delete({ calendarId, eventId: master.id });
+                await deleteCalendarPostImage(assetId).catch(() => {});
+                return { deletedSeries: true, deletedFuture: true };
+            }
+            const targetStart = recurringTargetStart(event);
+            await calendar.events.patch({
+                calendarId,
+                eventId: master.id,
+                requestBody: { recurrence: recurrenceBeforeTarget(master.recurrence || [], targetStart) },
+            });
+            return { deletedSeries: false, deletedFuture: true };
+        }
+
+        const deleteSeries = scope === 'series' && Boolean(master);
+        const deleteId = deleteSeries ? master.id : event.id;
+        const assetId = deleteSeries
+            ? master.extendedProperties?.private?.reactusAssetId || null
+            : event.extendedProperties?.private?.reactusAssetId || null;
         await calendar.events.delete({ calendarId, eventId: deleteId });
         if (!event.recurringEventId || deleteSeries) {
             await deleteCalendarPostImage(assetId).catch(() => {});
         }
-        return { deletedSeries: Boolean(deleteSeries) };
+        return { deletedSeries: Boolean(deleteSeries), deletedFuture: false };
     } catch (error) {
         if (error?.code === 403) {
             throw new Error(permissionHelp(auth, calendarId));
