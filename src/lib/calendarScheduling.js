@@ -1,6 +1,3 @@
-const CONTROL_NO_DEFAULT_MENTION = '[[reactus:no-default-mention]]';
-const CONTROL_ROLE_PREFIX = '[[reactus:mention-role:';
-
 const WEEKDAY_ALIASES = new Map([
     ['su', 'SU'], ['sun', 'SU'], ['sunday', 'SU'], ['日', 'SU'], ['日曜', 'SU'], ['日曜日', 'SU'],
     ['mo', 'MO'], ['mon', 'MO'], ['monday', 'MO'], ['月', 'MO'], ['月曜', 'MO'], ['月曜日', 'MO'],
@@ -50,10 +47,21 @@ export function formatJstDateTime(date) {
 
 function parseRepeatUntil(value) {
     const match = String(value || '').trim().match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
-    if (!match) throw new Error('repeat_until must be YYYY-MM-DD');
+    if (!match) throw new Error('繰り返し終了日は `YYYY-MM-DD` 形式で指定してください。');
     const [, year, month, day] = match;
-    const endOfDayJst = new Date(`${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T23:59:59+09:00`);
-    if (Number.isNaN(endOfDayJst.getTime())) throw new Error('repeat_until is invalid');
+    const paddedMonth = month.padStart(2, '0');
+    const paddedDay = day.padStart(2, '0');
+    const endOfDayJst = new Date(`${year}-${paddedMonth}-${paddedDay}T23:59:59+09:00`);
+    if (Number.isNaN(endOfDayJst.getTime())) throw new Error('繰り返し終了日が正しくありません。');
+
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Tokyo',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+    }).formatToParts(endOfDayJst);
+    const actual = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    if (actual.year !== year || actual.month !== paddedMonth || actual.day !== paddedDay) {
+        throw new Error('繰り返し終了日が正しくありません。');
+    }
     return endOfDayJst;
 }
 
@@ -74,11 +82,11 @@ export function parseWeekdays(value) {
 }
 
 function startWeekday(start) {
-    const parts = new Intl.DateTimeFormat('en-US', {
+    const weekday = new Intl.DateTimeFormat('en-US', {
         timeZone: 'Asia/Tokyo',
         weekday: 'short',
     }).format(start).toLowerCase();
-    return WEEKDAY_ALIASES.get(parts);
+    return WEEKDAY_ALIASES.get(weekday);
 }
 
 function normalizeMonthlyWeek(value) {
@@ -152,9 +160,9 @@ export function buildRecurrence({
             if (!day) throw new Error('第○曜日指定には曜日が必要です。');
             parts.push(`BYDAY=${ordinal}${day}`);
         } else if (monthlyWeekday) {
-            throw new Error('monthly_weekday を使う場合は monthly_week も指定してください。');
+            throw new Error('第○曜日を指定する場合は「第1〜第4/最後」も指定してください。');
         }
-    } else if (monthlyDay || monthlyWeek || monthlyWeekday) {
+    } else if (monthlyDay !== null && monthlyDay !== undefined || monthlyWeek || monthlyWeekday) {
         throw new Error('毎月の詳細指定は「月」単位の繰り返しで使用してください。');
     }
 
@@ -167,43 +175,4 @@ export function buildRecurrence({
     }
 
     return [`RRULE:${parts.join(';')}`];
-}
-
-export function buildMentionControlLines({ mention = null, mentionRoleId = null } = {}) {
-    if (mention === false) return [CONTROL_NO_DEFAULT_MENTION];
-    if (mentionRoleId) {
-        return [CONTROL_NO_DEFAULT_MENTION, `${CONTROL_ROLE_PREFIX}${mentionRoleId}]]`];
-    }
-    return [];
-}
-
-export function parseCalendarDescription(description = '') {
-    const roleIds = new Set();
-    let suppressDefaultMention = false;
-    const bodyLines = [];
-
-    for (const line of String(description).split('\n')) {
-        const trimmed = line.trim();
-        if (trimmed === CONTROL_NO_DEFAULT_MENTION) {
-            suppressDefaultMention = true;
-            continue;
-        }
-        const roleMatch = trimmed.match(/^\[\[reactus:mention-role:(\d+)\]\]$/);
-        if (roleMatch) {
-            suppressDefaultMention = true;
-            roleIds.add(roleMatch[1]);
-            continue;
-        }
-        bodyLines.push(line);
-    }
-
-    return {
-        body: bodyLines.join('\n').trim(),
-        suppressDefaultMention,
-        mentionRoleIds: [...roleIds],
-    };
-}
-
-export function composeCalendarDescription(body, controlLines = []) {
-    return [String(body || '').trim(), ...controlLines].filter(Boolean).join('\n');
 }
