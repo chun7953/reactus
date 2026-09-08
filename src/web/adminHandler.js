@@ -18,6 +18,14 @@ import {
 } from '../lib/webCalendarMentionService.js';
 import { duplicateWebSchedule } from '../lib/webCalendarDuplicateService.js';
 import {
+    clearWebMainCalendar,
+    createWebCalendarMonitor,
+    currentMainCalendar,
+    deleteWebCalendarMonitor,
+    setWebMainCalendar,
+    updateWebCalendarMonitor,
+} from '../lib/webCalendarMonitorService.js';
+import {
     createWebReactionRule,
     deleteWebReactionRule,
     guildEmojiPayload,
@@ -114,17 +122,29 @@ async function authorize(req, client) {
     return { token, session, guild, member };
 }
 
+function requireAdministrator(auth) {
+    if (auth.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
+    const error = new Error('メインカレンダーの変更にはサーバー管理者権限が必要です。');
+    error.statusCode = 403;
+    throw error;
+}
+
 async function bootstrap(auth) {
-    const [monitors, channels, roles] = await Promise.all([
+    const [monitors, channels, roles, mainCalendarId] = await Promise.all([
         get.monitorsByGuild(auth.session.guild_id),
         auth.guild.channels.fetch(),
         auth.guild.roles.fetch(),
-        auth.guild.emojis.fetch().catch(() => null),
+        currentMainCalendar(auth.session.guild_id),
     ]);
+    await auth.guild.emojis.fetch().catch(() => null);
     const reactionRules = await listWebReactionRules(auth.session.guild_id, auth.guild);
     return {
         guild: { id: auth.guild.id, name: auth.guild.name },
         user: { id: auth.member.id, displayName: auth.member.displayName },
+        permissions: {
+            manageMainCalendar: auth.member.permissions.has(PermissionsBitField.Flags.Administrator),
+        },
+        mainCalendarId,
         monitors: monitors.map(monitor => ({
             id: monitor.id,
             channelId: monitor.channel_id,
@@ -220,6 +240,30 @@ export function createAdminHandler({ client }) {
             }
             if (pathname === '/api/admin/members' && req.method === 'GET') {
                 sendJson(req, res, 200, { members: await searchGuildMembers(auth.guild, searchParams.get('q')) });
+                return true;
+            }
+            if (pathname === '/api/admin/calendar-monitors' && req.method === 'POST') {
+                const monitor = await createWebCalendarMonitor(auth.session.guild_id, await readJson(req), auth.guild);
+                sendJson(req, res, 201, await withBackup(auth.session.guild_id, { ok: true, monitor }));
+                return true;
+            }
+            if (pathname === '/api/admin/calendar-monitors/update' && req.method === 'POST') {
+                const monitor = await updateWebCalendarMonitor(auth.session.guild_id, await readJson(req), auth.guild);
+                sendJson(req, res, 200, await withBackup(auth.session.guild_id, { ok: true, monitor }));
+                return true;
+            }
+            if (pathname === '/api/admin/calendar-monitors/delete' && req.method === 'POST') {
+                const result = await deleteWebCalendarMonitor(auth.session.guild_id, await readJson(req));
+                sendJson(req, res, 200, await withBackup(auth.session.guild_id, { ok: true, ...result }));
+                return true;
+            }
+            if (pathname === '/api/admin/main-calendar' && req.method === 'POST') {
+                requireAdministrator(auth);
+                const payload = await readJson(req);
+                const result = payload?.clear
+                    ? await clearWebMainCalendar(auth.session.guild_id)
+                    : await setWebMainCalendar(auth.session.guild_id, payload?.calendarId);
+                sendJson(req, res, 200, await withBackup(auth.session.guild_id, { ok: true, ...result }));
                 return true;
             }
             if (pathname === '/api/admin/events' && req.method === 'GET') {
