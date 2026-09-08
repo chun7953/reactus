@@ -2,7 +2,7 @@ import { google } from 'googleapis';
 import { initializeSheetsAPI } from './sheetsAPI.js';
 import { get } from './settingsCache.js';
 import { buildRecurrence, formatJstDateTime, parseJstDateTime } from './calendarScheduling.js';
-import { buildPrivatePropertiesPatch, parseTriggeredSummary } from './calendarEditHelpers.js';
+import { buildPrivatePropertiesPatch } from './calendarEditHelpers.js';
 import { webScheduleDetail } from './webCalendarEditHelpers.js';
 import {
     cloneCalendarPostImage,
@@ -15,10 +15,10 @@ import {
     recurrenceForRemainingCount,
     recurringTargetStart,
 } from './calendarSeriesSplit.js';
-
-function cleanKeyword(value) {
-    return String(value || '').replace(/[【】]/g, '').trim();
-}
+import {
+    buildCalendarRoutingProperties,
+    resolveCalendarRoute,
+} from './calendarRouting.js';
 
 async function calendarClient() {
     const { auth } = await initializeSheetsAPI();
@@ -80,6 +80,13 @@ function decodeImage(image) {
     };
 }
 
+function effectivePrivate(master, source) {
+    return {
+        ...(master?.extendedProperties?.private || {}),
+        ...(source?.extendedProperties?.private || {}),
+    };
+}
+
 async function resolveEvent(guildId, { calendarId, eventId, scope = 'instance' }) {
     if (!calendarId || !eventId) throw new Error('予定を特定できません。');
     if (!['instance', 'future', 'series'].includes(scope)) throw new Error('編集範囲が正しくありません。');
@@ -98,10 +105,6 @@ async function resolveEvent(guildId, { calendarId, eventId, scope = 'instance' }
         throw error;
     }
 
-    const sourceTrigger = parseTriggeredSummary(source.summary || '').trigger;
-    const sourceMonitor = calendarMonitors.find(monitor => cleanKeyword(monitor.trigger_keyword) === sourceTrigger);
-    if (!sourceMonitor) throw new Error('Reactusが管理している予定ではありません。');
-
     let master = source;
     if (source.recurringEventId) {
         try {
@@ -113,14 +116,21 @@ async function resolveEvent(guildId, { calendarId, eventId, scope = 'instance' }
         }
     }
 
+    const sourceRoute = resolveCalendarRoute(source, calendarMonitors, effectivePrivate(master, source));
+    if (!sourceRoute) throw new Error('Reactusが管理している予定ではありません。');
+
     if (scope === 'future' && !source.recurringEventId) {
         throw new Error('「これ以降」は繰り返し予定の各回から選択してください。');
     }
 
     const target = scope === 'series' ? master : source;
-    const targetTrigger = parseTriggeredSummary(target.summary || '').trigger;
-    const monitor = calendarMonitors.find(candidate => cleanKeyword(candidate.trigger_keyword) === targetTrigger);
-    if (!monitor) throw new Error('Reactusが管理している予定ではありません。');
+    const targetRoute = resolveCalendarRoute(
+        target,
+        calendarMonitors,
+        target === source ? effectivePrivate(master, source) : target.extendedProperties?.private || {},
+    );
+    const route = targetRoute || sourceRoute;
+    if (!route) throw new Error('Reactusが管理している予定ではありません。');
 
     return {
         calendar,
@@ -129,7 +139,8 @@ async function resolveEvent(guildId, { calendarId, eventId, scope = 'instance' }
         source,
         target,
         master,
-        monitor,
+        monitor: route.monitor,
+        targetType: route.type,
         originalWasRecurring: Boolean(source.recurringEventId || source.recurrence?.length || master.recurrence?.length),
     };
 }
@@ -167,6 +178,10 @@ async function futureDetailEvent(resolved) {
         ...resolved.source,
         recurrence,
         recurringEventId: resolved.master.id,
+        extendedProperties: {
+            ...(resolved.source.extendedProperties || {}),
+            private: effectivePrivate(resolved.master, resolved.source),
+        },
     };
 }
 
@@ -184,22 +199,25 @@ export async function getWebScheduleDetail(guildId, request) {
     };
 }
 
-function privatePropertiesForUpdate(existing, payload, imageMode, newAssetId) {
+function privatePropertiesForUpdate(existing, payload, imageMode, newAssetId, monitor, targetType) {
     const mentionMode = payload?.mention?.mode || 'default';
     if (!['default', 'none', 'role'].includes(mentionMode)) throw new Error('メンション設定が正しくありません。');
     const roleId = mentionMode === 'role' ? String(payload?.mention?.roleId || '').trim() : null;
     if (mentionMode === 'role' && !/^\d+$/.test(roleId)) {
         throw new Error('メンションするロールを選択してください。');
     }
-    return buildPrivatePropertiesPatch(existing || {}, {
-        mention: mentionMode === 'none' ? false : true,
-        mentionRoleId: roleId,
-        assetMode: imageMode,
-        assetId: newAssetId,
-    });
+    return {
+        ...buildPrivatePropertiesPatch(existing || {}, {
+            mention: mentionMode === 'none' ? false : true,
+            mentionRoleId: roleId,
+            assetMode: imageMode,
+            assetId: newAssetId,
+        }),
+        ...buildCalendarRoutingProperties(monitor, targetType),
+    };
 }
 
-function buildRequestBody({ targetType, payload, start, monitor, privateProperties, recurrenceIncluded, recurrence }) {
+function buildRequestBody({ targetType, payload, start, privateProperties, recurrenceIncluded, recurrence }) {
     if (targetType === 'post') {
         const title = String(payload.title || '').trim();
         if (!title) throw new Error('タイトルを入力してください。');
@@ -208,9 +226,8 @@ function buildRequestBody({ targetType, payload, start, monitor, privateProperti
             throw new Error('予定の長さは1〜1440分で指定してください。');
         }
         const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
-        const trigger = cleanKeyword(monitor.trigger_keyword);
         return {
-            summary: `【${trigger}】${title}`,
+            summary: title,
             description: String(payload.body || ''),
             start: { dateTime: formatJstDateTime(start), timeZone: 'Asia/Tokyo' },
             end: { dateTime: formatJstDateTime(end), timeZone: 'Asia/Tokyo' },
@@ -225,7 +242,7 @@ function buildRequestBody({ targetType, payload, start, monitor, privateProperti
     const prizeLines = prizes.map(({ prize, winners }) => `【${prize}/${winners}】`);
     const description = [prizeLines.join('\n'), String(payload.message || '').trim()].filter(Boolean).join('\n');
     return {
-        summary: `【ラキショ】${prizes[0].prize}`,
+        summary: prizes[0].prize,
         description,
         start: { dateTime: formatJstDateTime(start), timeZone: 'Asia/Tokyo' },
         end: { dateTime: formatJstDateTime(end), timeZone: 'Asia/Tokyo' },
@@ -243,8 +260,6 @@ async function updateFutureSchedule(guildId, payload, resolved, targetType, star
         targetStart,
     );
 
-    // Selecting the first occurrence means "this and following" is equivalent
-    // to editing the whole series and does not need a split.
     if (skipped === 0) {
         return updateWebSchedule(guildId, { ...payload, scope: 'series' });
     }
@@ -273,12 +288,13 @@ async function updateFutureSchedule(guildId, payload, resolved, targetType, star
             payload,
             assetModeForNewSeries,
             newAssetId,
+            resolved.monitor,
+            targetType,
         );
         const requestBody = buildRequestBody({
             targetType,
             payload,
             start,
-            monitor: resolved.monitor,
             privateProperties,
             recurrenceIncluded: true,
             recurrence: futureRecurrence,
@@ -296,9 +312,6 @@ async function updateFutureSchedule(guildId, payload, resolved, targetType, star
                 requestBody,
             })).data;
         } catch (error) {
-            // Splitting is a two-request Calendar API operation. If creating
-            // the new half fails, restore the original rule to avoid silently
-            // deleting all later occurrences.
             await resolved.calendar.events.patch({
                 calendarId: resolved.calendarId,
                 eventId: resolved.master.id,
@@ -322,7 +335,7 @@ export async function updateWebSchedule(guildId, payload) {
         eventId: payload?.eventId,
         scope,
     });
-    const targetType = parseTriggeredSummary(resolved.target.summary || '').trigger === 'ラキショ' ? 'giveaway' : 'post';
+    const targetType = resolved.targetType;
     if (payload?.type !== targetType) throw new Error('予定の種類は編集時に変更できません。');
 
     const start = parseRequiredDateTime(payload.startTime, targetType === 'giveaway' ? '抽選開始日時' : '投稿日時');
@@ -346,12 +359,18 @@ export async function updateWebSchedule(guildId, payload) {
     let newAssetId = null;
     try {
         if (image) newAssetId = await storeCalendarPostImageBuffer(guildId, image);
-        const privateProperties = privatePropertiesForUpdate(existingPrivate, payload, imageMode, newAssetId);
+        const privateProperties = privatePropertiesForUpdate(
+            existingPrivate,
+            payload,
+            imageMode,
+            newAssetId,
+            resolved.monitor,
+            targetType,
+        );
         const requestBody = buildRequestBody({
             targetType,
             payload,
             start,
-            monitor: resolved.monitor,
             privateProperties,
             recurrenceIncluded: recurrenceAllowed,
             recurrence,
