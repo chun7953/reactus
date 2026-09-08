@@ -8,6 +8,7 @@ import './admin-announcements.js';
 import './admin-announcement-readability.js';
 import './admin-announcement-safety.js';
 import './admin-japanese-ui.js';
+import './admin-dashboard-usability.js';
 
 function setTextIfChanged(node, value) {
   if (node && node.textContent !== value) node.textContent = value;
