@@ -17,13 +17,17 @@ import {
     editGiveawayDescription,
     hasRecurrenceEdit,
     parseGiveawayDescription,
-    parseTriggeredSummary,
-    rewriteTriggeredTitle,
 } from '../../lib/calendarEditHelpers.js';
 import {
     deleteCalendarPostImage,
     storeCalendarPostImage,
 } from '../../lib/calendarPostAssets.js';
+import { resolveCalendarEventPrivateProperties } from '../../lib/calendarEventMetadata.js';
+import {
+    buildCalendarRoutingProperties,
+    calendarDisplaySummary,
+    resolveCalendarRoute,
+} from '../../lib/calendarRouting.js';
 
 const REPEAT_UNIT_CHOICES = [
     { name: '繰り返さない', value: 'once' },
@@ -197,10 +201,6 @@ function recurrencePatch(interaction, start, originalWasRecurring, scope) {
     return recurrence || [];
 }
 
-function eventIsGiveaway(event) {
-    return parseTriggeredSummary(event.summary).trigger === 'ラキショ';
-}
-
 async function imageEdit(interaction, targetEvent, originalWasRecurring, scope) {
     const attachment = interaction.options.getAttachment('image');
     const removeImage = interaction.options.getBoolean('remove_image') === true;
@@ -218,18 +218,23 @@ async function imageEdit(interaction, targetEvent, originalWasRecurring, scope) 
     return { mode: 'keep', assetId: null, oldAssetId, createdAssetId: null };
 }
 
-function privatePropertiesForEdit(interaction, targetEvent, image) {
+function privatePropertiesForEdit(interaction, targetEvent, image, route) {
     const mention = interaction.options.getBoolean('mention');
     const mentionRole = interaction.options.getRole('mention_role');
     const hasPrivateChange = mention !== null || mentionRole || image.mode !== 'keep';
-    if (!hasPrivateChange) return undefined;
-
-    return buildPrivatePropertiesPatch(targetEvent.extendedProperties?.private || {}, {
-        mention,
-        mentionRoleId: mentionRole?.id || null,
-        assetMode: image.mode,
-        assetId: image.assetId,
-    });
+    const existing = targetEvent.extendedProperties?.private || {};
+    const edited = hasPrivateChange
+        ? buildPrivatePropertiesPatch(existing, {
+            mention,
+            mentionRoleId: mentionRole?.id || null,
+            assetMode: image.mode,
+            assetId: image.assetId,
+        })
+        : { ...existing };
+    return {
+        ...edited,
+        ...buildCalendarRoutingProperties(route.monitor, route.type),
+    };
 }
 
 async function patchEvent({ calendar, auth, calendarId, eventId, requestBody }) {
@@ -302,13 +307,17 @@ export default {
             }
             const originalWasRecurring = Boolean(located.event.recurringEventId || located.event.recurrence?.length);
             const target = await resolveTargetEvent(calendar, located, scope);
+            const calendarMonitors = monitors.filter(monitor => monitor.calendar_id === target.calendarId);
+            const effectivePrivate = await resolveCalendarEventPrivateProperties(calendar, target.calendarId, target.event);
+            const route = resolveCalendarRoute(target.event, calendarMonitors, effectivePrivate);
+            if (!route) throw new Error('Reactusが管理している予定ではありません。');
             const window = currentEventWindow(target.event);
             const image = await imageEdit(interaction, target.event, originalWasRecurring, scope);
             createdAssetId = image.createdAssetId;
-            const privateProperties = privatePropertiesForEdit(interaction, target.event, image);
+            const privateProperties = privatePropertiesForEdit(interaction, target.event, image, route);
 
             if (subcommand === 'post') {
-                if (eventIsGiveaway(target.event)) {
+                if (route.type === 'giveaway') {
                     throw new Error('これは抽選予定です。`/calendaredit giveaway` を使ってください。');
                 }
                 const body = interaction.options.getString('body');
@@ -320,7 +329,11 @@ export default {
                 const durationMs = durationMinutes === null ? window.durationMs : durationMinutes * 60 * 1000;
                 const newEnd = new Date(newStart.getTime() + durationMs);
                 const recurrence = recurrencePatch(interaction, newStart, originalWasRecurring, scope);
-                const summary = rewriteTriggeredTitle(target.event.summary, interaction.options.getString('title'));
+                const requestedTitle = interaction.options.getString('title');
+                const summary = requestedTitle === null
+                    ? calendarDisplaySummary(target.event, route)
+                    : requestedTitle.trim();
+                if (!summary) throw new Error('投稿タイトルを空にはできません。');
                 const description = clearBody
                     ? ''
                     : (body === null ? (target.event.description || '') : body);
@@ -330,7 +343,7 @@ export default {
                     description,
                     start: { dateTime: formatJstDateTime(newStart), timeZone: 'Asia/Tokyo' },
                     end: { dateTime: formatJstDateTime(newEnd), timeZone: 'Asia/Tokyo' },
-                    ...(privateProperties ? { extendedProperties: { private: privateProperties } } : {}),
+                    extendedProperties: { private: privateProperties },
                     ...(recurrence !== undefined ? { recurrence } : {}),
                 };
                 const updated = await patchEvent({
@@ -344,7 +357,7 @@ export default {
             }
 
             if (subcommand === 'giveaway') {
-                if (!eventIsGiveaway(target.event)) {
+                if (route.type !== 'giveaway') {
                     throw new Error('これは通常投稿です。`/calendaredit post` を使ってください。');
                 }
                 const newStartOption = parseOptionalTime(interaction.options.getString('start_time'), '抽選開始日時');
@@ -359,7 +372,7 @@ export default {
                 const parsedExisting = parseGiveawayDescription(target.event.description || '');
                 const legacyDescription = parsedExisting.prizes.length > 0
                     ? (target.event.description || '')
-                    : `【${parseTriggeredSummary(target.event.summary).title || 'プレゼント'}/1】${target.event.description ? `\n${target.event.description}` : ''}`;
+                    : `【${calendarDisplaySummary(target.event, route) || 'プレゼント'}/1】${target.event.description ? `\n${target.event.description}` : ''}`;
                 const edited = editGiveawayDescription({
                     description: legacyDescription,
                     prize: interaction.options.getString('prize'),
@@ -372,13 +385,13 @@ export default {
                     message: interaction.options.getString('message'),
                     clearMessage: interaction.options.getBoolean('clear_message') === true,
                 });
-                const summary = `【ラキショ】${edited.prizes[0].prize}`;
+                const summary = edited.prizes[0].prize;
                 const requestBody = {
                     summary,
                     description: edited.description,
                     start: { dateTime: formatJstDateTime(newStart), timeZone: 'Asia/Tokyo' },
                     end: { dateTime: formatJstDateTime(newEnd), timeZone: 'Asia/Tokyo' },
-                    ...(privateProperties ? { extendedProperties: { private: privateProperties } } : {}),
+                    extendedProperties: { private: privateProperties },
                     ...(recurrence !== undefined ? { recurrence } : {}),
                 };
                 const updated = await patchEvent({
