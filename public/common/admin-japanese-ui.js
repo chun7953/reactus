@@ -10,9 +10,28 @@ const japaneseLabels = new Map([
   ['HISTORY', '予定の履歴'],
 ]);
 
+const beginnerFriendlyText = new Map([
+  ['投稿・抽選の監視設定', '投稿先とカレンダーの設定'],
+  ['トリガーキーワード', '予定を見分ける合図（キーワード）'],
+  ['既定メンションロール', 'いつも付けるメンション'],
+  ['監視設定を追加', '投稿先の設定を追加'],
+  ['接続設定を開く', 'Googleカレンダー・投稿先の設定を開く'],
+  ['カレンダー上の長さ', 'Googleカレンダー上の予定の長さ'],
+  ['現在のカレンダー設定を使う', 'いつもの設定を使う'],
+  ['この予定だけ別ロール', 'この予定だけ別のロールを使う'],
+]);
+
 function replaceEnglishEyebrows() {
   document.querySelectorAll('.eyebrow').forEach(node => {
     const replacement = japaneseLabels.get(node.textContent?.trim());
+    if (replacement && node.textContent !== replacement) node.textContent = replacement;
+  });
+}
+
+function replaceTechnicalLabels() {
+  document.querySelectorAll('span,strong,button,summary,option').forEach(node => {
+    const current = node.textContent?.trim();
+    const replacement = beginnerFriendlyText.get(current);
     if (replacement && node.textContent !== replacement) node.textContent = replacement;
   });
 }
@@ -53,6 +72,7 @@ function installGuideStyles() {
 
 function applyJapaneseAdminUi() {
   replaceEnglishEyebrows();
+  replaceTechnicalLabels();
   installGuideStyles();
   installBeginnerGuide();
   const heading = document.querySelector('.topbar h1');
