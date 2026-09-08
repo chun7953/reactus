@@ -4,6 +4,7 @@ import './admin-preview.js';
 import './admin-calendar-edit.js';
 import './admin-calendar-quick-create.js';
 import './admin-calendar-drag.js';
+import './admin-calendar-month-view.js';
 import './admin-announcements.js';
 import './admin-announcement-readability.js';
 import './admin-announcement-safety.js';
