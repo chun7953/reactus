@@ -15,6 +15,12 @@ import {
     deleteCalendarPostImage,
     storeCalendarPostImage,
 } from '../../lib/calendarPostAssets.js';
+import { resolveCalendarEventPrivateProperties } from '../../lib/calendarEventMetadata.js';
+import {
+    buildCalendarRoutingProperties,
+    calendarDisplaySummary,
+    resolveCalendarRoute,
+} from '../../lib/calendarRouting.js';
 
 const REPEAT_UNIT_CHOICES = [
     { name: '繰り返さない', value: 'once' },
@@ -109,14 +115,16 @@ function selectMonitor(monitors, channelId, keyword, requiredKeyword = null) {
     return candidates.length === 1 ? candidates[0] : null;
 }
 
-function privatePropertiesFromInteraction(interaction, assetId = null) {
+function privatePropertiesFromInteraction(interaction, monitor, type, assetId = null) {
     const mention = interaction.options.getBoolean('mention');
     const mentionRole = interaction.options.getRole('mention_role');
     if (mention === false && mentionRole) {
         throw new Error('メンションなしとメンションロールは同時に指定できません。');
     }
 
-    const properties = {};
+    const properties = {
+        ...buildCalendarRoutingProperties(monitor, type),
+    };
     if (mention === false) {
         properties.reactusMentionMode = 'none';
     } else if (mentionRole) {
@@ -190,7 +198,7 @@ async function persistOptionalImage(interaction) {
     return storeCalendarPostImage(interaction.guildId, attachment);
 }
 
-async function insertWithOptionalImage({ interaction, calendar, auth, monitor, eventData }) {
+async function insertWithOptionalImage({ interaction, calendar, auth, monitor, type, eventData }) {
     let assetId = null;
     try {
         assetId = await persistOptionalImage(interaction);
@@ -199,7 +207,7 @@ async function insertWithOptionalImage({ interaction, calendar, auth, monitor, e
             auth,
             monitor,
             ...eventData,
-            privateProperties: privatePropertiesFromInteraction(interaction, assetId),
+            privateProperties: privatePropertiesFromInteraction(interaction, monitor, type, assetId),
         });
     } catch (error) {
         if (assetId) await deleteCalendarPostImage(assetId, interaction.guildId).catch(() => {});
@@ -282,7 +290,6 @@ export default {
                 const durationMinutes = interaction.options.getInteger('duration_minutes') || 30;
                 const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
                 const recurrence = recurrenceFromInteraction(interaction, start);
-                const trigger = cleanKeyword(monitor.trigger_keyword);
                 const title = interaction.options.getString('title').trim();
                 const body = interaction.options.getString('body') || '';
                 const event = await insertWithOptionalImage({
@@ -290,8 +297,9 @@ export default {
                     calendar,
                     auth,
                     monitor,
+                    type: 'post',
                     eventData: {
-                        summary: `【${trigger}】${title}`,
+                        summary: title,
                         description: body,
                         start,
                         end,
@@ -304,7 +312,7 @@ export default {
             if (subcommand === 'giveaway') {
                 const monitor = selectMonitor(monitors, interaction.channelId, null, 'ラキショ');
                 if (!monitor) {
-                    return interaction.editReply('このチャンネルに `ラキショ` のカレンダー監視がありません。先に `/setcalendar trigger_keyword:ラキショ` を設定してください。');
+                    return interaction.editReply('このチャンネルに抽選用のカレンダー設定がありません。先に `/setcalendar` で設定してください。');
                 }
 
                 const start = parseRequiredTime(interaction.options.getString('start_time'), '抽選開始日時');
@@ -331,8 +339,9 @@ export default {
                     calendar,
                     auth,
                     monitor,
+                    type: 'giveaway',
                     eventData: {
-                        summary: `【ラキショ】${activePrizes[0][0].trim()}`,
+                        summary: activePrizes[0][0].trim(),
                         description,
                         start,
                         end,
@@ -346,15 +355,16 @@ export default {
                 const days = interaction.options.getInteger('days') || 30;
                 const byCalendar = new Map();
                 for (const monitor of monitors) {
-                    if (!byCalendar.has(monitor.calendar_id)) byCalendar.set(monitor.calendar_id, new Set());
-                    byCalendar.get(monitor.calendar_id).add(cleanKeyword(monitor.trigger_keyword));
+                    if (!byCalendar.has(monitor.calendar_id)) byCalendar.set(monitor.calendar_id, []);
+                    byCalendar.get(monitor.calendar_id).push(monitor);
                 }
                 if (byCalendar.size === 0) return interaction.editReply('このサーバーにはカレンダー監視が登録されていません。');
 
                 const now = new Date();
                 const timeMax = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
                 const rows = [];
-                for (const [calendarId, keywords] of byCalendar) {
+                const masterMetadataCache = new Map();
+                for (const [calendarId, calendarMonitors] of byCalendar) {
                     const response = await calendar.events.list({
                         calendarId,
                         timeMin: now.toISOString(),
@@ -365,19 +375,25 @@ export default {
                         timeZone: 'Asia/Tokyo',
                     });
                     for (const event of response.data.items || []) {
-                        const text = `${event.summary || ''}\n${event.description || ''}`;
-                        if (![...keywords].some(keyword => text.includes(`【${keyword}】`))) continue;
+                        const privateProperties = await resolveCalendarEventPrivateProperties(
+                            calendar,
+                            calendarId,
+                            event,
+                            masterMetadataCache,
+                        );
+                        const route = resolveCalendarRoute(event, calendarMonitors, privateProperties);
+                        if (!route) continue;
                         const start = new Date(event.start?.dateTime || event.start?.date);
-                        rows.push({ event, start });
+                        rows.push({ event, start, route, privateProperties });
                     }
                 }
                 rows.sort((a, b) => a.start - b.start);
                 if (rows.length === 0) return interaction.editReply(`今後${days}日以内の自動投稿予定はありません。`);
 
-                const lines = rows.slice(0, 20).map(({ event, start }) => {
+                const lines = rows.slice(0, 20).map(({ event, start, route, privateProperties }) => {
                     const series = event.recurringEventId ? ' 🔁' : '';
-                    const image = event.extendedProperties?.private?.reactusAssetId ? ' 🖼️' : '';
-                    return `<t:${Math.floor(start.getTime() / 1000)}:f>${series}${image} **${event.summary || 'タイトルなし'}**\nID: \`${event.id}\``;
+                    const image = privateProperties.reactusAssetId ? ' 🖼️' : '';
+                    return `<t:${Math.floor(start.getTime() / 1000)}:f>${series}${image} **${calendarDisplaySummary(event, route)}**\nID: \`${event.id}\``;
                 });
                 if (rows.length > 20) lines.push(`…ほか ${rows.length - 20} 件`);
                 return interaction.editReply(lines.join('\n\n'));
@@ -391,12 +407,15 @@ export default {
                     try {
                         const response = await calendar.events.get({ calendarId, eventId });
                         const event = response.data;
+                        const calendarMonitors = monitors.filter(monitor => monitor.calendar_id === calendarId);
+                        const privateProperties = await resolveCalendarEventPrivateProperties(calendar, calendarId, event);
+                        if (!resolveCalendarRoute(event, calendarMonitors, privateProperties)) continue;
                         const deleteSeries = scope === 'series' && event.recurringEventId;
                         const deleteId = deleteSeries ? event.recurringEventId : event.id;
-                        let assetId = event.extendedProperties?.private?.reactusAssetId || null;
-                        if (deleteSeries && !assetId) {
+                        let assetId = privateProperties.reactusAssetId || null;
+                        if (deleteSeries) {
                             const master = await calendar.events.get({ calendarId, eventId: event.recurringEventId });
-                            assetId = master.data.extendedProperties?.private?.reactusAssetId || null;
+                            assetId = master.data.extendedProperties?.private?.reactusAssetId || assetId;
                         }
                         await calendar.events.delete({ calendarId, eventId: deleteId });
                         if (!event.recurringEventId || deleteSeries) {
