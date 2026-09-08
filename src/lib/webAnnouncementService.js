@@ -9,6 +9,12 @@ function createUserError(message, statusCode = 400) {
     return error;
 }
 
+function normalizeChannelId(value) {
+    const id = String(value || '').trim();
+    if (!/^\d{15,22}$/.test(id)) throw createUserError('チャンネルを選択してください。');
+    return id;
+}
+
 export function normalizeAnnouncementText(value) {
     const text = String(value ?? '').replace(/\r\n?/g, '\n');
     if (!text.trim()) throw createUserError('案内文を入力してください。');
@@ -19,8 +25,7 @@ export function normalizeAnnouncementText(value) {
 }
 
 async function resolveAnnouncementChannel(guild, channelId) {
-    const id = String(channelId || '').trim();
-    if (!/^\d{15,22}$/.test(id)) throw createUserError('チャンネルを選択してください。');
+    const id = normalizeChannelId(channelId);
     const channel = guild.channels.cache.get(id) || await guild.channels.fetch(id).catch(() => null);
     if (!channel || !channel.isTextBased?.() || typeof channel.send !== 'function') {
         throw createUserError('案内を表示できるテキストチャンネルを選択してください。');
@@ -54,6 +59,7 @@ export async function listWebAnnouncements(guildId, guild) {
     return result.rows.map(row => ({
         channelId: row.channel_id,
         channelName: guild.channels.cache.get(row.channel_id)?.name || row.channel_id,
+        channelExists: Boolean(guild.channels.cache.get(row.channel_id)),
         message: row.message,
     }));
 }
@@ -97,19 +103,21 @@ export async function saveWebAnnouncement(guildId, payload, guild) {
 }
 
 export async function deleteWebAnnouncement(guildId, payload, guild) {
-    const channel = await resolveAnnouncementChannel(guild, payload?.channelId);
+    const channelId = normalizeChannelId(payload?.channelId);
     const pool = await getDBPool();
     const previous = await pool.query(
         'SELECT message FROM announcements WHERE guild_id = $1 AND channel_id = $2',
-        [guildId, channel.id],
+        [guildId, channelId],
     );
     const previousMessage = previous.rows[0]?.message || null;
     const result = await pool.query(
         'DELETE FROM announcements WHERE guild_id = $1 AND channel_id = $2',
-        [guildId, channel.id],
+        [guildId, channelId],
     );
-    invalidateAnnouncement(guildId, channel.id);
-    const removedVisibleMessages = previousMessage
+    invalidateAnnouncement(guildId, channelId);
+
+    const channel = guild.channels.cache.get(channelId) || await guild.channels.fetch(channelId).catch(() => null);
+    const removedVisibleMessages = previousMessage && channel?.isTextBased?.() && typeof channel.send === 'function'
         ? await deleteVisibleCopies(channel, [previousMessage])
         : 0;
     return {
