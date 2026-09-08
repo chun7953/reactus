@@ -1,8 +1,8 @@
-// src/commands/announce/startannounce.js (修正後・完全版)
+// src/commands/announce/startannounce.js
 
 import { SlashCommandBuilder, PermissionsBitField, MessageFlags } from 'discord.js';
 import { triggerAutoBackup } from '../../lib/autoBackup.js';
-import { getDBPool } from '../../lib/settingsCache.js';
+import { getDBPool, invalidateAnnouncement } from '../../lib/settingsCache.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -25,6 +25,7 @@ export default {
                 ON CONFLICT (guild_id, channel_id) DO UPDATE SET message = excluded.message
             `;
             await pool.query(sql, [guildId, channel.id, messageContent]);
+            invalidateAnnouncement(guildId, channel.id);
 
             await channel.send({
                 content: messageContent,
@@ -32,7 +33,7 @@ export default {
             });
 
             const backupSuccess = await triggerAutoBackup(guildId);
-            const backupMessage = backupSuccess ? "\n設定は自動でバックアップされました。" : "\n注意: 設定のバックアップに失敗しました。";
+            const backupMessage = backupSuccess ? '\n設定は自動でバックアップされました。' : '\n注意: 設定のバックアップに失敗しました。';
 
             await interaction.editReply(`✅ アナウンスを設定し、最初のメッセージを送信しました。${backupMessage}`);
         } catch (error) {

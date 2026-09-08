@@ -1,27 +1,53 @@
-// src/lib/settingsCache.js (修正後・完全版)
+// src/lib/settingsCache.js
 
 import { closeDatabase, initializeDatabase } from '../db/database.js';
+import { createAsyncCache } from './asyncCache.js';
+
+const HOT_SETTINGS_TTL_MS = 60_000;
+const hotSettingsCache = createAsyncCache({ ttlMs: HOT_SETTINGS_TTL_MS });
+
+function reactionKey(guildId) {
+    return `reaction:${guildId}`;
+}
+
+function announcementKey(guildId, channelId) {
+    return `announcement:${guildId}:${channelId}`;
+}
 
 export async function getDBPool() {
     return initializeDatabase();
 }
 
 export async function closeDBPool() {
+    hotSettingsCache.clear();
     return closeDatabase();
 }
 
-// --- Getter Functions (データベースから直接取得) ---
+export function invalidateReactionSettings(guildId) {
+    hotSettingsCache.invalidate(reactionKey(guildId));
+}
+
+export function invalidateAnnouncement(guildId, channelId) {
+    hotSettingsCache.invalidate(announcementKey(guildId, channelId));
+}
+
+export function invalidateGuildHotSettings(guildId) {
+    const reactionPrefix = reactionKey(guildId);
+    const announcementPrefix = `announcement:${guildId}:`;
+    hotSettingsCache.invalidateWhere(key => key === reactionPrefix || key.startsWith(announcementPrefix));
+}
+
 export const get = {
-    reactionSettings: async (guildId) => {
+    reactionSettings: async (guildId) => hotSettingsCache.get(reactionKey(guildId), async () => {
         const db = await getDBPool();
         const res = await db.query('SELECT * FROM reactions WHERE guild_id = $1', [guildId]);
         return res.rows || [];
-    },
-    announcement: async (guildId, channelId) => {
+    }),
+    announcement: async (guildId, channelId) => hotSettingsCache.get(announcementKey(guildId, channelId), async () => {
         const db = await getDBPool();
         const res = await db.query('SELECT * FROM announcements WHERE guild_id = $1 AND channel_id = $2', [guildId, channelId]);
         return res.rows[0];
-    },
+    }),
     monitorsByGuild: async (guildId) => {
         const db = await getDBPool();
         const res = await db.query('SELECT * FROM calendar_monitors WHERE guild_id = $1', [guildId]);
@@ -58,5 +84,3 @@ export const get = {
         return res.rows || [];
     },
 };
-
-// initializeCache 関数は不要になったため削除します。
