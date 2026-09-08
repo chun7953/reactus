@@ -3,7 +3,14 @@ import { getDBPool } from './settingsCache.js';
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
+function requireGuildId(guildId) {
+    const value = String(guildId || '').trim();
+    if (!value) throw new Error('画像を操作するDiscordサーバーを特定できません。');
+    return value;
+}
+
 async function insertCalendarPostImage(guildId, { filename, contentType, data }) {
+    const scopedGuildId = requireGuildId(guildId);
     if (!contentType?.startsWith('image/')) {
         throw new Error('画像ファイルを指定してください。');
     }
@@ -20,7 +27,7 @@ async function insertCalendarPostImage(guildId, { filename, contentType, data })
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [
             id,
-            guildId,
+            scopedGuildId,
             filename || 'image',
             contentType,
             buffer.byteLength,
@@ -56,31 +63,37 @@ export async function storeCalendarPostImageBuffer(guildId, { filename, contentT
     return insertCalendarPostImage(guildId, { filename, contentType, data });
 }
 
-export async function getCalendarPostImage(assetId) {
+export async function getCalendarPostImage(assetId, guildId) {
     if (!assetId) return null;
+    const scopedGuildId = requireGuildId(guildId);
     const pool = await getDBPool();
     const result = await pool.query(
         `SELECT id, filename, content_type, size_bytes, data
            FROM calendar_post_assets
-          WHERE id = $1`,
-        [assetId],
+          WHERE id = $1 AND guild_id = $2`,
+        [assetId, scopedGuildId],
     );
     return result.rows[0] || null;
 }
 
 export async function cloneCalendarPostImage(guildId, assetId) {
-    const source = await getCalendarPostImage(assetId);
+    const scopedGuildId = requireGuildId(guildId);
+    const source = await getCalendarPostImage(assetId, scopedGuildId);
     if (!source) return null;
-    return insertCalendarPostImage(guildId, {
+    return insertCalendarPostImage(scopedGuildId, {
         filename: source.filename,
         contentType: source.content_type,
         data: source.data,
     });
 }
 
-export async function deleteCalendarPostImage(assetId) {
+export async function deleteCalendarPostImage(assetId, guildId) {
     if (!assetId) return false;
+    const scopedGuildId = requireGuildId(guildId);
     const pool = await getDBPool();
-    const result = await pool.query('DELETE FROM calendar_post_assets WHERE id = $1', [assetId]);
+    const result = await pool.query(
+        'DELETE FROM calendar_post_assets WHERE id = $1 AND guild_id = $2',
+        [assetId, scopedGuildId],
+    );
     return result.rowCount > 0;
 }

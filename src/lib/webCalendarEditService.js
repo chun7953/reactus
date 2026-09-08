@@ -309,7 +309,7 @@ async function updateFutureSchedule(guildId, payload, resolved, targetType, star
             throw error;
         }
     } catch (error) {
-        if (newAssetId) await deleteCalendarPostImage(newAssetId).catch(() => {});
+        if (newAssetId) await deleteCalendarPostImage(newAssetId, guildId).catch(() => {});
         if (error?.code === 403) throw new Error(permissionHelp(resolved.auth, resolved.calendarId));
         throw error;
     }
@@ -371,11 +371,11 @@ export async function updateWebSchedule(guildId, payload) {
         }
 
         if (imageMode !== 'keep' && oldAssetId) {
-            await deleteCalendarPostImage(oldAssetId).catch(() => {});
+            await deleteCalendarPostImage(oldAssetId, guildId).catch(() => {});
         }
         return updated;
     } catch (error) {
-        if (newAssetId) await deleteCalendarPostImage(newAssetId).catch(() => {});
+        if (newAssetId) await deleteCalendarPostImage(newAssetId, guildId).catch(() => {});
         throw error;
     }
 }
