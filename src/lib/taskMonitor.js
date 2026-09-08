@@ -13,6 +13,7 @@ import {
     recoverStaleGiveawayClaims,
 } from './giveawayLifecycle.js';
 import { buildCalendarNotificationKey } from './calendarNotificationKey.js';
+import { getCalendarPostImage } from './calendarPostAssets.js';
 import { createMonitorController } from './monitorController.js';
 
 function basicDecodeHtmlEntities(text) {
@@ -25,6 +26,35 @@ function basicDecodeHtmlEntities(text) {
                .replace(/&quot;/g, '"')
                .replace(/&#39;/g, "'")
                .replace(/&apos;/g, "'");
+}
+
+function eventMentions(event, monitor) {
+    const properties = event.extendedProperties?.private || {};
+    const mode = properties.reactusMentionMode;
+    const mentions = new Set();
+
+    if (mode === 'role' && properties.reactusMentionRoleId) {
+        mentions.add(`<@&${properties.reactusMentionRoleId}>`);
+    } else if (mode !== 'none' && monitor.mention_role) {
+        mentions.add(`<@&${monitor.mention_role}>`);
+    }
+    return mentions;
+}
+
+async function eventImageFile(event) {
+    const assetId = event.extendedProperties?.private?.reactusAssetId;
+    if (!assetId) return null;
+    try {
+        const asset = await getCalendarPostImage(assetId);
+        if (!asset) {
+            console.warn(`[TaskMonitor] カレンダー投稿画像 ${assetId} が見つかりません。`);
+            return null;
+        }
+        return { attachment: asset.data, name: asset.filename };
+    } catch (error) {
+        console.error(`[TaskMonitor] カレンダー投稿画像 ${assetId} の取得に失敗:`, error);
+        return null;
+    }
 }
 
 async function checkCalendarEvents(client) {
@@ -73,7 +103,7 @@ async function checkCalendarEvents(client) {
                             const descriptionLines = eventDescription.split('\n').map(line => line.trim()).filter(line => line.length > 0);
                             let prizesToCreate = [];
                             let additionalMessageContent = [];
-                            let allMentionsForSeparatePost = new Set();
+                            let allMentionsForSeparatePost = eventMentions(event, monitor);
                             for (const line of descriptionLines) {
                                 const prizeMatch = line.match(/^【(.+)\/(\d+)】$/);
                                 if (prizeMatch) {
@@ -96,9 +126,9 @@ async function checkCalendarEvents(client) {
                                 prizesToCreate.push({ prize: '素敵なプレゼント', winnerCount: 1 });
                             }
                             const endTime = new Date(event.end.dateTime || event.end.date);
-                            if (monitor.mention_role) allMentionsForSeparatePost.add(`<@&${monitor.mention_role}>`);
                             const finalMentionsForSeparatePost = Array.from(allMentionsForSeparatePost).join(' ').trim();
                             const finalAdditionalMessageText = additionalMessageContent.join('\n').trim();
+                            const imageFile = await eventImageFile(event);
                             const giveawayChannel = await client.channels.fetch(monitor.channel_id).catch(() => null);
                             if (giveawayChannel) {
                                 for (const prizeInfo of prizesToCreate) {
@@ -112,8 +142,12 @@ async function checkCalendarEvents(client) {
                                     await pool.query(sql, [message.id, monitor.guild_id, giveawayChannel.id, prizeInfo.prize, prizeInfo.winnerCount, endTime]);
                                     console.log(`カレンダーから自動作成された抽選「${prizeInfo.prize}」がチャンネル ${giveawayChannel.id} で開始されました。`);
                                 }
-                                if (finalAdditionalMessageText || finalMentionsForSeparatePost) {
-                                    await giveawayChannel.send(`${finalMentionsForSeparatePost}\n${finalAdditionalMessageText}`.trim());
+                                if (finalAdditionalMessageText || finalMentionsForSeparatePost || imageFile) {
+                                    const content = `${finalMentionsForSeparatePost}\n${finalAdditionalMessageText}`.trim();
+                                    await giveawayChannel.send({
+                                        ...(content ? { content } : {}),
+                                        ...(imageFile ? { files: [imageFile] } : {}),
+                                    });
                                 }
                                 await recordNotification(pool, notificationKey);
                             } else {
@@ -129,8 +163,7 @@ async function checkCalendarEvents(client) {
                              console.error(`[TaskMonitor ERROR] 指定された通知チャンネル ${monitor.channel_id} が見つからないか、アクセスできません。`);
                              continue;
                         }
-                        let allMentions = new Set();
-                        if (monitor.mention_role) allMentions.add(`<@&${monitor.mention_role}>`);
+                        let allMentions = eventMentions(event, monitor);
                         let cleanedDescription = eventDescription || '';
                         const mentionMatches = cleanedDescription.match(/<@&[0-9]+>|<@[0-9]+>|<@everyone>|<@here>/g);
                         if (mentionMatches) {
@@ -141,8 +174,11 @@ async function checkCalendarEvents(client) {
                         let message = `**${event.summary || 'タイトルなし'}**`;
                         if (cleanedDescription) message += `\n${cleanedDescription}`;
                         if (finalMentions.trim()) message += `\n\n${finalMentions.trim()}`;
+                        const imageFile = await eventImageFile(event);
                         try {
-                            await deliverAndRecordNotification(pool, notificationKey, () => channel.send(message));
+                            await deliverAndRecordNotification(pool, notificationKey, () => channel.send(imageFile
+                                ? { content: message, files: [imageFile] }
+                                : message));
                         } catch (sendError) {
                             console.error(`[TaskMonitor ERROR] カレンダーイベント ${event.id} の通知送信に失敗:`, sendError);
                         }

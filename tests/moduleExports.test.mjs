@@ -15,12 +15,14 @@ function filesBelow(directory) {
     });
 }
 
-test('all command modules expose command data and an execute function', async (t) => {
+test('all command modules expose valid command data and an execute function', async (t) => {
     for (const file of filesBelow(commandRoot)) {
         await t.test(path.relative(commandRoot, file), async () => {
             const { default: command } = await import(pathToFileURL(file));
             assert.equal(typeof command?.data?.name, 'string');
             assert.equal(typeof command?.execute, 'function');
+            assert.equal(typeof command?.data?.toJSON, 'function');
+            assert.doesNotThrow(() => command.data.toJSON());
         });
     }
 });
