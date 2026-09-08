@@ -1,9 +1,10 @@
 import { google } from 'googleapis';
 import { initializeSheetsAPI } from './sheetsAPI.js';
 import { get } from './settingsCache.js';
-import { formatJstDateTime, parseJstDateTime } from './calendarScheduling.js';
+import { parseJstDateTime } from './calendarScheduling.js';
 import { parseTriggeredSummary } from './calendarEditHelpers.js';
 import { cloneCalendarPostImage, deleteCalendarPostImage } from './calendarPostAssets.js';
+import { buildDuplicatedEventBody } from './calendarDuplicateHelpers.js';
 
 function cleanKeyword(value) {
     return String(value || '').replace(/[【】]/g, '').trim();
@@ -42,13 +43,6 @@ export async function duplicateWebSchedule(guildId, { calendarId, eventId, start
     const monitor = calendarMonitors.find(candidate => cleanKeyword(candidate.trigger_keyword) === trigger);
     if (!monitor) throw new Error('Reactusが管理している予定ではありません。');
 
-    const oldStart = new Date(source.start?.dateTime || source.start?.date);
-    const oldEnd = new Date(source.end?.dateTime || source.end?.date);
-    if (Number.isNaN(oldStart.getTime()) || Number.isNaN(oldEnd.getTime()) || oldEnd <= oldStart) {
-        throw new Error('複製元の予定時間を読み取れません。');
-    }
-    const newEnd = new Date(newStart.getTime() + (oldEnd.getTime() - oldStart.getTime()));
-
     const sourcePrivate = source.extendedProperties?.private || {};
     const sourceAssetId = sourcePrivate.reactusAssetId || null;
     let clonedAssetId = null;
@@ -57,22 +51,13 @@ export async function duplicateWebSchedule(guildId, { calendarId, eventId, start
             clonedAssetId = await cloneCalendarPostImage(guildId, sourceAssetId);
             if (!clonedAssetId) throw new Error('複製元の画像を読み込めませんでした。');
         }
-        const privateProperties = {
-            ...sourcePrivate,
-            ...(clonedAssetId ? { reactusAssetId: clonedAssetId } : {}),
-        };
-        if (!clonedAssetId) delete privateProperties.reactusAssetId;
 
-        const response = await calendar.events.insert({
-            calendarId,
-            requestBody: {
-                summary: source.summary || `【${cleanKeyword(monitor.trigger_keyword)}】複製`,
-                description: source.description || '',
-                start: { dateTime: formatJstDateTime(newStart), timeZone: 'Asia/Tokyo' },
-                end: { dateTime: formatJstDateTime(newEnd), timeZone: 'Asia/Tokyo' },
-                extendedProperties: { private: privateProperties },
-            },
+        const requestBody = buildDuplicatedEventBody(source, newStart, {
+            assetId: clonedAssetId,
+            fallbackSummary: `【${cleanKeyword(monitor.trigger_keyword)}】複製`,
         });
+
+        const response = await calendar.events.insert({ calendarId, requestBody });
         return response.data;
     } catch (error) {
         if (clonedAssetId) await deleteCalendarPostImage(clonedAssetId).catch(() => {});
