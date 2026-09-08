@@ -10,31 +10,37 @@ export default {
             .setTitle('Reactus Bot コマンド一覧')
             .setDescription('このボットで利用できるコマンドの一覧です。')
             .addFields(
-                { 
-                    name: 'リアクション管理', 
+                {
+                    name: 'リアクション管理',
                     value: '`/setreaction` - 自動リアクションを設定\n' +
                            '`/removereaction` - 設定を解除\n' +
                            '`/reacttomessage` - 既存メッセージにリアクションを適用'
                 },
                 {
                     name: 'カレンダー連携',
-                    value: '`/register-main-calendar` - サーバーのメインカレンダーを登録\n' +
+                    value: '`/calendarpost post` - 通常の予約・定期投稿を作成\n' +
+                           '`/calendarpost giveaway` - 期間付き抽選を予約・定期作成\n' +
+                           '`/calendarpost list` - 今後の自動投稿予定を表示\n' +
+                           '`/calendarpost delete` - 予定を削除\n' +
+                           '`/calendaredit post` - 登録済みの通常投稿を編集\n' +
+                           '`/calendaredit giveaway` - 登録済みの抽選予定を編集\n' +
+                           '`/register-main-calendar` - サーバーのメインカレンダーを登録\n' +
                            '`/setcalendar` - チャンネルにカレンダー通知を設定\n' +
                            '`/removecalendar` - カレンダー通知設定を解除'
                 },
                 { name: 'アナウンス機能', value: '`/startannounce` - 自動アナウンスを開始\n`/stopannounce` - アナウンスを停止' },
                 {
-                    name: '抽選機能', // ★ カテゴリ名を変更
-                    value: '`/giveaway start` - 抽選を開始\n' +
-                           '`/giveaway schedule` - 抽選を予約\n' +
+                    name: '抽選機能',
+                    value: '`/giveaway start` - 抽選を今すぐ開始\n' +
+                           '`/giveaway schedule` - 単発の抽選を予約\n' +
                            '`/giveaway end` - 抽選を早期終了\n' +
                            '`/giveaway reroll` - 再抽選\n' +
                            '`/giveaway list` - 抽選一覧を表示\n' +
-                           '`/giveaway delete` - 抽選を完全削除\n' + // ★ 追加
+                           '`/giveaway delete` - 抽選を完全削除\n' +
                            '`/giveaway-permission` - 抽選の管理権限を設定'
                 },
-                { 
-                    name: 'ユーティリティ', 
+                {
+                    name: 'ユーティリティ',
                     value: '`/poll` - 投票を作成\n' +
                            '`/csvreactions` - リアクションをCSVで集計\n' +
                            '`/listsettings` - 全ての自動設定を一覧表示'
