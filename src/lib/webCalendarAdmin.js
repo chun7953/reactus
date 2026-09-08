@@ -10,6 +10,7 @@ import {
     deleteCalendarPostImage,
     storeCalendarPostImageBuffer,
 } from './calendarPostAssets.js';
+import { listAllCalendarEvents } from './calendarEventPager.js';
 
 function cleanKeyword(value) {
     return String(value || '').replace(/[【】]/g, '').trim();
@@ -193,7 +194,7 @@ export async function listWebSchedules(guildId, days = 90) {
     const timeMax = new Date(now.getTime() + safeDays * 24 * 60 * 60 * 1000);
     const rows = [];
     for (const [calendarId, calendarMonitors] of byCalendar) {
-        const response = await calendar.events.list({
+        const events = await listAllCalendarEvents(calendar, {
             calendarId,
             timeMin: now.toISOString(),
             timeMax: timeMax.toISOString(),
@@ -202,7 +203,7 @@ export async function listWebSchedules(guildId, days = 90) {
             maxResults: 250,
             timeZone: 'Asia/Tokyo',
         });
-        for (const event of response.data.items || []) {
+        for (const event of events) {
             const text = `${event.summary || ''}\n${event.description || ''}`;
             const monitor = calendarMonitors.find(candidate => text.includes(`【${cleanKeyword(candidate.trigger_keyword)}】`));
             if (!monitor) continue;
