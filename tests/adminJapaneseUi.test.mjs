@@ -24,7 +24,7 @@ test('web admin keeps Japanese fallbacks for dynamically created sections', asyn
   assert.match(source, /\['EDIT SCHEDULE', '予定を編集中'\]/);
   assert.match(source, /\['CALENDAR', '月カレンダー'\]/);
   assert.match(source, /\['REACTIONS', '自動リアクション'\]/);
-  assert.match(source, /\['HISTORY', '予定の履歴'\]/);
+  assert.doesNotMatch(source, /\['HISTORY', '予定の履歴'\]/);
 });
 
 test('web admin explains technical settings in beginner-friendly words', async () => {
