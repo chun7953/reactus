@@ -20,3 +20,11 @@ test('admin Discord preview covers posts, multi-prize giveaways, mentions, image
     assert.match(source, /reactionRules/);
     assert.match(source, /guildEmojis/);
 });
+
+test('admin Discord preview mirrors production newline layout and treats datetime-local as JST', async () => {
+    const source = await readFile(previewPath, 'utf8');
+    assert.match(source, /if \(cleaned\) content \+= `\\n\$\{cleaned\}`;/);
+    assert.match(source, /if \(mentions\) content \+= `\\n\\n\$\{mentions\}`;/);
+    assert.match(source, /\+09:00/);
+    assert.match(source, /function parseJstDateTimeInput/);
+});
