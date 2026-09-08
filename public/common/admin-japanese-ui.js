@@ -24,6 +24,16 @@ const beginnerFriendlyText = new Map([
   ['よく使うDiscord絵文字', 'よく使う絵文字'],
 ]);
 
+const beginnerPhrasePatterns = [
+  [/自動リアクション（トリガー:/g, '自動リアクション（反応する言葉:'],
+  [/トリガーを入力してください。/g, '反応する言葉を入力してください。'],
+  [/トリガーは(\d+)文字以内にしてください。/g, '反応する言葉は$1文字以内にしてください。'],
+  [/トリガーキーワードを入力してください。/g, '予定を見分ける合図（キーワード）を入力してください。'],
+  [/トリガーキーワードは(\d+)文字以内にしてください。/g, '予定を見分ける合図（キーワード）は$1文字以内にしてください。'],
+  [/投稿先やトリガーを追加・変更/g, '投稿先や予定を見分ける合図を追加・変更'],
+  [/抽選用はトリガーを「ラキショ」にします。/g, '抽選用は予定を見分ける合図を「ラキショ」にします。'],
+];
+
 const beginnerActions = [
   { target: 'schedulePanel', title: '予定・抽選を作る', text: '日時や繰り返しを決めて、Googleカレンダーへ登録します。' },
   { target: 'announcementPanel', title: 'チャンネル下部に案内を出す', text: '長文・改行・チャンネルリンクを含む案内文を設定できます。' },
@@ -44,6 +54,16 @@ function replaceTechnicalLabels() {
     const current = node.textContent?.trim();
     const replacement = beginnerFriendlyText.get(current);
     if (replacement && node.textContent !== replacement) node.textContent = replacement;
+  });
+}
+
+function replaceTechnicalSentences() {
+  document.querySelectorAll('.hint,.discord-preview-meta,#notice').forEach(node => {
+    let next = node.textContent || '';
+    for (const [pattern, replacement] of beginnerPhrasePatterns) {
+      next = next.replace(pattern, replacement);
+    }
+    if (node.textContent !== next) node.textContent = next;
   });
 }
 
@@ -124,6 +144,7 @@ function makeGoogleLinksClearer() {
 function applyJapaneseAdminUi() {
   replaceEnglishEyebrows();
   replaceTechnicalLabels();
+  replaceTechnicalSentences();
   preparePanelIds();
   installGuideStyles();
   installBeginnerGuide();

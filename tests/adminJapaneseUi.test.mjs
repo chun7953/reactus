@@ -35,6 +35,12 @@ test('web admin explains technical settings in beginner-friendly words', async (
   assert.match(source, /反応する言葉/);
   assert.match(source, /自動で付ける絵文字/);
   assert.match(source, /Reactus 管理画面/);
+  assert.match(source, /自動リアクション（反応する言葉:/);
+  assert.match(source, /反応する言葉を入力してください。/);
+  assert.match(source, /予定を見分ける合図（キーワード）を入力してください。/);
+  assert.match(source, /投稿先や予定を見分ける合図を追加・変更/);
+  assert.match(source, /抽選用は予定を見分ける合図を「ラキショ」にします。/);
+  assert.match(source, /\.hint,.discord-preview-meta,#notice/);
 });
 
 test('web admin offers purpose-based navigation for common tasks', async () => {
