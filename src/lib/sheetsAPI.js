@@ -1,5 +1,5 @@
 import { google } from 'googleapis';
-import config from '../config.js'; // ★ configから直接読み込む
+import config from '../config.js';
 
 let auth;
 let sheets;
@@ -14,8 +14,8 @@ export async function initializeSheetsAPI() {
         throw new Error('GOOGLE_SHEETS_CREDENTIALS environment variable not set.');
     }
 
-const decodedCredentials = Buffer.from(credentialsJson, 'base64').toString('utf-8');
-const credentials = JSON.parse(decodedCredentials);
+    const decodedCredentials = Buffer.from(credentialsJson, 'base64').toString('utf-8');
+    const credentials = JSON.parse(decodedCredentials);
 
     auth = new google.auth.GoogleAuth({
         credentials: {
@@ -24,16 +24,14 @@ const credentials = JSON.parse(decodedCredentials);
         },
         scopes: [
             'https://www.googleapis.com/auth/spreadsheets',
-            'https://www.googleapis.com/auth/calendar.readonly',
+            'https://www.googleapis.com/auth/calendar.events',
         ],
     });
 
     const authClient = await auth.getClient();
     sheets = google.sheets({ version: 'v4', auth: authClient });
-    
     auth.email = credentials.client_email;
 
     console.log(`✅ Google Service Account authenticated successfully for ${auth.email}`);
-
     return { auth, sheets, spreadsheetId: config.sheets.spreadsheetId };
 }
