@@ -181,9 +181,7 @@ async function checkCalendarEvents(client) {
     } catch (error) { console.error('[TaskMonitor] カレンダーチェック中に予期せぬエラーが発生しました:', error); }
 }
 
-async function checkFinishedGiveaways(client) {
-    const now = new Date();
-    const activeGiveaways = await get.allActiveGiveaways();
+async function checkFinishedGiveaways(client, activeGiveaways, now = new Date()) {
     const finishedGiveaways = activeGiveaways.filter(g => new Date(g.end_time) <= now);
     if (finishedGiveaways.length === 0) return;
     const pool = await getDBPool();
@@ -279,8 +277,7 @@ async function recoverInterruptedGiveaways() {
     }
 }
 
-async function validateActiveGiveaways(client) {
-    const activeGiveaways = await get.allActiveGiveaways();
+async function validateActiveGiveaways(client, activeGiveaways) {
     if (activeGiveaways.length === 0) return;
 
     const pool = await getDBPool();
@@ -344,8 +341,11 @@ async function cleanupOldGiveaways() {
 async function runHighFrequencyTasks(client) {
     try {
         await recoverInterruptedGiveaways();
-        await checkFinishedGiveaways(client);
-        await validateActiveGiveaways(client);
+        const now = new Date();
+        const activeGiveaways = await get.allActiveGiveaways();
+        await checkFinishedGiveaways(client, activeGiveaways, now);
+        const remainingGiveaways = activeGiveaways.filter(g => new Date(g.end_time) > now);
+        await validateActiveGiveaways(client, remainingGiveaways);
         await checkScheduledGiveaways(client);
     } catch (error) { console.error('[TaskMonitor] 高頻度タスクループ中にエラー:', error); }
 }
