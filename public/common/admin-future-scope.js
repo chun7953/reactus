@@ -1,3 +1,4 @@
+import './admin-mentions.js';
 import './admin-preview.js';
 import './admin-calendar-edit.js';
 
