@@ -14,8 +14,21 @@ export default {
         .setName('reactus')
         .setDescription('Reactusの管理画面を開きます。')
         .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageMessages),
+    cooldown: 0,
     async execute(interaction) {
-        await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+        try {
+            await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+        } catch (error) {
+            if (error?.code === 10062) {
+                const ageMs = Number.isFinite(interaction.createdTimestamp)
+                    ? Date.now() - interaction.createdTimestamp
+                    : null;
+                console.warn(`[reactus] Discord interaction expired before acknowledgement${ageMs === null ? '' : ` (${ageMs}ms)`}. Retry the command.`);
+                return;
+            }
+            throw error;
+        }
+
         try {
             const token = await issueWebAdminLogin(interaction.guildId, interaction.user.id);
             const url = `${config.web.publicBaseUrl}/admin/login?token=${encodeURIComponent(token)}`;
