@@ -1,0 +1,67 @@
+name: Polish admin wording
+
+on:
+  push:
+    branches:
+      - polish/admin-beginner-trigger-copy-final
+
+permissions:
+  contents: write
+
+jobs:
+  polish:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: polish/admin-beginner-trigger-copy-final
+
+      - name: Replace technical wording
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+            'public/common/admin-preview.js': [
+              ('自動リアクション（トリガー: ${rule.trigger}）', '自動リアクション（反応する言葉: ${rule.trigger}）'),
+            ],
+            'public/common/admin-tools.js': [
+              ("notice('トリガーを入力してください。', true)", "notice('反応する言葉を入力してください。', true)"),
+            ],
+            'src/lib/webAdminExtrasService.js': [
+              ("throw new Error('トリガーを入力してください。')", "throw new Error('反応する言葉を入力してください。')"),
+            ],
+            'src/lib/webCalendarMonitorService.js': [
+              ("throw new Error('トリガーキーワードを入力してください。')", "throw new Error('予定を見分ける合図（キーワード）を入力してください。')"),
+              ('`トリガーキーワードは${MAX_TRIGGER_LENGTH}文字以内にしてください。`', '`予定を見分ける合図は${MAX_TRIGGER_LENGTH}文字以内にしてください。`'),
+            ],
+            'public/common/admin-calendar-settings.js': [
+              ('<p class="eyebrow">CALENDAR INTEGRATION</p>', '<p class="eyebrow">カレンダー連携</p>'),
+              ('投稿先やトリガーを追加・変更するときだけ使用します。', '投稿先や、予定を見分ける合図を追加・変更するときだけ使用します。'),
+              ('<strong>投稿・抽選の監視設定</strong>', '<strong>投稿先とカレンダーの設定</strong>'),
+              ('<span>トリガーキーワード</span>', '<span>予定を見分ける合図（キーワード）</span>'),
+              ('<span>既定メンションロール</span>', '<span>いつも付けるメンション</span>'),
+              ('抽選用はトリガーを「ラキショ」にします。', '抽選用は、予定を見分ける合図を「ラキショ」にします。'),
+              ('>監視設定を追加</button>', '>投稿先の設定を追加</button>'),
+            ],
+          }
+
+          for filename, pairs in replacements.items():
+              path = Path(filename)
+              text = path.read_text()
+              for old, new in pairs:
+                  assert old in text, f'{filename}: missing expected text {old!r}'
+                  text = text.replace(old, new)
+              path.write_text(text)
+          PY
+
+      - name: Commit wording changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/common src/lib
+          git commit -m "Use beginner-friendly wording in web admin"
+          git push origin HEAD:polish/admin-beginner-trigger-copy-final
