@@ -4,7 +4,10 @@ import { get } from './settingsCache.js';
 import { parseJstDateTime } from './calendarScheduling.js';
 import { parseTriggeredSummary } from './calendarEditHelpers.js';
 import { cloneCalendarPostImage, deleteCalendarPostImage } from './calendarPostAssets.js';
-import { buildDuplicatedEventBody } from './calendarDuplicateHelpers.js';
+import {
+    buildDuplicatedEventBody,
+    mergeDuplicatePrivateProperties,
+} from './calendarDuplicateHelpers.js';
 
 function cleanKeyword(value) {
     return String(value || '').replace(/[【】]/g, '').trim();
@@ -27,10 +30,10 @@ async function effectivePrivateProperties(calendar, calendarId, source) {
 
     try {
         const master = (await calendar.events.get({ calendarId, eventId: source.recurringEventId })).data;
-        return {
-            ...(master.extendedProperties?.private || {}),
-            ...instancePrivate,
-        };
+        return mergeDuplicatePrivateProperties(
+            master.extendedProperties?.private || {},
+            instancePrivate,
+        );
     } catch (error) {
         if (error?.code === 404) return instancePrivate;
         throw error;
