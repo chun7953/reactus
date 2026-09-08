@@ -43,14 +43,6 @@ function targetLabel(target) {
   return '';
 }
 
-function targetToken(target) {
-  if (target.type === 'everyone') return '@everyone';
-  if (target.type === 'here') return '@here';
-  if (target.type === 'role') return `<@&${target.id}>`;
-  if (target.type === 'user') return `<@${target.id}>`;
-  return '';
-}
-
 function syncLegacyControls() {
   const legacyMode = q('#mentionMode');
   if (!legacyMode) return;
@@ -66,7 +58,7 @@ function syncLegacyControls() {
 
 function setMode(mode) {
   mentionState.mode = ['default','none','custom'].includes(mode) ? mode : 'default';
-  q('#richMentionMode') && (q('#richMentionMode').value = mentionState.mode);
+  if (q('#richMentionMode')) q('#richMentionMode').value = mentionState.mode;
   q('#richMentionCustom')?.classList.toggle('hidden', mentionState.mode !== 'custom');
   syncLegacyControls();
   renderTargets();
@@ -387,14 +379,8 @@ function initialize() {
     mentionState.targets = [];
     setMode('default');
   }, 0));
-
-  const previewObserver = new MutationObserver(() => window.setTimeout(decoratePreview, 0));
-  const watchPreview = () => {
-    const root = q('#discordPreviewContent');
-    if (root) previewObserver.observe(root, { childList:true, subtree:true });
-    else window.setTimeout(watchPreview, 100);
-  };
-  watchPreview();
+  form?.addEventListener('input', () => window.setTimeout(decoratePreview, 0));
+  form?.addEventListener('change', () => window.setTimeout(decoratePreview, 0));
 }
 
 window.ReactusMentions = {
