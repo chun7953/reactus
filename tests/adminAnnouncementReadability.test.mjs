@@ -11,7 +11,7 @@ test('sticky announcement list renders Discord channel links by channel name', a
     readFile(entryPath, 'utf8'),
   ]);
   assert.match(source, /#announcementLinkChannel option/);
-  assert.match(source, /<#\(\\d\{15,22\}\)>/);
+  assert.ok(source.includes('/<#(\\d{15,22})>/g'));
   assert.match(source, /announcement-channel-preview/);
   assert.match(source, /replaceChildren\(\)/);
   assert.match(entrySource, /admin-announcement-readability\.js/);
