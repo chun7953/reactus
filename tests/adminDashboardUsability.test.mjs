@@ -5,12 +5,10 @@ import test from 'node:test';
 const dashboardPath = new URL('../public/common/admin-dashboard-usability.js', import.meta.url);
 const futureScopePath = new URL('../public/common/admin-future-scope.js', import.meta.url);
 
-test('calendar loads independently and exposes retry instead of staying on loading forever', async () => {
+test('dashboard pagination does not start a second calendar data request', async () => {
   const source = await readFile(dashboardPath, 'utf8');
-  assert.match(source, /api\('\/api\/admin\/events\?days=365&pastDays=45'\)/);
-  assert.match(source, /void refreshCalendar\(\)/);
-  assert.match(source, /カレンダーを読み込めませんでした/);
-  assert.match(source, /再読み込み/);
+  assert.doesNotMatch(source, /\/api\/admin\/events/);
+  assert.doesNotMatch(source, /refreshCalendar/);
 });
 
 test('upcoming events are initially capped and can be progressively expanded', async () => {
