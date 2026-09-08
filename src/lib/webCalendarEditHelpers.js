@@ -1,5 +1,6 @@
 import { parseGiveawayDescription, parseTriggeredSummary } from './calendarEditHelpers.js';
 import { mentionConfigFromPrivate } from './calendarMentions.js';
+import { cleanCalendarTrigger, hasCalendarRoutingMetadata } from './calendarRouting.js';
 
 const FREQUENCY_TO_UNIT = {
     DAILY: 'day',
@@ -105,13 +106,18 @@ export function webScheduleDetail(event, monitor) {
 
     const privateProperties = event.extendedProperties?.private || {};
     const mention = mentionConfigFromPrivate(privateProperties);
-    const type = parsedSummary.trigger === 'ラキショ' ? 'giveaway' : 'post';
+    const metadataManaged = hasCalendarRoutingMetadata(privateProperties);
+    const metadataType = String(privateProperties.reactusType || '');
+    const type = metadataManaged && ['post', 'giveaway'].includes(metadataType)
+        ? metadataType
+        : (parsedSummary.trigger === 'ラキショ' ? 'giveaway' : 'post');
+    const triggerKeyword = cleanCalendarTrigger(monitor?.trigger_keyword || parsedSummary.trigger);
     const base = {
         id: event.id,
         calendarId: monitor.calendar_id,
         monitorId: monitor.id,
         channelId: monitor.channel_id,
-        triggerKeyword: parsedSummary.trigger,
+        triggerKeyword,
         type,
         startTime: formatWebDateTime(start),
         endTime: formatWebDateTime(end),
@@ -133,7 +139,7 @@ export function webScheduleDetail(event, monitor) {
 
     return {
         ...base,
-        title: parsedSummary.title,
+        title: metadataManaged ? (event.summary || '') : parsedSummary.title,
         body: event.description || '',
         durationMinutes: Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000)),
     };
