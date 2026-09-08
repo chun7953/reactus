@@ -17,6 +17,7 @@ import {
     updateWebSchedule,
 } from '../lib/webCalendarMentionService.js';
 import { duplicateWebSchedule } from '../lib/webCalendarDuplicateService.js';
+import { moveWebSchedule } from '../lib/webCalendarMoveService.js';
 import {
     clearWebMainCalendar,
     createWebCalendarMonitor,
@@ -289,6 +290,11 @@ export function createAdminHandler({ client }) {
             if (pathname === '/api/admin/duplicate' && req.method === 'POST') {
                 const event = await duplicateWebSchedule(auth.session.guild_id, await readJson(req));
                 sendJson(req, res, 201, { ok: true, event: { id: event.id, summary: event.summary, htmlLink: event.htmlLink || null } });
+                return true;
+            }
+            if (pathname === '/api/admin/move' && req.method === 'POST') {
+                const event = await moveWebSchedule(auth.session.guild_id, await readJson(req));
+                sendJson(req, res, 200, { ok: true, event: { id: event.id, summary: event.summary, htmlLink: event.htmlLink || null } });
                 return true;
             }
             if (pathname === '/api/admin/update' && req.method === 'POST') {
