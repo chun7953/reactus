@@ -3,25 +3,26 @@ import { SlashCommandBuilder, EmbedBuilder, MessageFlags } from 'discord.js';
 export default {
     data: new SlashCommandBuilder()
         .setName('help')
-        .setDescription('ボットのコマンド一覧と使い方を表示します。'),
+        .setDescription('Reactusの使い方とコマンド一覧を表示します。'),
     async execute(interaction) {
         const helpEmbed = new EmbedBuilder()
             .setColor('#0099ff')
-            .setTitle('Reactus Bot コマンド一覧')
-            .setDescription('このボットで利用できるコマンドの一覧です。')
+            .setTitle('Reactus の使い方')
+            .setDescription('普段の設定は、まず `/reactus` から開く日本語の管理画面を使うのがおすすめです。コマンドを覚えなくても操作できます。')
             .addFields(
                 {
-                    name: '管理画面',
-                    value: '`/reactus` - ブラウザの管理画面を開く（投稿・抽選・画像・繰り返し設定）'
+                    name: '🌐 まずはこちら：管理画面',
+                    value: '`/reactus` - ブラウザの管理画面を開きます。\n' +
+                           '予定・抽選、画像、繰り返し、メンション、月カレンダー、チャンネル下部の案内、自動リアクション、Googleカレンダーと投稿先の設定をまとめて管理できます。'
                 },
                 {
-                    name: 'リアクション管理',
+                    name: 'リアクション管理（コマンドで操作する場合）',
                     value: '`/setreaction` - 自動リアクションを設定\n' +
                            '`/removereaction` - 設定を解除\n' +
                            '`/reacttomessage` - 既存メッセージにリアクションを適用'
                 },
                 {
-                    name: 'カレンダー連携',
+                    name: 'カレンダー連携（コマンドで操作する場合）',
                     value: '`/calendarpost post` - 通常の予約・定期投稿を作成\n' +
                            '`/calendarpost giveaway` - 期間付き抽選を予約・定期作成\n' +
                            '`/calendarpost list` - 今後の自動投稿予定を表示\n' +
@@ -32,7 +33,11 @@ export default {
                            '`/setcalendar` - チャンネルにカレンダー通知を設定\n' +
                            '`/removecalendar` - カレンダー通知設定を解除'
                 },
-                { name: 'アナウンス機能', value: '`/startannounce` - 自動アナウンスを開始\n`/stopannounce` - アナウンスを停止' },
+                {
+                    name: 'チャンネル下部の案内（コマンドで操作する場合）',
+                    value: '`/startannounce` - このチャンネルの下部案内を開始・変更\n' +
+                           '`/stopannounce` - このチャンネルの下部案内を停止'
+                },
                 {
                     name: '抽選機能',
                     value: '`/giveaway start` - 抽選を今すぐ開始\n' +
@@ -44,15 +49,16 @@ export default {
                            '`/giveaway-permission` - 抽選の管理権限を設定'
                 },
                 {
-                    name: 'ユーティリティ',
-                    value: '`/poll` - 投票を作成\n' +
+                    name: '確認・その他',
+                    value: '`/listsettings` - 現在の自動設定を一覧表示\n' +
+                           '`/poll` - 投票を作成\n' +
                            '`/csvreactions` - リアクションをCSVで集計\n' +
-                           '`/listsettings` - 全ての自動設定を一覧表示'
+                           '`/feedback` - 開発サーバーのリンクを表示\n' +
+                           '`/help` - このヘルプを表示'
                 },
-                { name: 'その他', value: '`/feedback` - 開発サーバーのリンクを表示\n`/help` - このヘルプを表示' },
-                { name: '管理者向け機能', value: '`/backup` - 設定をバックアップ\n`/restore` - 設定を復元' }
+                { name: '管理者向け', value: '`/backup` - 設定をバックアップ\n`/restore` - 設定を復元' }
             )
-            .setFooter({ text: 'Reactus Bot' });
+            .setFooter({ text: 'Reactus' });
 
         await interaction.reply({ embeds: [helpEmbed], flags: [MessageFlags.Ephemeral] });
     },
