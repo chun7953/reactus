@@ -20,7 +20,6 @@ function targetKey(target) {
 export function normalizeMentionConfig(input = {}) {
     const requestedMode = String(input?.mode || 'default').trim();
 
-    // Legacy single-role payloads are upgraded to the custom-target model.
     if (requestedMode === 'role') {
         return {
             mode: 'custom',
@@ -85,8 +84,11 @@ export function mentionPrivateProperties(input = {}) {
     const config = normalizeMentionConfig(input);
     if (config.mode === 'default') return { reactusMentionMode: 'default' };
     if (config.mode === 'none') return { reactusMentionMode: 'none' };
+    // Keep the mature notification path in "none" mode so it does not add the
+    // monitor's default role. Structured targets are stored separately and the
+    // compatibility delivery path receives explicit tokens in the description.
     return {
-        reactusMentionMode: 'custom',
+        reactusMentionMode: 'none',
         reactusMentionTargets: encodeMentionTargets(config.targets),
     };
 }
@@ -100,12 +102,12 @@ export function applyMentionPrivateProperties(existing = {}, input = {}) {
 }
 
 export function mentionConfigFromPrivate(properties = {}) {
+    const structuredTargets = decodeMentionTargets(properties?.reactusMentionTargets);
+    if (structuredTargets.length) return { mode: 'custom', targets: structuredTargets };
+
     const mode = String(properties?.reactusMentionMode || 'default');
     if (mode === 'none') return { mode: 'none', targets: [] };
-    if (mode === 'custom') {
-        const targets = decodeMentionTargets(properties.reactusMentionTargets);
-        return targets.length ? { mode: 'custom', targets } : { mode: 'none', targets: [] };
-    }
+    if (mode === 'custom') return { mode: 'none', targets: [] };
     if (mode === 'role' && ID_PATTERN.test(String(properties.reactusMentionRoleId || ''))) {
         return {
             mode: 'custom',
