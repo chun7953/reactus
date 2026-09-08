@@ -2,6 +2,7 @@
 
 import { Events, MessageFlags } from 'discord.js';
 import { get } from '../lib/settingsCache.js';
+import { resolveDiscordReactionValues } from '../lib/discordEmoji.js';
 
 async function handleAutoReaction(message) {
     try {
@@ -11,9 +12,15 @@ async function handleAutoReaction(message) {
         );
 
         if (relevantSetting) {
-            const emojis = relevantSetting.emojis.split(',');
-            for (const emoji of emojis) {
-                await message.react(emoji.trim()).catch(err => console.error(`Failed to auto-react with ${emoji}:`, err));
+            let reactions;
+            try {
+                reactions = resolveDiscordReactionValues(relevantSetting.emojis, message.guild);
+            } catch (error) {
+                console.warn(`[AutoReaction] 無効な絵文字設定をスキップします: ${relevantSetting.emojis} (${error.message})`);
+                return;
+            }
+            for (const reaction of reactions) {
+                await message.react(reaction).catch(err => console.error('[AutoReaction] リアクション追加に失敗:', err));
             }
         }
     } catch (error) {
