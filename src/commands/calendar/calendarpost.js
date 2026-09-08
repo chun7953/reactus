@@ -7,30 +7,76 @@ import {
 import { initializeSheetsAPI } from '../../lib/sheetsAPI.js';
 import { get } from '../../lib/settingsCache.js';
 import {
-    buildMentionControlLines,
     buildRecurrence,
-    composeCalendarDescription,
     formatJstDateTime,
     parseJstDateTime,
 } from '../../lib/calendarScheduling.js';
+import {
+    deleteCalendarPostImage,
+    storeCalendarPostImage,
+} from '../../lib/calendarPostAssets.js';
 
-const REPEAT_CHOICES = [
-    { name: '1回だけ', value: 'once' },
-    { name: '毎日', value: 'daily' },
-    { name: '毎週', value: 'weekly' },
-    { name: '隔週', value: 'biweekly' },
-    { name: '毎月', value: 'monthly' },
+const REPEAT_UNIT_CHOICES = [
+    { name: '繰り返さない', value: 'once' },
+    { name: '日', value: 'day' },
+    { name: '週', value: 'week' },
+    { name: '月', value: 'month' },
+    { name: '年', value: 'year' },
+];
+
+const MONTHLY_WEEK_CHOICES = [
+    { name: '第1', value: 'first' },
+    { name: '第2', value: 'second' },
+    { name: '第3', value: 'third' },
+    { name: '第4', value: 'fourth' },
+    { name: '最後', value: 'last' },
+];
+
+const WEEKDAY_CHOICES = [
+    { name: '日曜日', value: 'SU' },
+    { name: '月曜日', value: 'MO' },
+    { name: '火曜日', value: 'TU' },
+    { name: '水曜日', value: 'WE' },
+    { name: '木曜日', value: 'TH' },
+    { name: '金曜日', value: 'FR' },
+    { name: '土曜日', value: 'SA' },
 ];
 
 function addRepeatOptions(subcommand) {
     return subcommand
         .addStringOption(option => option
-            .setName('repeat')
-            .setDescription('繰り返し。省略時は1回だけ')
-            .addChoices(...REPEAT_CHOICES))
+            .setName('repeat_unit')
+            .setDescription('繰り返し単位。省略時は繰り返さない')
+            .addChoices(...REPEAT_UNIT_CHOICES))
+        .addIntegerOption(option => option
+            .setName('repeat_interval')
+            .setDescription('何単位ごとに繰り返すか。例: 5週ごとなら5')
+            .setMinValue(1)
+            .setMaxValue(99))
+        .addStringOption(option => option
+            .setName('repeat_days')
+            .setDescription('週単位の曜日。例: 月,水,金'))
+        .addIntegerOption(option => option
+            .setName('monthly_day')
+            .setDescription('月単位の日付。1〜31、月末は-1')
+            .setMinValue(-1)
+            .setMaxValue(31))
+        .addStringOption(option => option
+            .setName('monthly_week')
+            .setDescription('月単位の「第○曜日」')
+            .addChoices(...MONTHLY_WEEK_CHOICES))
+        .addStringOption(option => option
+            .setName('monthly_weekday')
+            .setDescription('第○曜日の曜日')
+            .addChoices(...WEEKDAY_CHOICES))
         .addStringOption(option => option
             .setName('repeat_until')
-            .setDescription('繰り返し終了日 (例: 2026-12-31)'));
+            .setDescription('繰り返し終了日 (例: 2026-12-31)'))
+        .addIntegerOption(option => option
+            .setName('repeat_count')
+            .setDescription('指定回数で終了')
+            .setMinValue(1)
+            .setMaxValue(999));
 }
 
 function addMentionOptions(subcommand) {
@@ -63,16 +109,24 @@ function selectMonitor(monitors, channelId, keyword, requiredKeyword = null) {
     return candidates.length === 1 ? candidates[0] : null;
 }
 
-function mentionControls(interaction) {
+function privatePropertiesFromInteraction(interaction, assetId = null) {
     const mention = interaction.options.getBoolean('mention');
     const mentionRole = interaction.options.getRole('mention_role');
     if (mention === false && mentionRole) {
         throw new Error('メンションなしとメンションロールは同時に指定できません。');
     }
-    return buildMentionControlLines({
-        mention,
-        mentionRoleId: mentionRole?.id || null,
-    });
+
+    const properties = {};
+    if (mention === false) {
+        properties.reactusMentionMode = 'none';
+    } else if (mentionRole) {
+        properties.reactusMentionMode = 'role';
+        properties.reactusMentionRoleId = mentionRole.id;
+    } else {
+        properties.reactusMentionMode = 'default';
+    }
+    if (assetId) properties.reactusAssetId = assetId;
+    return properties;
 }
 
 async function getCalendar() {
@@ -85,7 +139,7 @@ function permissionHelp(auth, calendarId) {
     return `カレンダー \`${calendarId}\` に予定を書き込めません。Googleカレンダーの共有設定で、Reactusのサービスアカウントに「予定の変更」権限を付けてください。${email}`;
 }
 
-async function insertCalendarEvent({ calendar, auth, monitor, summary, description, start, end, recurrence }) {
+async function insertCalendarEvent({ calendar, auth, monitor, summary, description, start, end, recurrence, privateProperties }) {
     try {
         const response = await calendar.events.insert({
             calendarId: monitor.calendar_id,
@@ -94,6 +148,7 @@ async function insertCalendarEvent({ calendar, auth, monitor, summary, descripti
                 description,
                 start: { dateTime: formatJstDateTime(start), timeZone: 'Asia/Tokyo' },
                 end: { dateTime: formatJstDateTime(end), timeZone: 'Asia/Tokyo' },
+                extendedProperties: { private: privateProperties },
                 ...(recurrence ? { recurrence } : {}),
             },
         });
@@ -113,21 +168,43 @@ function parseRequiredTime(value, label) {
 }
 
 function recurrenceFromInteraction(interaction, start) {
-    const repeat = interaction.options.getString('repeat') || 'once';
-    const repeatUntil = interaction.options.getString('repeat_until');
-    if (repeat === 'once' && repeatUntil) {
-        throw new Error('繰り返し終了日は、繰り返しを指定した場合だけ設定できます。');
-    }
-    if (repeatUntil) {
-        const until = parseJstDateTime(`${repeatUntil} 23:59`);
-        if (!until) throw new Error('繰り返し終了日は `YYYY-MM-DD` 形式で指定してください。');
-        if (until < start) throw new Error('繰り返し終了日は開始日以降にしてください。');
-    }
-    return buildRecurrence(repeat, repeatUntil);
+    return buildRecurrence({
+        unit: interaction.options.getString('repeat_unit') || 'once',
+        interval: interaction.options.getInteger('repeat_interval') || 1,
+        weekdays: interaction.options.getString('repeat_days'),
+        monthlyDay: interaction.options.getInteger('monthly_day'),
+        monthlyWeek: interaction.options.getString('monthly_week'),
+        monthlyWeekday: interaction.options.getString('monthly_weekday'),
+        until: interaction.options.getString('repeat_until'),
+        count: interaction.options.getInteger('repeat_count'),
+        start,
+    });
 }
 
 function formatEventLink(event) {
     return event.htmlLink ? `\n${event.htmlLink}` : '';
+}
+
+async function persistOptionalImage(interaction) {
+    const attachment = interaction.options.getAttachment('image');
+    return storeCalendarPostImage(interaction.guildId, attachment);
+}
+
+async function insertWithOptionalImage({ interaction, calendar, auth, monitor, eventData }) {
+    let assetId = null;
+    try {
+        assetId = await persistOptionalImage(interaction);
+        return await insertCalendarEvent({
+            calendar,
+            auth,
+            monitor,
+            ...eventData,
+            privateProperties: privatePropertiesFromInteraction(interaction, assetId),
+        });
+    } catch (error) {
+        if (assetId) await deleteCalendarPostImage(assetId).catch(() => {});
+        throw error;
+    }
 }
 
 export default {
@@ -143,6 +220,7 @@ export default {
                 .addStringOption(option => option.setName('start_time').setDescription('投稿日時 (例: 2026-09-19 22:00)').setRequired(true))
                 .addIntegerOption(option => option.setName('duration_minutes').setDescription('カレンダー上の長さ。省略時30分').setMinValue(1).setMaxValue(1440))
                 .addStringOption(option => option.setName('body').setDescription('投稿本文'))
+                .addAttachmentOption(option => option.setName('image').setDescription('投稿に添付する画像'))
                 .addStringOption(option => option.setName('keyword').setDescription('監視キーワード。通常は省略でOK'));
             addRepeatOptions(subcommand);
             addMentionOptions(subcommand);
@@ -160,7 +238,8 @@ export default {
                 .addIntegerOption(option => option.setName('winners3').setDescription('追加景品3の当選人数').setMinValue(1).setMaxValue(100))
                 .addStringOption(option => option.setName('start_time').setDescription('抽選開始日時 (例: 2026-09-19 22:00)').setRequired(true))
                 .addStringOption(option => option.setName('end_time').setDescription('抽選終了日時 (例: 2026-09-20 22:00)').setRequired(true))
-                .addStringOption(option => option.setName('message').setDescription('抽選と一緒に投稿する本文'));
+                .addStringOption(option => option.setName('message').setDescription('抽選と一緒に投稿する本文'))
+                .addAttachmentOption(option => option.setName('image').setDescription('抽選と一緒に投稿する画像'));
             addRepeatOptions(subcommand);
             addMentionOptions(subcommand);
             return subcommand;
@@ -203,19 +282,21 @@ export default {
                 const durationMinutes = interaction.options.getInteger('duration_minutes') || 30;
                 const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
                 const recurrence = recurrenceFromInteraction(interaction, start);
-                const controls = mentionControls(interaction);
                 const trigger = cleanKeyword(monitor.trigger_keyword);
                 const title = interaction.options.getString('title').trim();
                 const body = interaction.options.getString('body') || '';
-                const event = await insertCalendarEvent({
+                const event = await insertWithOptionalImage({
+                    interaction,
                     calendar,
                     auth,
                     monitor,
-                    summary: `【${trigger}】${title}`,
-                    description: composeCalendarDescription(body, controls),
-                    start,
-                    end,
-                    recurrence,
+                    eventData: {
+                        summary: `【${trigger}】${title}`,
+                        description: body,
+                        start,
+                        end,
+                        recurrence,
+                    },
                 });
                 return interaction.editReply(`✅ 自動投稿をカレンダーへ登録しました。\n**${event.summary}**\n<t:${Math.floor(start.getTime() / 1000)}:F>${recurrence ? '\n🔁 繰り返し予定' : ''}${formatEventLink(event)}`);
             }
@@ -230,7 +311,6 @@ export default {
                 const end = parseRequiredTime(interaction.options.getString('end_time'), '抽選終了日時');
                 if (end <= start) throw new Error('抽選終了日時は開始日時より後にしてください。');
                 const recurrence = recurrenceFromInteraction(interaction, start);
-                const controls = mentionControls(interaction);
 
                 const prizes = [
                     [interaction.options.getString('prize'), interaction.options.getInteger('winners')],
@@ -245,16 +325,19 @@ export default {
                 const activePrizes = prizes.filter(([prize, winners]) => prize && winners);
                 const prizeLines = activePrizes.map(([prize, winners]) => `【${prize.trim()}/${winners}】`);
                 const message = interaction.options.getString('message') || '';
-                const description = composeCalendarDescription([prizeLines.join('\n'), message].filter(Boolean).join('\n'), controls);
-                const event = await insertCalendarEvent({
+                const description = [prizeLines.join('\n'), message].filter(Boolean).join('\n');
+                const event = await insertWithOptionalImage({
+                    interaction,
                     calendar,
                     auth,
                     monitor,
-                    summary: `【ラキショ】${activePrizes[0][0].trim()}`,
-                    description,
-                    start,
-                    end,
-                    recurrence,
+                    eventData: {
+                        summary: `【ラキショ】${activePrizes[0][0].trim()}`,
+                        description,
+                        start,
+                        end,
+                        recurrence,
+                    },
                 });
                 return interaction.editReply(`✅ 抽選をカレンダーへ登録しました。\n**${activePrizes.map(([prize, winners]) => `${prize} × ${winners}名`).join(' / ')}**\n開始: <t:${Math.floor(start.getTime() / 1000)}:F>\n終了: <t:${Math.floor(end.getTime() / 1000)}:F>${recurrence ? '\n🔁 繰り返し予定' : ''}${formatEventLink(event)}`);
             }
@@ -293,7 +376,8 @@ export default {
 
                 const lines = rows.slice(0, 20).map(({ event, start }) => {
                     const series = event.recurringEventId ? ' 🔁' : '';
-                    return `<t:${Math.floor(start.getTime() / 1000)}:f>${series} **${event.summary || 'タイトルなし'}**\nID: \`${event.id}\``;
+                    const image = event.extendedProperties?.private?.reactusAssetId ? ' 🖼️' : '';
+                    return `<t:${Math.floor(start.getTime() / 1000)}:f>${series}${image} **${event.summary || 'タイトルなし'}**\nID: \`${event.id}\``;
                 });
                 if (rows.length > 20) lines.push(`…ほか ${rows.length - 20} 件`);
                 return interaction.editReply(lines.join('\n\n'));
@@ -307,9 +391,18 @@ export default {
                     try {
                         const response = await calendar.events.get({ calendarId, eventId });
                         const event = response.data;
-                        const deleteId = scope === 'series' && event.recurringEventId ? event.recurringEventId : event.id;
+                        const deleteSeries = scope === 'series' && event.recurringEventId;
+                        const deleteId = deleteSeries ? event.recurringEventId : event.id;
+                        let assetId = event.extendedProperties?.private?.reactusAssetId || null;
+                        if (deleteSeries && !assetId) {
+                            const master = await calendar.events.get({ calendarId, eventId: event.recurringEventId });
+                            assetId = master.data.extendedProperties?.private?.reactusAssetId || null;
+                        }
                         await calendar.events.delete({ calendarId, eventId: deleteId });
-                        return interaction.editReply(scope === 'series' && event.recurringEventId
+                        if (!event.recurringEventId || deleteSeries) {
+                            await deleteCalendarPostImage(assetId).catch(() => {});
+                        }
+                        return interaction.editReply(deleteSeries
                             ? '✅ 繰り返し予定をまとめて削除しました。'
                             : '✅ 予定を削除しました。');
                     } catch (error) {
