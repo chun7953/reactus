@@ -1,4 +1,4 @@
-// src/events/messageCreate.js (修正後・完全版)
+// src/events/messageCreate.js
 
 import { Events, MessageFlags } from 'discord.js';
 import { get } from '../lib/settingsCache.js';
@@ -45,7 +45,9 @@ export default {
     name: Events.MessageCreate,
     async execute(message) {
         if (!message.guild) return;
-        await handleAutoReaction(message);
-        await handleAutoAnnounce(message);
+        await Promise.all([
+            handleAutoReaction(message),
+            handleAutoAnnounce(message),
+        ]);
     },
 };
