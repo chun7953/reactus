@@ -6,7 +6,7 @@ export function createAsyncCache({ ttlMs = 60_000, now = () => Date.now() } = {}
     async function get(key, loader) {
         const currentTime = now();
         const existing = entries.get(key);
-        if (existing?.value !== undefined && existing.expiresAt > currentTime) {
+        if (existing?.hasValue && existing.expiresAt > currentTime) {
             return existing.value;
         }
         if (existing?.promise) return existing.promise;
@@ -15,6 +15,7 @@ export function createAsyncCache({ ttlMs = 60_000, now = () => Date.now() } = {}
             .then(loader)
             .then((value) => {
                 entries.set(key, {
+                    hasValue: true,
                     value,
                     expiresAt: now() + ttlMs,
                     promise: null,
@@ -27,6 +28,7 @@ export function createAsyncCache({ ttlMs = 60_000, now = () => Date.now() } = {}
             });
 
         entries.set(key, {
+            hasValue: Boolean(existing?.hasValue),
             value: existing?.value,
             expiresAt: existing?.expiresAt || 0,
             promise,
