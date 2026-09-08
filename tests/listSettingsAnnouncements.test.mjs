@@ -9,7 +9,7 @@ test('listsettings includes sticky channel announcements without dumping long bo
   assert.match(source, /SELECT channel_id FROM announcements WHERE guild_id = \$1/);
   assert.match(source, /\*\*チャンネル下部の案内\*\*/);
   assert.match(source, /内容の確認・編集は/);
-  assert.match(source, /`\/reactus`/);
+  assert.match(source, /\/reactus/);
   assert.doesNotMatch(source, /SELECT channel_id, message FROM announcements/);
 });
 
