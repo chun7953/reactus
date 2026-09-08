@@ -1,6 +1,6 @@
 const qa = (selector) => [...document.querySelectorAll(selector)];
 const q = (selector) => document.querySelector(selector);
-const commonEmoji = ['✅','❌','⭕','🔴','🟠','🟡','🟢','🔵','🟣','⚪','⚫','👍','👎','❤️','🎉','⭐','👀','💡','📌','🔥'];
+const fallbackCommonEmoji = ['✅','❌','⭕','🔴','🟠','🟡','🟢','🔵','🟣','⚪','⚫','👍','👎','❤️','🎉','⭐','👀','💡','📌','🔥'];
 
 const toolsState = {
   bootstrap: null,
@@ -162,8 +162,9 @@ function installCalendarPanel() {
       <div class="month-nav"><button id="monthPrev" class="small" type="button">←</button><strong id="monthLabel"></strong><button id="monthNext" class="small" type="button">→</button></div>
     </div>
     <div id="monthGrid" class="month-grid"><p class="muted">読み込み中…</p></div>`;
-  const upcoming = q('#eventList')?.closest('.panel');
-  upcoming?.before(section);
+  const schedule = q('#schedulePanel') || app.querySelector(':scope > .panel');
+  if (schedule) schedule.before(section);
+  else app.prepend(section);
   q('#monthPrev').addEventListener('click', () => {
     toolsState.calendarMonth = new Date(toolsState.calendarMonth.getFullYear(), toolsState.calendarMonth.getMonth() - 1, 1);
     renderMonth();
@@ -176,6 +177,23 @@ function installCalendarPanel() {
 
 function emojiKey(item) { return item.type === 'custom' ? `c:${item.id}` : `u:${item.value}`; }
 function customEmoji(id) { return toolsState.bootstrap?.guildEmojis?.find(emoji => emoji.id === id); }
+
+function frequentReactionEmojis() {
+  const usage = new Map();
+  let order = 0;
+  for (const rule of toolsState.bootstrap?.reactionRules || []) {
+    for (const item of rule.emojis || []) {
+      const key = emojiKey(item);
+      const current = usage.get(key);
+      if (current) current.count += 1;
+      else usage.set(key, { item: { ...item }, count: 1, order: order++ });
+    }
+  }
+  if (!usage.size) return fallbackCommonEmoji.map(value => ({ type: 'unicode', value }));
+  return [...usage.values()]
+    .sort((a, b) => b.count - a.count || a.order - b.order)
+    .map(entry => entry.item);
+}
 
 function addDraft(item) {
   const key = emojiKey(item);
@@ -213,19 +231,33 @@ function renderDraft() {
   if (!toolsState.draft.length) box.textContent = '選択なし';
 }
 
+function renderEmojiChoice(button, item) {
+  button.type = 'button';
+  button.className = 'emoji-button';
+  button.classList.toggle('selected', toolsState.draft.some(entry => emojiKey(entry) === emojiKey(item)));
+  if (item.type === 'custom') {
+    const emoji = customEmoji(item.id);
+    if (!emoji) return false;
+    button.title = `:${emoji.name}:`;
+    const img = document.createElement('img');
+    img.src = emoji.url;
+    img.alt = `:${emoji.name}:`;
+    button.append(img);
+  } else {
+    button.textContent = item.value;
+  }
+  button.addEventListener('click', () => addDraft({ ...item }));
+  return true;
+}
+
 function renderEmojiGrid() {
   const standard = q('#standardEmojiGrid');
   const custom = q('#guildEmojiGrid');
   if (!standard || !custom) return;
   standard.replaceChildren();
-  for (const value of commonEmoji) {
+  for (const item of frequentReactionEmojis()) {
     const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'emoji-button';
-    button.textContent = value;
-    button.classList.toggle('selected', toolsState.draft.some(item => item.type === 'unicode' && item.value === value));
-    button.addEventListener('click', () => addDraft({ type:'unicode', value }));
-    standard.append(button);
+    if (renderEmojiChoice(button, item)) standard.append(button);
   }
   custom.replaceChildren();
   for (const emoji of toolsState.bootstrap?.guildEmojis || []) {
@@ -356,7 +388,7 @@ function installReactionPanel() {
         <label><span>対象チャンネル</span><select id="reactionChannel"></select></label>
         <label><span>トリガー文字</span><input id="reactionTrigger" type="text" maxlength="200" placeholder="本文に含まれる文字"></label>
       </div>
-      <div class="field-block compact"><span class="field-title">よく使うDiscord絵文字</span><div id="standardEmojiGrid" class="emoji-grid"></div></div>
+      <div class="field-block compact"><span class="field-title">よく使う絵文字</span><div id="standardEmojiGrid" class="emoji-grid"></div><p class="hint">設定済みの自動リアクションで使われている絵文字を、使用回数の多い順に並べます。設定がない場合は基本絵文字を表示します。</p></div>
       <div class="field-block compact"><span class="field-title">このサーバーの絵文字</span><div id="guildEmojiGrid" class="emoji-grid"></div></div>
       <div class="tools-row"><input id="unicodeEmojiInput" type="text" placeholder="その他の絵文字を1個貼り付け"><button id="addUnicodeEmoji" class="small" type="button">追加</button></div>
       <div><span class="field-title">付けるリアクション</span><div id="reactionSelected" class="selected-emojis">選択なし</div></div>
