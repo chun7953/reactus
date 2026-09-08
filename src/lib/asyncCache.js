@@ -11,19 +11,23 @@ export function createAsyncCache({ ttlMs = 60_000, now = () => Date.now() } = {}
         }
         if (existing?.promise) return existing.promise;
 
+        const loadToken = Symbol(String(key));
         const promise = Promise.resolve()
             .then(loader)
             .then((value) => {
-                entries.set(key, {
-                    hasValue: true,
-                    value,
-                    expiresAt: now() + ttlMs,
-                    promise: null,
-                });
+                if (entries.get(key)?.loadToken === loadToken) {
+                    entries.set(key, {
+                        hasValue: true,
+                        value,
+                        expiresAt: now() + ttlMs,
+                        promise: null,
+                        loadToken: null,
+                    });
+                }
                 return value;
             })
             .catch((error) => {
-                if (entries.get(key)?.promise === promise) entries.delete(key);
+                if (entries.get(key)?.loadToken === loadToken) entries.delete(key);
                 throw error;
             });
 
@@ -32,6 +36,7 @@ export function createAsyncCache({ ttlMs = 60_000, now = () => Date.now() } = {}
             value: existing?.value,
             expiresAt: existing?.expiresAt || 0,
             promise,
+            loadToken,
         });
         return promise;
     }
