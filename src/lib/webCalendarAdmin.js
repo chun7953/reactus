@@ -128,7 +128,7 @@ export async function createWebSchedule(guildId, payload) {
             }
             const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
             const trigger = cleanKeyword(monitor.trigger_keyword);
-            return insertEvent({
+            return await insertEvent({
                 calendar,
                 auth,
                 monitor,
@@ -159,7 +159,7 @@ export async function createWebSchedule(guildId, payload) {
         });
         const prizeLines = prizes.map(({ prize, winners }) => `【${prize}/${winners}】`);
         const description = [prizeLines.join('\n'), String(payload.message || '').trim()].filter(Boolean).join('\n');
-        return insertEvent({
+        return await insertEvent({
             calendar,
             auth,
             monitor,
@@ -219,6 +219,7 @@ export async function listWebSchedules(guildId, days = 90) {
                 end: event.end?.dateTime || event.end?.date || null,
                 recurringEventId: event.recurringEventId || null,
                 hasImage: Boolean(event.extendedProperties?.private?.reactusAssetId),
+                htmlLink: event.htmlLink || null,
             });
         }
     }
@@ -251,9 +252,10 @@ export async function deleteWebSchedule(guildId, { calendarId, eventId, scope = 
         }
         return { deletedSeries: Boolean(deleteSeries) };
     } catch (error) {
-        if (error?.code === 403 || error?.code === 404) {
+        if (error?.code === 403) {
             throw new Error(permissionHelp(auth, calendarId));
         }
+        if (error?.code === 404) throw new Error('予定が見つかりません。既に削除されている可能性があります。');
         throw error;
     }
 }
