@@ -3,10 +3,25 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const uiPath = new URL('../public/common/admin-japanese-ui.js', import.meta.url);
+const htmlPath = new URL('../public/admin.html', import.meta.url);
 
-test('web admin replaces English section labels with Japanese', async () => {
+test('primary web admin markup is Japanese before helper scripts run', async () => {
+  const source = await readFile(htmlPath, 'utf8');
+  assert.match(source, /<title>Reactus 管理画面<\/title>/);
+  assert.match(source, /<h1>Reactus 管理画面<\/h1>/);
+  assert.match(source, /<p class="eyebrow">新しい予定<\/p>/);
+  assert.match(source, /<p class="eyebrow">今後の予定<\/p>/);
+  assert.match(source, /Googleカレンダー上の予定の長さ/);
+  assert.match(source, /メンション（通知）/);
+  assert.match(source, /いつもの設定を使う/);
+  assert.match(source, /この予定だけ別のロールを使う/);
+  assert.doesNotMatch(source, />NEW SCHEDULE</);
+  assert.doesNotMatch(source, />UPCOMING</);
+});
+
+test('web admin keeps Japanese fallbacks for dynamically created sections', async () => {
   const source = await readFile(uiPath, 'utf8');
-  assert.match(source, /\['NEW SCHEDULE', '新しい予定'\]/);
+  assert.match(source, /\['EDIT SCHEDULE', '予定を編集中'\]/);
   assert.match(source, /\['CALENDAR', '月カレンダー'\]/);
   assert.match(source, /\['REACTIONS', '自動リアクション'\]/);
   assert.match(source, /\['HISTORY', '予定の履歴'\]/);
