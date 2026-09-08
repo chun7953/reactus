@@ -12,12 +12,15 @@ function alreadyReacted(message, reaction) {
     });
 }
 
-export async function applyConfiguredAutoReactions(message, { logger = console } = {}) {
+export async function applyConfiguredAutoReactions(message, {
+    logger = console,
+    getSettings = get.reactionSettings,
+} = {}) {
     if (!message?.guild?.id || !message?.channel?.id || typeof message.content !== 'string' || typeof message.react !== 'function') {
         return { matched: false, reacted: 0 };
     }
 
-    const settings = await get.reactionSettings(message.guild.id);
+    const settings = await getSettings(message.guild.id);
     const relevantSetting = settings.find(setting =>
         setting.channel_id === message.channel.id && message.content.includes(setting.trigger)
     );
