@@ -34,11 +34,11 @@ function eventMentions(properties, monitor) {
     return new Set(eventMentionTokens(properties, monitor.mention_role));
 }
 
-async function eventImageFile(properties) {
+async function eventImageFile(properties, guildId) {
     const assetId = properties?.reactusAssetId;
     if (!assetId) return null;
     try {
-        const asset = await getCalendarPostImage(assetId);
+        const asset = await getCalendarPostImage(assetId, guildId);
         if (!asset) {
             console.warn(`[TaskMonitor] カレンダー投稿画像 ${assetId} が見つかりません。`);
             return null;
@@ -123,7 +123,7 @@ async function checkCalendarEvents(client) {
                             const endTime = new Date(event.end.dateTime || event.end.date);
                             const finalMentionsForSeparatePost = Array.from(allMentionsForSeparatePost).join(' ').trim();
                             const finalAdditionalMessageText = additionalMessageContent.join('\n').trim();
-                            const imageFile = await eventImageFile(privateProperties);
+                            const imageFile = await eventImageFile(privateProperties, monitor.guild_id);
                             const giveawayChannel = await client.channels.fetch(monitor.channel_id).catch(() => null);
                             if (giveawayChannel) {
                                 for (const prizeInfo of prizesToCreate) {
@@ -166,7 +166,7 @@ async function checkCalendarEvents(client) {
                         let message = `**${event.summary || 'タイトルなし'}**`;
                         if (cleanedDescription) message += `\n${cleanedDescription}`;
                         if (finalMentions.trim()) message += `\n\n${finalMentions.trim()}`;
-                        const imageFile = await eventImageFile(privateProperties);
+                        const imageFile = await eventImageFile(privateProperties, monitor.guild_id);
                         try {
                             await deliverAndRecordNotification(pool, notificationKey, () => channel.send(imageFile
                                 ? { content: message, files: [imageFile] }

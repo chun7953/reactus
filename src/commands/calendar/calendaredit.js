@@ -337,7 +337,7 @@ export default {
                     calendar, auth, calendarId: target.calendarId, eventId: target.event.id, requestBody,
                 });
                 if (image.mode !== 'keep' && image.oldAssetId && image.oldAssetId !== image.assetId) {
-                    await deleteCalendarPostImage(image.oldAssetId).catch(() => {});
+                    await deleteCalendarPostImage(image.oldAssetId, interaction.guildId).catch(() => {});
                 }
                 createdAssetId = null;
                 return interaction.editReply(`✅ 予約投稿を編集しました。\n**${updated.summary || summary}**${scope === 'series' ? '\n🔁 繰り返し全体を更新' : ''}${eventLink(updated)}`);
@@ -385,13 +385,13 @@ export default {
                     calendar, auth, calendarId: target.calendarId, eventId: target.event.id, requestBody,
                 });
                 if (image.mode !== 'keep' && image.oldAssetId && image.oldAssetId !== image.assetId) {
-                    await deleteCalendarPostImage(image.oldAssetId).catch(() => {});
+                    await deleteCalendarPostImage(image.oldAssetId, interaction.guildId).catch(() => {});
                 }
                 createdAssetId = null;
                 return interaction.editReply(`✅ 抽選予定を編集しました。\n**${edited.prizes.map(item => `${item.prize} × ${item.winners}名`).join(' / ')}**${scope === 'series' ? '\n🔁 繰り返し全体を更新' : ''}${eventLink(updated)}`);
             }
         } catch (error) {
-            if (createdAssetId) await deleteCalendarPostImage(createdAssetId).catch(() => {});
+            if (createdAssetId) await deleteCalendarPostImage(createdAssetId, interaction.guildId).catch(() => {});
             if (error?.code === 403) {
                 return interaction.editReply(`エラー: ${permissionHelp(auth, '対象カレンダー')}`);
             }

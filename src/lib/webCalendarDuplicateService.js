@@ -93,7 +93,7 @@ export async function duplicateWebSchedule(guildId, { calendarId, eventId, start
         const response = await calendar.events.insert({ calendarId, requestBody });
         return response.data;
     } catch (error) {
-        if (clonedAssetId) await deleteCalendarPostImage(clonedAssetId).catch(() => {});
+        if (clonedAssetId) await deleteCalendarPostImage(clonedAssetId, guildId).catch(() => {});
         if (error?.code === 403 || error?.code === 404) throw new Error(permissionHelp(auth, calendarId));
         throw error;
     }

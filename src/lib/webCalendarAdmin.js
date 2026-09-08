@@ -175,7 +175,7 @@ export async function createWebSchedule(guildId, payload) {
             },
         });
     } catch (error) {
-        if (assetId) await deleteCalendarPostImage(assetId).catch(() => {});
+        if (assetId) await deleteCalendarPostImage(assetId, guildId).catch(() => {});
         throw error;
     }
 }
@@ -262,7 +262,7 @@ export async function deleteWebSchedule(guildId, { calendarId, eventId, scope = 
             const assetId = master.extendedProperties?.private?.reactusAssetId || null;
             if (sameOccurrenceStart(event, master)) {
                 await calendar.events.delete({ calendarId, eventId: master.id });
-                await deleteCalendarPostImage(assetId).catch(() => {});
+                await deleteCalendarPostImage(assetId, guildId).catch(() => {});
                 return { deletedSeries: true, deletedFuture: true };
             }
             const targetStart = recurringTargetStart(event);
@@ -281,7 +281,7 @@ export async function deleteWebSchedule(guildId, { calendarId, eventId, scope = 
             : event.extendedProperties?.private?.reactusAssetId || null;
         await calendar.events.delete({ calendarId, eventId: deleteId });
         if (!event.recurringEventId || deleteSeries) {
-            await deleteCalendarPostImage(assetId).catch(() => {});
+            await deleteCalendarPostImage(assetId, guildId).catch(() => {});
         }
         return { deletedSeries: Boolean(deleteSeries), deletedFuture: false };
     } catch (error) {

@@ -202,7 +202,7 @@ async function insertWithOptionalImage({ interaction, calendar, auth, monitor, e
             privateProperties: privatePropertiesFromInteraction(interaction, assetId),
         });
     } catch (error) {
-        if (assetId) await deleteCalendarPostImage(assetId).catch(() => {});
+        if (assetId) await deleteCalendarPostImage(assetId, interaction.guildId).catch(() => {});
         throw error;
     }
 }
@@ -400,7 +400,7 @@ export default {
                         }
                         await calendar.events.delete({ calendarId, eventId: deleteId });
                         if (!event.recurringEventId || deleteSeries) {
-                            await deleteCalendarPostImage(assetId).catch(() => {});
+                            await deleteCalendarPostImage(assetId, interaction.guildId).catch(() => {});
                         }
                         return interaction.editReply(deleteSeries
                             ? '✅ 繰り返し予定をまとめて削除しました。'
