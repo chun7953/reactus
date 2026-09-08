@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Reactus 管理</title>
+  <link rel="stylesheet" href="/admin.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">REACTUS</p>
+        <h1>投稿・抽選スケジュール</h1>
+        <p id="identity" class="muted">読み込み中…</p>
+      </div>
+      <button id="logoutButton" class="ghost" type="button">ログアウト</button>
+    </header>
+
+    <div id="notice" class="notice hidden" role="status"></div>
+
+    <section id="loginRequired" class="panel hidden">
+      <h2>Discordから開いてください</h2>
+      <p>Discordで <code>/reactus</code> を実行し、「Reactus 管理画面を開く」を押すとログインできます。</p>
+    </section>
+
+    <div id="app" class="hidden">
+      <section class="panel">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">NEW SCHEDULE</p>
+            <h2>予定を作成</h2>
+          </div>
+          <div class="segmented" role="group" aria-label="予定の種類">
+            <button type="button" class="segment active" data-type="post">通常投稿</button>
+            <button type="button" class="segment" data-type="giveaway">抽選</button>
+          </div>
+        </div>
+
+        <form id="scheduleForm">
+          <input type="hidden" id="scheduleType" value="post">
+
+          <div class="grid two">
+            <label>
+              <span>投稿先</span>
+              <select id="monitor" required></select>
+            </label>
+            <label>
+              <span>開始日時</span>
+              <input id="startTime" type="datetime-local" required>
+            </label>
+          </div>
+
+          <div id="postFields">
+            <div class="grid two">
+              <label>
+                <span>タイトル</span>
+                <input id="title" type="text" maxlength="200" placeholder="投稿タイトル">
+              </label>
+              <label>
+                <span>カレンダー上の長さ</span>
+                <div class="with-unit"><input id="durationMinutes" type="number" min="1" max="1440" value="30"><b>分</b></div>
+              </label>
+            </div>
+            <label>
+              <span>本文</span>
+              <textarea id="body" rows="5" placeholder="Discordに投稿する本文"></textarea>
+            </label>
+          </div>
+
+          <div id="giveawayFields" class="hidden">
+            <div class="grid two">
+              <label>
+                <span>終了日時</span>
+                <input id="endTime" type="datetime-local">
+              </label>
+              <div></div>
+            </div>
+
+            <div class="field-block">
+              <div class="field-title-row">
+                <span class="field-title">景品</span>
+                <button id="addPrize" class="small" type="button">＋ 景品を追加</button>
+              </div>
+              <div id="prizeList" class="prize-list"></div>
+              <p class="hint">1つの予定に複数景品を入れると、開始時刻に抽選が上から順に連続投稿されます。</p>
+            </div>
+
+            <label>
+              <span>抽選と一緒に投稿する本文</span>
+              <textarea id="message" rows="4" placeholder="任意。複数の抽選投稿のあとに1回だけ投稿されます"></textarea>
+            </label>
+          </div>
+
+          <div class="grid two">
+            <label>
+              <span>メンション</span>
+              <select id="mentionMode">
+                <option value="default">現在のカレンダー設定を使う</option>
+                <option value="none">メンションしない</option>
+                <option value="role">この予定だけ別ロール</option>
+              </select>
+            </label>
+            <label id="roleWrap" class="hidden">
+              <span>メンションするロール</span>
+              <select id="mentionRole"></select>
+            </label>
+          </div>
+
+          <div class="field-block">
+            <span class="field-title">画像</span>
+            <div class="image-row">
+              <label class="file-picker">
+                <input id="image" type="file" accept="image/*">
+                <span>画像を選択</span>
+              </label>
+              <span id="imageName" class="muted">なし</span>
+              <button id="clearImage" class="small hidden" type="button">外す</button>
+            </div>
+            <img id="imagePreview" class="image-preview hidden" alt="添付画像プレビュー">
+            <p class="hint">8MBまで。定期予定では同じ原本を各回で再利用します。</p>
+          </div>
+
+          <details class="recurrence" open>
+            <summary>繰り返し</summary>
+            <div class="grid three recurrence-grid">
+              <label>
+                <span>繰り返し</span>
+                <select id="repeatUnit">
+                  <option value="once">繰り返さない</option>
+                  <option value="day">日ごと</option>
+                  <option value="week">週ごと</option>
+                  <option value="month">月ごと</option>
+                  <option value="year">年ごと</option>
+                </select>
+              </label>
+              <label id="intervalWrap" class="hidden">
+                <span>間隔</span>
+                <div class="with-unit"><input id="repeatInterval" type="number" min="1" max="99" value="1"><b id="intervalUnit">週</b></div>
+              </label>
+              <label id="repeatEndModeWrap" class="hidden">
+                <span>終了</span>
+                <select id="repeatEndMode">
+                  <option value="never">終了しない</option>
+                  <option value="until">指定日まで</option>
+                  <option value="count">指定回数</option>
+                </select>
+              </label>
+            </div>
+
+            <div id="weeklyWrap" class="hidden">
+              <span class="field-title">曜日</span>
+              <div class="weekday-row">
+                <label><input type="checkbox" name="weekday" value="SU"><span>日</span></label>
+                <label><input type="checkbox" name="weekday" value="MO"><span>月</span></label>
+                <label><input type="checkbox" name="weekday" value="TU"><span>火</span></label>
+                <label><input type="checkbox" name="weekday" value="WE"><span>水</span></label>
+                <label><input type="checkbox" name="weekday" value="TH"><span>木</span></label>
+                <label><input type="checkbox" name="weekday" value="FR"><span>金</span></label>
+                <label><input type="checkbox" name="weekday" value="SA"><span>土</span></label>
+              </div>
+            </div>
+
+            <div id="monthlyWrap" class="hidden field-block compact">
+              <label>
+                <span>毎月の指定</span>
+                <select id="monthlyMode">
+                  <option value="same">開始日と同じ日</option>
+                  <option value="day">日付を指定</option>
+                  <option value="lastday">月末</option>
+                  <option value="weekday">第○曜日 / 最後の曜日</option>
+                </select>
+              </label>
+              <div id="monthlyDayWrap" class="hidden grid two">
+                <label><span>日</span><input id="monthlyDay" type="number" min="1" max="31" value="1"></label>
+              </div>
+              <div id="monthlyWeekdayWrap" class="hidden grid two">
+                <label>
+                  <span>週</span>
+                  <select id="monthlyWeek">
+                    <option value="first">第1</option>
+                    <option value="second">第2</option>
+                    <option value="third">第3</option>
+                    <option value="fourth">第4</option>
+                    <option value="last">最後</option>
+                  </select>
+                </label>
+                <label>
+                  <span>曜日</span>
+                  <select id="monthlyWeekday">
+                    <option value="SU">日曜日</option><option value="MO">月曜日</option><option value="TU">火曜日</option>
+                    <option value="WE">水曜日</option><option value="TH">木曜日</option><option value="FR">金曜日</option><option value="SA">土曜日</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <div id="repeatUntilWrap" class="hidden grid two">
+              <label><span>終了日</span><input id="repeatUntil" type="date"></label>
+            </div>
+            <div id="repeatCountWrap" class="hidden grid two">
+              <label><span>回数</span><input id="repeatCount" type="number" min="1" max="999" value="10"></label>
+            </div>
+          </details>
+
+          <div class="actions">
+            <button id="submitButton" class="primary" type="submit">Googleカレンダーへ登録</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">UPCOMING</p>
+            <h2>今後の予定</h2>
+          </div>
+          <button id="refreshEvents" class="ghost" type="button">更新</button>
+        </div>
+        <div id="eventList" class="event-list"><p class="muted">読み込み中…</p></div>
+      </section>
+    </div>
+  </main>
+  <script type="module" src="/admin.js"></script>
+</body>
+</html>

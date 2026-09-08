@@ -11,6 +11,10 @@ export default {
             .setDescription('このボットで利用できるコマンドの一覧です。')
             .addFields(
                 {
+                    name: '管理画面',
+                    value: '`/reactus` - ブラウザの管理画面を開く（投稿・抽選・画像・繰り返し設定）'
+                },
+                {
                     name: 'リアクション管理',
                     value: '`/setreaction` - 自動リアクションを設定\n' +
                            '`/removereaction` - 設定を解除\n' +
