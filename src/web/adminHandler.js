@@ -36,7 +36,6 @@ import {
     deleteWebReactionRule,
     guildEmojiPayload,
     listWebReactionRules,
-    textChannelPayload,
     updateWebReactionRule,
 } from '../lib/webAdminExtrasService.js';
 
@@ -135,6 +134,63 @@ function requireAdministrator(auth) {
     throw error;
 }
 
+function canManageChannel(auth, channel) {
+    if (!channel?.isTextBased?.() || channel?.isDMBased?.()) return false;
+    const permissions = channel.permissionsFor?.(auth.member);
+    return Boolean(
+        permissions?.has(PermissionsBitField.Flags.ViewChannel)
+        && permissions?.has(PermissionsBitField.Flags.ManageMessages),
+    );
+}
+
+function manageableChannelIds(auth) {
+    return new Set(
+        [...auth.guild.channels.cache.values()]
+            .filter(channel => canManageChannel(auth, channel))
+            .map(channel => String(channel.id)),
+    );
+}
+
+async function requireManageableChannel(auth, channelId) {
+    const id = String(channelId || '').trim();
+    const channel = auth.guild.channels.cache.get(id)
+        || await auth.guild.channels.fetch(id).catch(() => null);
+    if (!canManageChannel(auth, channel)) {
+        const error = new Error('このチャンネルを管理する権限がありません。');
+        error.statusCode = 403;
+        throw error;
+    }
+    return channel;
+}
+
+async function requireMonitorAccess(auth, monitorId) {
+    const id = Number(monitorId);
+    if (!Number.isInteger(id) || id < 1) {
+        const error = new Error('投稿先を選択してください。');
+        error.statusCode = 400;
+        throw error;
+    }
+    const monitors = await get.monitorsByGuild(auth.session.guild_id);
+    const monitor = monitors.find(item => Number(item.id) === id);
+    if (!monitor) {
+        const error = new Error('投稿先設定が見つかりません。');
+        error.statusCode = 404;
+        throw error;
+    }
+    await requireManageableChannel(auth, monitor.channel_id);
+    return monitor;
+}
+
+async function requireEventAccess(auth, payload) {
+    const detail = await getWebScheduleDetail(auth.session.guild_id, {
+        calendarId: payload?.calendarId,
+        eventId: payload?.eventId,
+        scope: 'instance',
+    });
+    await requireMonitorAccess(auth, detail.monitorId);
+    return detail;
+}
+
 async function bootstrap(auth) {
     const [monitors, channels, roles, mainCalendarId] = await Promise.all([
         get.monitorsByGuild(auth.session.guild_id),
@@ -143,7 +199,15 @@ async function bootstrap(auth) {
         currentMainCalendar(auth.session.guild_id),
     ]);
     await auth.guild.emojis.fetch().catch(() => null);
-    const reactionRules = await listWebReactionRules(auth.session.guild_id, auth.guild);
+    const allowedChannelIds = manageableChannelIds(auth);
+    const reactionRules = (await listWebReactionRules(auth.session.guild_id, auth.guild))
+        .filter(rule => allowedChannelIds.has(String(rule.channelId)));
+    const visibleMonitors = monitors.filter(monitor => allowedChannelIds.has(String(monitor.channel_id)));
+    const visibleChannels = [...channels.values()]
+        .filter(channel => allowedChannelIds.has(String(channel.id)))
+        .sort((a, b) => (a.rawPosition ?? 0) - (b.rawPosition ?? 0))
+        .map(channel => ({ id: channel.id, name: channel.name || channel.id }));
+
     return {
         guild: { id: auth.guild.id, name: auth.guild.name },
         user: { id: auth.member.id, displayName: auth.member.displayName },
@@ -151,7 +215,7 @@ async function bootstrap(auth) {
             manageMainCalendar: auth.member.permissions.has(PermissionsBitField.Flags.Administrator),
         },
         mainCalendarId,
-        monitors: monitors.map(monitor => ({
+        monitors: visibleMonitors.map(monitor => ({
             id: monitor.id,
             channelId: monitor.channel_id,
             channelName: channels.get(monitor.channel_id)?.name || monitor.channel_id,
@@ -163,7 +227,7 @@ async function bootstrap(auth) {
             .filter(role => role.id !== auth.guild.id)
             .sort((a, b) => b.position - a.position)
             .map(role => ({ id: role.id, name: role.name })),
-        channels: textChannelPayload(auth.guild),
+        channels: visibleChannels,
         guildEmojis: guildEmojiPayload(auth.guild),
         reactionRules,
     };
@@ -249,17 +313,23 @@ export function createAdminHandler({ client }) {
                 return true;
             }
             if (pathname === '/api/admin/calendar-monitors' && req.method === 'POST') {
-                const monitor = await createWebCalendarMonitor(auth.session.guild_id, await readJson(req), auth.guild);
+                const payload = await readJson(req);
+                await requireManageableChannel(auth, payload?.channelId);
+                const monitor = await createWebCalendarMonitor(auth.session.guild_id, payload, auth.guild);
                 sendJson(req, res, 201, await withBackup(auth.session.guild_id, { ok: true, monitor }));
                 return true;
             }
             if (pathname === '/api/admin/calendar-monitors/update' && req.method === 'POST') {
-                const monitor = await updateWebCalendarMonitor(auth.session.guild_id, await readJson(req), auth.guild);
+                const payload = await readJson(req);
+                await requireManageableChannel(auth, payload?.channelId);
+                const monitor = await updateWebCalendarMonitor(auth.session.guild_id, payload, auth.guild);
                 sendJson(req, res, 200, await withBackup(auth.session.guild_id, { ok: true, monitor }));
                 return true;
             }
             if (pathname === '/api/admin/calendar-monitors/delete' && req.method === 'POST') {
-                const result = await deleteWebCalendarMonitor(auth.session.guild_id, await readJson(req));
+                const payload = await readJson(req);
+                await requireMonitorAccess(auth, payload?.id);
+                const result = await deleteWebCalendarMonitor(auth.session.guild_id, payload);
                 sendJson(req, res, 200, await withBackup(auth.session.guild_id, { ok: true, ...result }));
                 return true;
             }
@@ -275,7 +345,11 @@ export function createAdminHandler({ client }) {
             if (pathname === '/api/admin/events' && req.method === 'GET') {
                 const days = Number(searchParams.get('days') || 90);
                 const pastDays = Number(searchParams.get('pastDays') || 0);
-                sendJson(req, res, 200, { events: await listWebSchedules(auth.session.guild_id, days, pastDays) });
+                const allowedChannelIds = manageableChannelIds(auth);
+                const events = await listWebSchedules(auth.session.guild_id, days, pastDays);
+                sendJson(req, res, 200, {
+                    events: events.filter(event => allowedChannelIds.has(String(event.channelId))),
+                });
                 return true;
             }
             if (pathname === '/api/admin/event' && req.method === 'GET') {
@@ -284,59 +358,85 @@ export function createAdminHandler({ client }) {
                     eventId: searchParams.get('eventId'),
                     scope: searchParams.get('scope') || 'instance',
                 });
+                await requireMonitorAccess(auth, detail.monitorId);
                 sendJson(req, res, 200, { event: detail });
                 return true;
             }
             if (pathname === '/api/admin/schedules' && req.method === 'POST') {
-                const event = await createWebSchedule(auth.session.guild_id, await readJson(req));
+                const payload = await readJson(req);
+                await requireMonitorAccess(auth, payload?.monitorId);
+                const event = await createWebSchedule(auth.session.guild_id, payload);
                 sendJson(req, res, 201, { ok: true, event: { id: event.id, summary: event.summary, htmlLink: event.htmlLink || null } });
                 return true;
             }
             if (pathname === '/api/admin/duplicate' && req.method === 'POST') {
-                const event = await duplicateWebSchedule(auth.session.guild_id, await readJson(req));
+                const payload = await readJson(req);
+                await requireEventAccess(auth, payload);
+                const event = await duplicateWebSchedule(auth.session.guild_id, payload);
                 sendJson(req, res, 201, { ok: true, event: { id: event.id, summary: event.summary, htmlLink: event.htmlLink || null } });
                 return true;
             }
             if (pathname === '/api/admin/move' && req.method === 'POST') {
-                const event = await moveWebSchedule(auth.session.guild_id, await readJson(req));
+                const payload = await readJson(req);
+                await requireEventAccess(auth, payload);
+                const event = await moveWebSchedule(auth.session.guild_id, payload);
                 sendJson(req, res, 200, { ok: true, event: { id: event.id, summary: event.summary, htmlLink: event.htmlLink || null } });
                 return true;
             }
             if (pathname === '/api/admin/update' && req.method === 'POST') {
-                const event = await updateWebSchedule(auth.session.guild_id, await readJson(req));
+                const payload = await readJson(req);
+                await requireMonitorAccess(auth, payload?.monitorId);
+                const event = await updateWebSchedule(auth.session.guild_id, payload);
                 sendJson(req, res, 200, { ok: true, event: { id: event.id, summary: event.summary, htmlLink: event.htmlLink || null } });
                 return true;
             }
             if (pathname === '/api/admin/delete' && req.method === 'POST') {
-                sendJson(req, res, 200, { ok: true, ...(await deleteWebSchedule(auth.session.guild_id, await readJson(req))) });
+                const payload = await readJson(req);
+                await requireEventAccess(auth, payload);
+                sendJson(req, res, 200, { ok: true, ...(await deleteWebSchedule(auth.session.guild_id, payload)) });
                 return true;
             }
             if (pathname === '/api/admin/announcements' && req.method === 'GET') {
-                sendJson(req, res, 200, { announcements: await listWebAnnouncements(auth.session.guild_id, auth.guild) });
+                const allowedChannelIds = manageableChannelIds(auth);
+                const announcements = await listWebAnnouncements(auth.session.guild_id, auth.guild);
+                sendJson(req, res, 200, {
+                    announcements: announcements.filter(item => allowedChannelIds.has(String(item.channelId))),
+                });
                 return true;
             }
             if (pathname === '/api/admin/announcements' && req.method === 'POST') {
-                const announcement = await saveWebAnnouncement(auth.session.guild_id, await readJson(req), auth.guild);
+                const payload = await readJson(req);
+                await requireManageableChannel(auth, payload?.channelId);
+                const announcement = await saveWebAnnouncement(auth.session.guild_id, payload, auth.guild);
                 sendJson(req, res, 200, await withBackup(auth.session.guild_id, { ok: true, announcement }));
                 return true;
             }
             if (pathname === '/api/admin/announcements/delete' && req.method === 'POST') {
-                const result = await deleteWebAnnouncement(auth.session.guild_id, await readJson(req), auth.guild);
+                const payload = await readJson(req);
+                await requireManageableChannel(auth, payload?.channelId);
+                const result = await deleteWebAnnouncement(auth.session.guild_id, payload, auth.guild);
                 sendJson(req, res, 200, await withBackup(auth.session.guild_id, { ok: true, ...result }));
                 return true;
             }
             if (pathname === '/api/admin/reactions' && req.method === 'POST') {
-                const rule = await createWebReactionRule(auth.session.guild_id, await readJson(req), auth.guild);
+                const payload = await readJson(req);
+                await requireManageableChannel(auth, payload?.channelId);
+                const rule = await createWebReactionRule(auth.session.guild_id, payload, auth.guild);
                 sendJson(req, res, 201, await withBackup(auth.session.guild_id, { ok: true, rule }));
                 return true;
             }
             if (pathname === '/api/admin/reactions/update' && req.method === 'POST') {
-                const rule = await updateWebReactionRule(auth.session.guild_id, await readJson(req), auth.guild);
+                const payload = await readJson(req);
+                await requireManageableChannel(auth, payload?.originalChannelId);
+                await requireManageableChannel(auth, payload?.channelId);
+                const rule = await updateWebReactionRule(auth.session.guild_id, payload, auth.guild);
                 sendJson(req, res, 200, await withBackup(auth.session.guild_id, { ok: true, rule }));
                 return true;
             }
             if (pathname === '/api/admin/reactions/delete' && req.method === 'POST') {
-                const result = await deleteWebReactionRule(auth.session.guild_id, await readJson(req));
+                const payload = await readJson(req);
+                await requireManageableChannel(auth, payload?.channelId);
+                const result = await deleteWebReactionRule(auth.session.guild_id, payload);
                 sendJson(req, res, 200, await withBackup(auth.session.guild_id, { ok: true, ...result }));
                 return true;
             }
