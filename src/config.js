@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const DEFAULT_PORT = 8080;
+const DEFAULT_PUBLIC_BASE_URL = 'https://reactus.fly.dev';
 
 export function parsePort(value, fallback = DEFAULT_PORT) {
     const candidate = value === undefined || value === '' ? fallback : Number(value);
@@ -11,6 +12,15 @@ export function parsePort(value, fallback = DEFAULT_PORT) {
         throw new RangeError('PORT must be an integer between 1 and 65535.');
     }
     return candidate;
+}
+
+function normalizePublicBaseUrl(value) {
+    const raw = String(value || DEFAULT_PUBLIC_BASE_URL).trim().replace(/\/$/, '');
+    const url = new URL(raw);
+    if (url.protocol !== 'https:' && url.hostname !== 'localhost') {
+        throw new Error('PUBLIC_BASE_URL must use HTTPS outside localhost.');
+    }
+    return url.toString().replace(/\/$/, '');
 }
 
 export function buildConfig(environment = process.env) {
@@ -21,6 +31,7 @@ export function buildConfig(environment = process.env) {
         },
         web: {
             port: parsePort(environment.PORT),
+            publicBaseUrl: normalizePublicBaseUrl(environment.PUBLIC_BASE_URL),
         },
         database: {
             connectionString: environment.DATABASE_URL,
