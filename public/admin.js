@@ -455,6 +455,12 @@ async function editEvent(event) {
   await reloadEditDetail('instance');
 }
 
+document.addEventListener('reactus:edit-event', event => {
+  const source = event.detail;
+  if (!source?.calendarId || !source?.id) return;
+  void editEvent(source);
+});
+
 function resetCreateMode() {
   state.edit = null;
   setEditorHeading(false);

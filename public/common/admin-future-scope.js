@@ -1,4 +1,5 @@
 import './admin-preview.js';
+import './admin-calendar-edit.js';
 
 function setTextIfChanged(node, value) {
   if (node && node.textContent !== value) node.textContent = value;
