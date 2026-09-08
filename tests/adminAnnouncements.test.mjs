@@ -20,6 +20,16 @@ test('announcement admin is Japanese and supports multiline/channel-link editing
   assert.match(source, /Discordでの見え方/);
 });
 
+test('announcement list is paginated and only manageable channels are offered as new targets', async () => {
+  const source = await readFile(uiPath, 'utf8');
+  assert.match(source, /const ANNOUNCEMENTS_PER_PAGE = 8/);
+  assert.match(source, /announcementPrev/);
+  assert.match(source, /announcementNext/);
+  assert.match(source, /\$\{announcementState\.page \+ 1\} \/ \$\{pageCount\}ページ/);
+  assert.match(source, /if \(channel\.canManage\) addOption\(target/);
+  assert.match(source, /自分が見られるチャンネルの案内だけを表示します/);
+});
+
 test('admin handler exposes list, save, and delete announcement endpoints', async () => {
   const source = await readFile(handlerPath, 'utf8');
   assert.match(source, /pathname === '\/api\/admin\/announcements' && req\.method === 'GET'/);
