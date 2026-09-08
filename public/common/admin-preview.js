@@ -152,7 +152,9 @@ function normalPreview(container) {
   const rawBody = $('#body')?.value || '';
   const { cleaned } = cleanBodyMentions(rawBody);
   const mentions = finalMentionText(rawBody);
-  const content = [`**【${trigger}】${title}**`, cleaned, mentions].filter(Boolean).join('\n\n');
+  let content = `**【${trigger}】${title}**`;
+  if (cleaned) content += `\n${cleaned}`;
+  if (mentions) content += `\n\n${mentions}`;
 
   const card = document.createElement('div');
   card.className = 'discord-message-preview';
@@ -168,10 +170,19 @@ function normalPreview(container) {
   container.append(card);
 }
 
+function parseJstDateTimeInput(value) {
+  const text = String(value || '').trim();
+  if (!text) return null;
+  const local = text.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(?::(\d{2}))?$/);
+  const date = local
+    ? new Date(`${local[1]}T${local[2]}:${local[3] || '00'}+09:00`)
+    : new Date(text);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 function formatEndTime(value) {
-  if (!value) return '終了日時未入力';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '終了日時未入力';
+  const date = parseJstDateTimeInput(value);
+  if (!date) return '終了日時未入力';
   return new Intl.DateTimeFormat('ja-JP', {
     timeZone: 'Asia/Tokyo', year: 'numeric', month: 'numeric', day: 'numeric', weekday: 'short',
     hour: '2-digit', minute: '2-digit',
