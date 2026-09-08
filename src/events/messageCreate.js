@@ -2,27 +2,11 @@
 
 import { Events, MessageFlags } from 'discord.js';
 import { get } from '../lib/settingsCache.js';
-import { resolveDiscordReactionValues } from '../lib/discordEmoji.js';
+import { applyConfiguredAutoReactions } from '../lib/autoReactionService.js';
 
 async function handleAutoReaction(message) {
     try {
-        const settings = await get.reactionSettings(message.guild.id);
-        const relevantSetting = settings.find(s =>
-            s.channel_id === message.channel.id && message.content.includes(s.trigger)
-        );
-
-        if (relevantSetting) {
-            let reactions;
-            try {
-                reactions = resolveDiscordReactionValues(relevantSetting.emojis, message.guild);
-            } catch (error) {
-                console.warn(`[AutoReaction] 無効な絵文字設定をスキップします: ${relevantSetting.emojis} (${error.message})`);
-                return;
-            }
-            for (const reaction of reactions) {
-                await message.react(reaction).catch(err => console.error('[AutoReaction] リアクション追加に失敗:', err));
-            }
-        }
+        await applyConfiguredAutoReactions(message);
     } catch (error) {
         console.error('Error in handleAutoReaction:', error);
     }
