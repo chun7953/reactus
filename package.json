@@ -23,12 +23,10 @@
   "description": "A refactored Discord bot that manages automatic reactions.",
   "dependencies": {
     "@discordjs/rest": "^2.6.3",
-    "cron-parser": "^5.10.0",
     "discord-api-types": "^0.37.120",
     "discord.js": "^14.27.0",
     "dotenv": "^16.4.5",
     "googleapis": "^178.0.0",
-    "node-cron": "^4.6.0",
     "pg": "^8.23.0"
   }
 }
