@@ -143,11 +143,21 @@ export async function getWebScheduleDetail(guildId, request) {
     const extracted = extractTargets(detail[field] || '');
     detail[field] = extracted.cleaned;
 
-    let targets = [...extracted.targets];
+    // Structured metadata is authoritative, while explicit tokens in legacy or
+    // manually edited descriptions are also preserved. Merge both and dedupe.
+    let targets = [
+        ...(detail.mention?.mode === 'custom' ? (detail.mention.targets || []) : []),
+        ...extracted.targets,
+    ];
+
+    // Compatibility with detail objects produced by older code paths.
     if (detail.mention?.mode === 'role' && detail.mention.roleId) {
         targets.push({ type: 'role', id: String(detail.mention.roleId) });
     }
 
+    // A legacy/default event can combine the monitor default role with explicit
+    // mentions in its description. Preserve the exact delivery result when it
+    // is first opened in the structured editor.
     if (targets.length && detail.mention?.mode === 'default') {
         const monitor = await monitorFor(guildId, detail.monitorId);
         if (monitor?.mention_role) targets.unshift({ type: 'role', id: String(monitor.mention_role) });
@@ -156,11 +166,6 @@ export async function getWebScheduleDetail(guildId, request) {
     targets = uniqueTargets(targets);
     if (targets.length) {
         detail.mention = { mode: 'custom', targets };
-    } else if (detail.mention?.mode === 'role' && detail.mention.roleId) {
-        detail.mention = {
-            mode: 'custom',
-            targets: [{ type: 'role', id: String(detail.mention.roleId) }],
-        };
     }
     return detail;
 }
