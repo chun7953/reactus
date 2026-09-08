@@ -4,7 +4,10 @@ import { get } from './settingsCache.js';
 import { parseJstDateTime } from './calendarScheduling.js';
 import { parseTriggeredSummary } from './calendarEditHelpers.js';
 import { cloneCalendarPostImage, deleteCalendarPostImage } from './calendarPostAssets.js';
-import { buildDuplicatedEventBody } from './calendarDuplicateHelpers.js';
+import {
+    buildDuplicatedEventBody,
+    mergeDuplicatePrivateProperties,
+} from './calendarDuplicateHelpers.js';
 
 function cleanKeyword(value) {
     return String(value || '').replace(/[【】]/g, '').trim();
@@ -19,6 +22,22 @@ function parseRequiredDateTime(value) {
 function permissionHelp(auth, calendarId) {
     const email = auth?.email ? ` サービスアカウント: ${auth.email}` : '';
     return `カレンダー ${calendarId} に予定を書き込めません。GoogleカレンダーでReactusのサービスアカウントに「予定の変更」権限を付けてください。${email}`;
+}
+
+async function effectivePrivateProperties(calendar, calendarId, source) {
+    const instancePrivate = source.extendedProperties?.private || {};
+    if (!source.recurringEventId) return instancePrivate;
+
+    try {
+        const master = (await calendar.events.get({ calendarId, eventId: source.recurringEventId })).data;
+        return mergeDuplicatePrivateProperties(
+            master.extendedProperties?.private || {},
+            instancePrivate,
+        );
+    } catch (error) {
+        if (error?.code === 404) return instancePrivate;
+        throw error;
+    }
 }
 
 export async function duplicateWebSchedule(guildId, { calendarId, eventId, startTime }) {
@@ -43,8 +62,22 @@ export async function duplicateWebSchedule(guildId, { calendarId, eventId, start
     const monitor = calendarMonitors.find(candidate => cleanKeyword(candidate.trigger_keyword) === trigger);
     if (!monitor) throw new Error('Reactusが管理している予定ではありません。');
 
-    const sourcePrivate = source.extendedProperties?.private || {};
+    let sourcePrivate;
+    try {
+        sourcePrivate = await effectivePrivateProperties(calendar, calendarId, source);
+    } catch (error) {
+        if (error?.code === 403) throw new Error(permissionHelp(auth, calendarId));
+        throw error;
+    }
     const sourceAssetId = sourcePrivate.reactusAssetId || null;
+    const sourceWithEffectiveMetadata = {
+        ...source,
+        extendedProperties: {
+            ...(source.extendedProperties || {}),
+            private: sourcePrivate,
+        },
+    };
+
     let clonedAssetId = null;
     try {
         if (sourceAssetId) {
@@ -52,7 +85,7 @@ export async function duplicateWebSchedule(guildId, { calendarId, eventId, start
             if (!clonedAssetId) throw new Error('複製元の画像を読み込めませんでした。');
         }
 
-        const requestBody = buildDuplicatedEventBody(source, newStart, {
+        const requestBody = buildDuplicatedEventBody(sourceWithEffectiveMetadata, newStart, {
             assetId: clonedAssetId,
             fallbackSummary: `【${cleanKeyword(monitor.trigger_keyword)}】複製`,
         });
