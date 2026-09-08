@@ -17,6 +17,7 @@ import { getCalendarPostImage } from './calendarPostAssets.js';
 import { createMonitorController } from './monitorController.js';
 import { resolveCalendarEventPrivateProperties } from './calendarEventMetadata.js';
 import { eventMentionTokens, extractDiscordMentions } from './calendarMentions.js';
+import { calendarDisplaySummary, resolveCalendarRoute } from './calendarRouting.js';
 
 function basicDecodeHtmlEntities(text) {
     if (!text || typeof text !== 'string') {
@@ -93,12 +94,14 @@ async function checkCalendarEvents(client) {
                         event,
                         masterMetadataCache,
                     );
+                    const route = resolveCalendarRoute(event, [monitor], privateProperties);
+                    if (!route) continue;
+
                     let eventDescription = event.description || '';
                     eventDescription = basicDecodeHtmlEntities(eventDescription);
-                    const eventText = `${event.summary || ''} ${eventDescription}`;
 
-                    if (monitor.trigger_keyword === 'ラキショ' && eventText.includes('【ラキショ】')) {
-                        console.log(`[TaskMonitor] 抽選イベントを検出: ${event.summary}`);
+                    if (route.type === 'giveaway') {
+                        console.log(`[TaskMonitor] 抽選イベントを検出: ${calendarDisplaySummary(event, route)}`);
                         try {
                             const descriptionLines = eventDescription.split('\n').map(line => line.trim()).filter(line => line.length > 0);
                             let prizesToCreate = [];
@@ -114,7 +117,7 @@ async function checkCalendarEvents(client) {
                                     if (parsedMentions.cleaned) additionalMessageContent.push(parsedMentions.cleaned);
                                 }
                             }
-                            let mainSummaryPrize = (event.summary || 'プレゼント').replace('【ラキショ】', '').trim();
+                            const mainSummaryPrize = calendarDisplaySummary(event, route).trim();
                             if (mainSummaryPrize && prizesToCreate.length === 0) {
                                 prizesToCreate.push({ prize: mainSummaryPrize, winnerCount: 1 });
                             } else if (prizesToCreate.length === 0) {
@@ -146,13 +149,13 @@ async function checkCalendarEvents(client) {
                                 }
                                 await recordNotification(pool, notificationKey);
                             } else {
-                                console.error(`[TaskMonitor ERROR] 【ラキショ】抽選の投稿先チャンネル ${monitor.channel_id} が見つからないか、アクセスできません。`);
+                                console.error(`[TaskMonitor ERROR] 抽選の投稿先チャンネル ${monitor.channel_id} が見つからないか、アクセスできません。`);
                             }
                         } catch (e) { console.error(`カレンダーイベント ${event.id} からの自動抽選作成に失敗:`, e); }
                         continue;
                     }
 
-                    if (eventText.includes(`【${monitor.trigger_keyword}】`)) {
+                    if (route.type === 'post') {
                         const channel = await client.channels.fetch(monitor.channel_id).catch(() => null);
                         if (!channel) {
                              console.error(`[TaskMonitor ERROR] 指定された通知チャンネル ${monitor.channel_id} が見つからないか、アクセスできません。`);
@@ -163,7 +166,7 @@ async function checkCalendarEvents(client) {
                         parsedDescription.mentions.forEach(mention => allMentions.add(mention));
                         const cleanedDescription = parsedDescription.cleaned;
                         const finalMentions = Array.from(allMentions).join(' ');
-                        let message = `**${event.summary || 'タイトルなし'}**`;
+                        let message = `**${calendarDisplaySummary(event, route)}**`;
                         if (cleanedDescription) message += `\n${cleanedDescription}`;
                         if (finalMentions.trim()) message += `\n\n${finalMentions.trim()}`;
                         const imageFile = await eventImageFile(privateProperties, monitor.guild_id);
