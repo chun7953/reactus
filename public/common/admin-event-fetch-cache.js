@@ -30,7 +30,10 @@ function eventBounds(event) {
 
 function filterEvents(events, url) {
   const days = Math.max(1, Math.min(365, Number(url.searchParams.get('days') || 90) || 90));
-  const pastDays = Math.max(0, Math.min(365, Number(url.searchParams.get('pastDays') || 0) || 0));
+  const requestedPastDays = url.searchParams.has('pastDays')
+    ? Number(url.searchParams.get('pastDays') || 0)
+    : (days >= 365 ? CANONICAL_PAST_DAYS : 0);
+  const pastDays = Math.max(0, Math.min(365, requestedPastDays || 0));
   const now = Date.now();
   const min = now - pastDays * 24 * 60 * 60 * 1000;
   const max = now + days * 24 * 60 * 60 * 1000;
