@@ -76,13 +76,12 @@ test('updates mention and image metadata without losing unrelated private proper
     });
     assert.deepEqual(result, {
         reactusMentionMode: 'default',
-        reactusMentionRoleId: null,
         reactusAssetId: 'new',
         keepMe: 'yes',
     });
 });
 
-test('can explicitly remove mention and image metadata', () => {
+test('can explicitly remove mention and image metadata without null map values', () => {
     const result = buildPrivatePropertiesPatch({
         reactusMentionMode: 'role',
         reactusMentionRoleId: '111',
@@ -92,8 +91,9 @@ test('can explicitly remove mention and image metadata', () => {
         assetMode: 'remove',
     });
     assert.equal(result.reactusMentionMode, 'none');
-    assert.equal(result.reactusMentionRoleId, null);
-    assert.equal(result.reactusAssetId, null);
+    assert.equal('reactusMentionRoleId' in result, false);
+    assert.equal('reactusAssetId' in result, false);
+    assert.equal(Object.values(result).every(value => typeof value === 'string'), true);
 });
 
 test('detects whether recurrence options were actually supplied', () => {

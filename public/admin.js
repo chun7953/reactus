@@ -2,6 +2,7 @@ const state = {
   bootstrap: null,
   image: null,
   events: [],
+  edit: null,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -86,6 +87,12 @@ function addPrize(name = '', winners = 1) {
   $('#prizeList').append(row);
 }
 
+function replacePrizes(prizes = []) {
+  $('#prizeList').replaceChildren();
+  const values = prizes.length ? prizes : [{ name: '', winners: 1 }];
+  values.forEach(prize => addPrize(prize.name || '', prize.winners || 1));
+}
+
 function selectedType() {
   return $('#scheduleType').value;
 }
@@ -123,6 +130,12 @@ function updateMention() {
   $('#roleWrap').classList.toggle('hidden', $('#mentionMode').value !== 'role');
 }
 
+function updateMonthly() {
+  const mode = $('#monthlyMode').value;
+  $('#monthlyDayWrap').classList.toggle('hidden', mode !== 'day');
+  $('#monthlyWeekdayWrap').classList.toggle('hidden', mode !== 'weekday');
+}
+
 function updateRecurrence() {
   const unit = $('#repeatUnit').value;
   const recurring = unit !== 'once';
@@ -138,12 +151,6 @@ function updateRecurrence() {
   $('#repeatUntilWrap').classList.toggle('hidden', !recurring || endMode !== 'until');
   $('#repeatCountWrap').classList.toggle('hidden', !recurring || endMode !== 'count');
   updateMonthly();
-}
-
-function updateMonthly() {
-  const mode = $('#monthlyMode').value;
-  $('#monthlyDayWrap').classList.toggle('hidden', mode !== 'day');
-  $('#monthlyWeekdayWrap').classList.toggle('hidden', mode !== 'weekday');
 }
 
 function populateRoles() {
@@ -177,6 +184,38 @@ function recurrencePayload() {
   if (endMode === 'until') result.until = $('#repeatUntil').value;
   if (endMode === 'count') result.count = Number($('#repeatCount').value);
   return result;
+}
+
+function fillRecurrence(recurrence = { unit: 'once', interval: 1 }) {
+  $('#repeatUnit').value = recurrence.unit || 'once';
+  $('#repeatInterval').value = String(recurrence.interval || 1);
+  $$('input[name="weekday"]').forEach(input => {
+    input.checked = (recurrence.weekdays || []).includes(input.value);
+  });
+
+  $('#monthlyMode').value = 'same';
+  if (recurrence.monthlyDay === -1) {
+    $('#monthlyMode').value = 'lastday';
+  } else if (Number.isInteger(recurrence.monthlyDay)) {
+    $('#monthlyMode').value = 'day';
+    $('#monthlyDay').value = String(recurrence.monthlyDay);
+  } else if (recurrence.monthlyWeek && recurrence.monthlyWeekday) {
+    $('#monthlyMode').value = 'weekday';
+    $('#monthlyWeek').value = recurrence.monthlyWeek;
+    $('#monthlyWeekday').value = recurrence.monthlyWeekday;
+  }
+
+  if (recurrence.until) {
+    $('#repeatEndMode').value = 'until';
+    $('#repeatUntil').value = recurrence.until;
+  } else if (recurrence.count) {
+    $('#repeatEndMode').value = 'count';
+    $('#repeatCount').value = String(recurrence.count);
+  } else {
+    $('#repeatEndMode').value = 'never';
+    $('#repeatUntil').value = '';
+  }
+  updateRecurrence();
 }
 
 async function fileToImagePayload(file) {
@@ -225,12 +264,215 @@ function schedulePayload() {
   return payload;
 }
 
+function updatePayload() {
+  const base = schedulePayload();
+  return {
+    ...base,
+    calendarId: state.edit.detail.calendarId,
+    eventId: state.edit.detail.requestedEventId,
+    scope: state.edit.scope,
+    imageMode: state.edit.imageMode,
+    image: state.edit.imageMode === 'replace' ? state.image : null,
+  };
+}
+
 function formatDate(value) {
   if (!value) return '';
   return new Intl.DateTimeFormat('ja-JP', {
     timeZone: 'Asia/Tokyo',
     month: 'numeric', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit',
   }).format(new Date(value));
+}
+
+function editControls() {
+  let banner = $('#editBanner');
+  if (banner) return banner;
+  banner = document.createElement('div');
+  banner.id = 'editBanner';
+  banner.className = 'field-block compact hidden';
+
+  const title = document.createElement('div');
+  title.className = 'field-title-row';
+  const text = document.createElement('div');
+  const strong = document.createElement('strong');
+  strong.id = 'editBannerTitle';
+  strong.textContent = '予定を編集中';
+  const hint = document.createElement('p');
+  hint.id = 'editBannerHint';
+  hint.className = 'hint';
+  hint.textContent = '保存するまでGoogleカレンダーは変更されません。';
+  text.append(strong, hint);
+
+  const cancel = document.createElement('button');
+  cancel.id = 'cancelEdit';
+  cancel.type = 'button';
+  cancel.className = 'small';
+  cancel.textContent = '編集をやめる';
+  cancel.addEventListener('click', resetCreateMode);
+  title.append(text, cancel);
+
+  const scopeWrap = document.createElement('label');
+  scopeWrap.id = 'editScopeWrap';
+  scopeWrap.className = 'hidden';
+  const scopeTitle = document.createElement('span');
+  scopeTitle.textContent = '編集範囲';
+  const scope = document.createElement('select');
+  scope.id = 'editScope';
+  const instance = document.createElement('option');
+  instance.value = 'instance';
+  instance.textContent = 'この回だけ';
+  const series = document.createElement('option');
+  series.value = 'series';
+  series.textContent = '繰り返し全体';
+  scope.append(instance, series);
+  scope.addEventListener('change', () => reloadEditDetail(scope.value));
+  scopeWrap.append(scopeTitle, scope);
+
+  banner.append(title, scopeWrap);
+  $('#scheduleForm').before(banner);
+  return banner;
+}
+
+function setEditorHeading(editing) {
+  const panel = $('#scheduleForm').closest('.panel');
+  const heading = panel.querySelector('.section-head h2');
+  const eyebrow = panel.querySelector('.section-head .eyebrow');
+  if (heading) heading.textContent = editing ? '予定を編集' : '予定を作成';
+  if (eyebrow) eyebrow.textContent = editing ? 'EDIT SCHEDULE' : 'NEW SCHEDULE';
+}
+
+function applyEditRestrictions() {
+  const recurringInstance = Boolean(state.edit?.detail?.originalWasRecurring && state.edit.scope === 'instance');
+  $$('.recurrence input, .recurrence select').forEach(control => { control.disabled = recurringInstance; });
+  $('#image').disabled = recurringInstance;
+  $('#clearImage').disabled = recurringInstance;
+  $$('.segment').forEach(button => { button.disabled = Boolean(state.edit); });
+  $('#monitor').disabled = Boolean(state.edit);
+
+  if (state.edit) {
+    const hint = $('#editBannerHint');
+    hint.textContent = recurringInstance
+      ? 'この回だけでは繰り返し条件と画像は変更できません。全体を選ぶと変更できます。'
+      : '保存するまでGoogleカレンダーは変更されません。';
+  }
+}
+
+function renderEditImageState() {
+  $('#image').value = '';
+  state.image = null;
+  $('#imagePreview').classList.add('hidden');
+  $('#imagePreview').removeAttribute('src');
+
+  if (!state.edit) {
+    $('#imageName').textContent = 'なし';
+    $('#clearImage').classList.add('hidden');
+    $('#clearImage').textContent = '外す';
+    return;
+  }
+
+  const hasImage = state.edit.originalHasImage;
+  if (state.edit.imageMode === 'remove') {
+    $('#imageName').textContent = '保存時に既存画像を削除';
+    $('#clearImage').classList.remove('hidden');
+    $('#clearImage').textContent = '削除を取り消す';
+  } else if (hasImage) {
+    $('#imageName').textContent = '現在の画像あり（変更なし）';
+    $('#clearImage').classList.remove('hidden');
+    $('#clearImage').textContent = '既存画像を削除';
+  } else {
+    $('#imageName').textContent = 'なし';
+    $('#clearImage').classList.add('hidden');
+    $('#clearImage').textContent = '外す';
+  }
+}
+
+function populateEditForm(detail) {
+  updateType(detail.type);
+  $('#monitor').value = String(detail.monitorId);
+  $('#startTime').value = detail.startTime;
+
+  if (detail.type === 'post') {
+    $('#title').value = detail.title || '';
+    $('#body').value = detail.body || '';
+    $('#durationMinutes').value = String(detail.durationMinutes || 30);
+  } else {
+    $('#endTime').value = detail.endTime;
+    $('#message').value = detail.message || '';
+    replacePrizes(detail.prizes || []);
+  }
+
+  $('#mentionMode').value = detail.mention?.mode || 'default';
+  if (detail.mention?.roleId && [...$('#mentionRole').options].some(option => option.value === detail.mention.roleId)) {
+    $('#mentionRole').value = detail.mention.roleId;
+  }
+  updateMention();
+  fillRecurrence(detail.recurrence || { unit: 'once', interval: 1 });
+  renderEditImageState();
+  applyEditRestrictions();
+}
+
+async function reloadEditDetail(scope) {
+  if (!state.edit) return;
+  const source = state.edit.sourceEvent;
+  const banner = editControls();
+  banner.classList.remove('hidden');
+  $('#submitButton').disabled = true;
+  $('#submitButton').textContent = '読み込み中…';
+  try {
+    const params = new URLSearchParams({
+      calendarId: source.calendarId,
+      eventId: source.id,
+      scope,
+    });
+    const result = await api(`/api/admin/event?${params}`);
+    state.edit.scope = scope;
+    state.edit.detail = result.event;
+    state.edit.originalHasImage = Boolean(result.event.hasImage);
+    state.edit.imageMode = 'keep';
+    $('#editScope').value = scope;
+    $('#editScopeWrap').classList.toggle('hidden', !result.event.originalWasRecurring);
+    $('#editBannerTitle').textContent = scope === 'series' ? '繰り返し予定全体を編集中' : '予定を編集中';
+    populateEditForm(result.event);
+    $('#scheduleForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (error) {
+    showNotice(error.message, true);
+  } finally {
+    $('#submitButton').disabled = false;
+    $('#submitButton').textContent = '変更を保存';
+  }
+}
+
+async function editEvent(event) {
+  state.edit = {
+    sourceEvent: event,
+    scope: 'instance',
+    detail: null,
+    originalHasImage: false,
+    imageMode: 'keep',
+  };
+  setEditorHeading(true);
+  editControls().classList.remove('hidden');
+  await reloadEditDetail('instance');
+}
+
+function resetCreateMode() {
+  state.edit = null;
+  setEditorHeading(false);
+  editControls().classList.add('hidden');
+  $('#scheduleForm').reset();
+  updateType('post');
+  $('#monitor').disabled = false;
+  $$('.segment').forEach(button => { button.disabled = false; });
+  $$('.recurrence input, .recurrence select').forEach(control => { control.disabled = false; });
+  $('#image').disabled = false;
+  $('#clearImage').disabled = false;
+  replacePrizes();
+  setDefaultTimes();
+  fillRecurrence({ unit: 'once', interval: 1 });
+  updateMention();
+  state.image = null;
+  renderEditImageState();
+  $('#submitButton').textContent = 'Googleカレンダーへ登録';
 }
 
 function eventCard(event) {
@@ -253,6 +495,24 @@ function eventCard(event) {
 
   const actions = document.createElement('div');
   actions.className = 'event-actions';
+
+  const editButton = document.createElement('button');
+  editButton.type = 'button';
+  editButton.className = 'small';
+  editButton.textContent = '編集';
+  editButton.addEventListener('click', () => editEvent(event));
+  actions.append(editButton);
+
+  if (event.htmlLink) {
+    const open = document.createElement('a');
+    open.href = event.htmlLink;
+    open.target = '_blank';
+    open.rel = 'noopener noreferrer';
+    open.className = 'small';
+    open.textContent = 'Google';
+    actions.append(open);
+  }
+
   const deleteButton = document.createElement('button');
   deleteButton.type = 'button';
   deleteButton.className = 'small danger';
@@ -301,6 +561,7 @@ async function deleteEvent(event) {
       method: 'POST',
       body: JSON.stringify({ calendarId: event.calendarId, eventId: event.id, scope }),
     });
+    if (state.edit?.sourceEvent?.id === event.id) resetCreateMode();
     showNotice(scope === 'series' ? '繰り返し予定を削除しました。' : '予定を削除しました。');
     await loadEvents();
   } catch (error) {
@@ -327,15 +588,14 @@ async function initialize() {
   $('#app').classList.remove('hidden');
   $('#identity').textContent = `${state.bootstrap.guild.name} · ${state.bootstrap.user.displayName}`;
   populateRoles();
-  updateMonitorOptions();
-  setDefaultTimes();
-  addPrize();
-  updateMention();
-  updateRecurrence();
+  editControls();
+  resetCreateMode();
   await loadEvents();
 }
 
-$$('.segment').forEach(button => button.addEventListener('click', () => updateType(button.dataset.type)));
+$$('.segment').forEach(button => button.addEventListener('click', () => {
+  if (!state.edit) updateType(button.dataset.type);
+}));
 $('#addPrize').addEventListener('click', () => addPrize());
 $('#mentionMode').addEventListener('change', updateMention);
 $('#repeatUnit').addEventListener('change', updateRecurrence);
@@ -347,8 +607,10 @@ $('#image').addEventListener('change', async (event) => {
   const file = event.target.files?.[0] || null;
   try {
     state.image = await fileToImagePayload(file);
+    if (state.edit && file) state.edit.imageMode = 'replace';
     $('#imageName').textContent = file ? `${file.name} (${Math.round(file.size / 1024)}KB)` : 'なし';
-    $('#clearImage').classList.toggle('hidden', !file);
+    $('#clearImage').classList.toggle('hidden', !file && !(state.edit?.originalHasImage));
+    $('#clearImage').textContent = file ? '外す' : (state.edit?.originalHasImage ? '既存画像を削除' : '外す');
     if (file) {
       $('#imagePreview').src = URL.createObjectURL(file);
       $('#imagePreview').classList.remove('hidden');
@@ -358,6 +620,7 @@ $('#image').addEventListener('change', async (event) => {
   } catch (error) {
     event.target.value = '';
     state.image = null;
+    if (state.edit) state.edit.imageMode = 'keep';
     showNotice(error.message, true);
   }
 });
@@ -365,30 +628,55 @@ $('#image').addEventListener('change', async (event) => {
 $('#clearImage').addEventListener('click', () => {
   $('#image').value = '';
   state.image = null;
-  $('#imageName').textContent = 'なし';
-  $('#clearImage').classList.add('hidden');
   $('#imagePreview').classList.add('hidden');
   $('#imagePreview').removeAttribute('src');
+
+  if (state.edit) {
+    if (state.edit.imageMode === 'remove') {
+      state.edit.imageMode = 'keep';
+    } else if (state.edit.originalHasImage && state.edit.imageMode !== 'replace') {
+      state.edit.imageMode = 'remove';
+    } else {
+      state.edit.imageMode = 'keep';
+    }
+    renderEditImageState();
+    applyEditRestrictions();
+    return;
+  }
+
+  $('#imageName').textContent = 'なし';
+  $('#clearImage').classList.add('hidden');
 });
 
 $('#scheduleForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   const button = $('#submitButton');
   button.disabled = true;
+  const editing = Boolean(state.edit);
   const original = button.textContent;
-  button.textContent = '登録中…';
+  button.textContent = editing ? '保存中…' : '登録中…';
   try {
-    const result = await api('/api/admin/schedules', {
-      method: 'POST',
-      body: JSON.stringify(schedulePayload()),
-    });
-    showNotice(`「${result.event.summary}」をGoogleカレンダーへ登録しました。`);
+    if (editing) {
+      const result = await api('/api/admin/update', {
+        method: 'POST',
+        body: JSON.stringify(updatePayload()),
+      });
+      showNotice(`「${result.event.summary}」の変更を保存しました。`);
+      resetCreateMode();
+    } else {
+      const result = await api('/api/admin/schedules', {
+        method: 'POST',
+        body: JSON.stringify(schedulePayload()),
+      });
+      showNotice(`「${result.event.summary}」をGoogleカレンダーへ登録しました。`);
+    }
     await loadEvents();
   } catch (error) {
     showNotice(error.message, true);
   } finally {
     button.disabled = false;
-    button.textContent = original;
+    button.textContent = state.edit ? '変更を保存' : 'Googleカレンダーへ登録';
+    if (!state.edit && !editing) button.textContent = original;
   }
 });
 

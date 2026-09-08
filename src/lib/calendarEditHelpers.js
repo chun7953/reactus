@@ -97,21 +97,21 @@ export function buildPrivatePropertiesPatch(existing = {}, {
     if (mention !== null || mentionRoleId) {
         if (mention === false) {
             next.reactusMentionMode = 'none';
-            next.reactusMentionRoleId = null;
+            delete next.reactusMentionRoleId;
         } else if (mentionRoleId) {
             next.reactusMentionMode = 'role';
-            next.reactusMentionRoleId = mentionRoleId;
+            next.reactusMentionRoleId = String(mentionRoleId);
         } else {
             next.reactusMentionMode = 'default';
-            next.reactusMentionRoleId = null;
+            delete next.reactusMentionRoleId;
         }
     }
 
     if (assetMode === 'replace') {
         if (!assetId) throw new Error('画像置換には新しい画像IDが必要です。');
-        next.reactusAssetId = assetId;
+        next.reactusAssetId = String(assetId);
     } else if (assetMode === 'remove') {
-        next.reactusAssetId = null;
+        delete next.reactusAssetId;
     } else if (assetMode !== 'keep') {
         throw new Error(`Unsupported asset mode: ${assetMode}`);
     }
