@@ -1,10 +1,10 @@
 const originalFetch = window.fetch.bind(window);
 const EVENT_CACHE_TTL_MS = 2000;
-const CANONICAL_DAYS = 365;
-const CANONICAL_PAST_DAYS = 45;
+const LEGACY_MONTH_DAYS = 45;
+const LEGACY_MONTH_PAST_DAYS = 40;
 
-let cached = null;
-let inflight = null;
+const cachedRequests = new Map();
+const inflightRequests = new Map();
 
 function requestUrl(input) {
   try {
@@ -19,62 +19,56 @@ function requestMethod(input, init) {
   return String(init?.method || (input instanceof Request ? input.method : 'GET') || 'GET').toUpperCase();
 }
 
-function eventBounds(event) {
-  const start = new Date(event?.start || 0).getTime();
-  const end = new Date(event?.end || event?.start || 0).getTime();
-  return {
-    start: Number.isFinite(start) ? start : 0,
-    end: Number.isFinite(end) ? end : start,
-  };
+function normalizedEventUrl(url) {
+  const normalized = new URL(url.href);
+  const days = Number(normalized.searchParams.get('days') || 90);
+
+  // Older month-calendar helpers asked for a full year only so they could render
+  // whichever dates were visible. Keep those callers working, but do not make
+  // the user wait for a year-wide Google Calendar scan on every page load.
+  if (days >= 365 && !normalized.searchParams.has('pastDays')) {
+    normalized.searchParams.set('days', String(LEGACY_MONTH_DAYS));
+    normalized.searchParams.set('pastDays', String(LEGACY_MONTH_PAST_DAYS));
+  }
+  return normalized;
 }
 
-function filterEvents(events, url) {
-  const days = Math.max(1, Math.min(365, Number(url.searchParams.get('days') || 90) || 90));
-  const requestedPastDays = url.searchParams.has('pastDays')
-    ? Number(url.searchParams.get('pastDays') || 0)
-    : (days >= 365 ? CANONICAL_PAST_DAYS : 0);
-  const pastDays = Math.max(0, Math.min(365, requestedPastDays || 0));
-  const now = Date.now();
-  const min = now - pastDays * 24 * 60 * 60 * 1000;
-  const max = now + days * 24 * 60 * 60 * 1000;
-  return events.filter(event => {
-    const bounds = eventBounds(event);
-    return bounds.start < max && Math.max(bounds.end, bounds.start) >= min;
-  });
+function cacheKey(url) {
+  return `${url.pathname}?${url.searchParams.toString()}`;
 }
 
 function invalidateEvents() {
-  cached = null;
-  inflight = null;
+  cachedRequests.clear();
+  inflightRequests.clear();
 }
 
-async function canonicalEvents() {
+async function cachedEventRequest(url) {
+  const key = cacheKey(url);
+  const cached = cachedRequests.get(key);
   if (cached && Date.now() - cached.loadedAt < EVENT_CACHE_TTL_MS) return cached;
-  if (inflight) return inflight;
+  if (inflightRequests.has(key)) return inflightRequests.get(key);
 
-  inflight = (async () => {
-    const response = await originalFetch(
-      `/api/admin/events?days=${CANONICAL_DAYS}&pastDays=${CANONICAL_PAST_DAYS}`,
-      { credentials: 'same-origin' },
-    );
+  const inflight = (async () => {
+    const response = await originalFetch(`${url.pathname}${url.search}`, {
+      credentials: 'same-origin',
+    });
     const text = await response.text();
-    let data = {};
-    try { data = text ? JSON.parse(text) : {}; } catch {}
     const result = {
       loadedAt: Date.now(),
       ok: response.ok,
       status: response.status,
       statusText: response.statusText,
-      data,
+      text,
     };
-    if (response.ok) cached = result;
+    if (response.ok) cachedRequests.set(key, result);
     return result;
   })();
 
+  inflightRequests.set(key, inflight);
   try {
     return await inflight;
   } finally {
-    inflight = null;
+    inflightRequests.delete(key);
   }
 }
 
@@ -83,11 +77,9 @@ window.fetch = async function reactusAdminFetch(input, init = {}) {
   const method = requestMethod(input, init);
 
   if (method === 'GET' && url?.origin === location.origin && url.pathname === '/api/admin/events') {
-    const result = await canonicalEvents();
-    const body = result.ok
-      ? { ...result.data, events: filterEvents(result.data?.events || [], url) }
-      : result.data;
-    return new Response(JSON.stringify(body), {
+    const normalized = normalizedEventUrl(url);
+    const result = await cachedEventRequest(normalized);
+    return new Response(result.text, {
       status: result.status,
       statusText: result.statusText,
       headers: {
