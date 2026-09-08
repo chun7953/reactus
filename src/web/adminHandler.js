@@ -143,6 +143,46 @@ async function bootstrap(auth) {
     };
 }
 
+function memberPayload(member) {
+    return {
+        id: member.id,
+        displayName: member.displayName || member.user?.globalName || member.user?.username || member.id,
+        username: member.user?.username || member.id,
+        bot: Boolean(member.user?.bot),
+        avatarUrl: member.displayAvatarURL?.({ size: 64 }) || null,
+    };
+}
+
+async function searchGuildMembers(guild, rawQuery) {
+    const query = String(rawQuery || '').trim().slice(0, 100);
+    if (!query) return [];
+
+    // Pasting a Discord user ID should resolve directly, even when the REST
+    // member-search endpoint would not match that numeric string as a name.
+    if (/^\d{15,22}$/.test(query)) {
+        const exact = await guild.members.fetch(query).catch(() => null);
+        if (exact) return [memberPayload(exact)];
+    }
+
+    try {
+        const found = await guild.members.search({ query, limit: 25 });
+        return [...found.values()].map(memberPayload);
+    } catch (error) {
+        console.warn('[WebAdmin] Discord member search failed, using cache:', error?.message || error);
+        const needle = query.toLocaleLowerCase('ja');
+        return [...guild.members.cache.values()]
+            .filter(member => {
+                const names = [member.displayName, member.user?.globalName, member.user?.username]
+                    .filter(Boolean)
+                    .join(' ')
+                    .toLocaleLowerCase('ja');
+                return names.includes(needle);
+            })
+            .slice(0, 25)
+            .map(memberPayload);
+    }
+}
+
 async function withBackup(guildId, result) {
     const backupOk = await triggerAutoBackup(guildId).catch(() => false);
     return { ...result, backupOk };
@@ -178,6 +218,10 @@ export function createAdminHandler({ client }) {
         try {
             if (pathname === '/api/admin/bootstrap' && req.method === 'GET') {
                 sendJson(req, res, 200, await bootstrap(auth));
+                return true;
+            }
+            if (pathname === '/api/admin/members' && req.method === 'GET') {
+                sendJson(req, res, 200, { members: await searchGuildMembers(auth.guild, searchParams.get('q')) });
                 return true;
             }
             if (pathname === '/api/admin/events' && req.method === 'GET') {
