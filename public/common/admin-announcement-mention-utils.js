@@ -1,7 +1,7 @@
 export function analyzeAnnouncementMentions(text) {
   const value = String(text || '');
-  const everyone = /(^|\s)@everyone\b/i.test(value);
-  const here = /(^|\s)@here\b/i.test(value);
+  const everyone = /@everyone\b/i.test(value);
+  const here = /@here\b/i.test(value);
   const roles = [...value.matchAll(/<@&(\d{15,22})>/g)].map(match => match[1]);
   const users = [...value.matchAll(/<@!?(\d{15,22})>/g)].map(match => match[1]);
   return {

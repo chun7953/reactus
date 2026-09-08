@@ -25,6 +25,13 @@ test('sticky announcement mention analysis detects repeated-notification risks',
   assert.equal(mentionSummary(info), '@everyone、@here、ロール 1件、ユーザー 2件');
 });
 
+test('broadcast mentions are detected even when placed next to punctuation', () => {
+  const info = analyzeAnnouncementMentions('重要:@everyone／補足（@here）');
+  assert.equal(info.everyone, true);
+  assert.equal(info.here, true);
+  assert.equal(hasAnnouncementMentions(info), true);
+});
+
 test('web admin warns and confirms before saving a sticky announcement with mentions', async () => {
   const [safetySource, entrySource] = await Promise.all([
     readFile(safetyPath, 'utf8'),
