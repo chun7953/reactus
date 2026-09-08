@@ -1,5 +1,12 @@
 import { formatJstDateTime } from './calendarScheduling.js';
 
+export function mergeDuplicatePrivateProperties(masterPrivate = {}, instancePrivate = {}) {
+    return {
+        ...(masterPrivate || {}),
+        ...(instancePrivate || {}),
+    };
+}
+
 export function buildDuplicatedEventBody(source, newStart, { assetId = null, fallbackSummary = '複製' } = {}) {
     const oldStart = new Date(source?.start?.dateTime || source?.start?.date);
     const oldEnd = new Date(source?.end?.dateTime || source?.end?.date);
