@@ -134,12 +134,23 @@ function requireAdministrator(auth) {
     throw error;
 }
 
-function canManageChannel(auth, channel) {
+function canViewChannel(auth, channel) {
     if (!channel?.isTextBased?.() || channel?.isDMBased?.()) return false;
     const permissions = channel.permissionsFor?.(auth.member);
-    return Boolean(
-        permissions?.has(PermissionsBitField.Flags.ViewChannel)
-        && permissions?.has(PermissionsBitField.Flags.ManageMessages),
+    return Boolean(permissions?.has(PermissionsBitField.Flags.ViewChannel));
+}
+
+function canManageChannel(auth, channel) {
+    if (!canViewChannel(auth, channel)) return false;
+    const permissions = channel.permissionsFor?.(auth.member);
+    return Boolean(permissions?.has(PermissionsBitField.Flags.ManageMessages));
+}
+
+function visibleChannelIds(auth) {
+    return new Set(
+        [...auth.guild.channels.cache.values()]
+            .filter(channel => canViewChannel(auth, channel))
+            .map(channel => String(channel.id)),
     );
 }
 
@@ -199,14 +210,20 @@ async function bootstrap(auth) {
         currentMainCalendar(auth.session.guild_id),
     ]);
     await auth.guild.emojis.fetch().catch(() => null);
-    const allowedChannelIds = manageableChannelIds(auth);
+
+    const visibleIds = visibleChannelIds(auth);
+    const manageableIds = manageableChannelIds(auth);
     const reactionRules = (await listWebReactionRules(auth.session.guild_id, auth.guild))
-        .filter(rule => allowedChannelIds.has(String(rule.channelId)));
-    const visibleMonitors = monitors.filter(monitor => allowedChannelIds.has(String(monitor.channel_id)));
+        .filter(rule => visibleIds.has(String(rule.channelId)));
+    const visibleMonitors = monitors.filter(monitor => visibleIds.has(String(monitor.channel_id)));
     const visibleChannels = [...channels.values()]
-        .filter(channel => allowedChannelIds.has(String(channel.id)))
+        .filter(channel => visibleIds.has(String(channel.id)))
         .sort((a, b) => (a.rawPosition ?? 0) - (b.rawPosition ?? 0))
-        .map(channel => ({ id: channel.id, name: channel.name || channel.id }));
+        .map(channel => ({
+            id: channel.id,
+            name: channel.name || channel.id,
+            canManage: manageableIds.has(String(channel.id)),
+        }));
 
     return {
         guild: { id: auth.guild.id, name: auth.guild.name },
@@ -222,6 +239,7 @@ async function bootstrap(auth) {
             calendarId: monitor.calendar_id,
             triggerKeyword: String(monitor.trigger_keyword || '').replace(/[【】]/g, '').trim(),
             defaultMentionRoleId: monitor.mention_role || null,
+            canManage: manageableIds.has(String(monitor.channel_id)),
         })),
         roles: [...roles.values()]
             .filter(role => role.id !== auth.guild.id)
@@ -345,10 +363,10 @@ export function createAdminHandler({ client }) {
             if (pathname === '/api/admin/events' && req.method === 'GET') {
                 const days = Number(searchParams.get('days') || 90);
                 const pastDays = Number(searchParams.get('pastDays') || 0);
-                const allowedChannelIds = manageableChannelIds(auth);
+                const visibleIds = visibleChannelIds(auth);
                 const events = await listWebSchedules(auth.session.guild_id, days, pastDays);
                 sendJson(req, res, 200, {
-                    events: events.filter(event => allowedChannelIds.has(String(event.channelId))),
+                    events: events.filter(event => visibleIds.has(String(event.channelId))),
                 });
                 return true;
             }
@@ -397,10 +415,10 @@ export function createAdminHandler({ client }) {
                 return true;
             }
             if (pathname === '/api/admin/announcements' && req.method === 'GET') {
-                const allowedChannelIds = manageableChannelIds(auth);
+                const visibleIds = visibleChannelIds(auth);
                 const announcements = await listWebAnnouncements(auth.session.guild_id, auth.guild);
                 sendJson(req, res, 200, {
-                    announcements: announcements.filter(item => allowedChannelIds.has(String(item.channelId))),
+                    announcements: announcements.filter(item => visibleIds.has(String(item.channelId))),
                 });
                 return true;
             }
