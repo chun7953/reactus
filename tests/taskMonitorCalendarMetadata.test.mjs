@@ -17,5 +17,7 @@ test('calendar monitor uses the shared Discord mention parser for everyone and h
     assert.match(source, /eventMentionTokens/);
     assert.match(source, /extractDiscordMentions\(line\)/);
     assert.match(source, /extractDiscordMentions\(eventDescription\)/);
+    assert.match(source, /parsedMentions\.mentions\.forEach/);
+    assert.match(source, /parsedDescription\.mentions\.forEach/);
     assert.doesNotMatch(source, /line\.match\(\/<@&\[0-9\]/);
 });
