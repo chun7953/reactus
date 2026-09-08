@@ -11,6 +11,10 @@ import {
     deleteWebSchedule,
     listWebSchedules,
 } from '../lib/webCalendarAdmin.js';
+import {
+    getWebScheduleDetail,
+    updateWebSchedule,
+} from '../lib/webCalendarEditService.js';
 
 const SESSION_COOKIE = 'reactus_admin';
 const MAX_JSON_BYTES = 12 * 1024 * 1024;
@@ -168,10 +172,34 @@ export function createAdminHandler({ client }) {
                 return true;
             }
 
+            if (pathname === '/api/admin/event' && req.method === 'GET') {
+                const detail = await getWebScheduleDetail(auth.session.guild_id, {
+                    calendarId: searchParams.get('calendarId'),
+                    eventId: searchParams.get('eventId'),
+                    scope: searchParams.get('scope') || 'instance',
+                });
+                sendJson(req, res, 200, { event: detail });
+                return true;
+            }
+
             if (pathname === '/api/admin/schedules' && req.method === 'POST') {
                 const body = await readJson(req);
                 const event = await createWebSchedule(auth.session.guild_id, body);
                 sendJson(req, res, 201, {
+                    ok: true,
+                    event: {
+                        id: event.id,
+                        summary: event.summary,
+                        htmlLink: event.htmlLink || null,
+                    },
+                });
+                return true;
+            }
+
+            if (pathname === '/api/admin/update' && req.method === 'POST') {
+                const body = await readJson(req);
+                const event = await updateWebSchedule(auth.session.guild_id, body);
+                sendJson(req, res, 200, {
                     ok: true,
                     event: {
                         id: event.id,
