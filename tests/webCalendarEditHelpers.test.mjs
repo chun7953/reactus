@@ -89,6 +89,27 @@ test('webScheduleDetail exposes normal post title, body, duration and default me
     assert.deepEqual(detail.mention, { mode: 'default', targets: [] });
 });
 
+test('webScheduleDetail reads clean titles and type from Reactus routing metadata', () => {
+    const event = {
+        id: 'event-meta',
+        summary: 'マウスオーバー表示テスト',
+        description: '本文',
+        start: { dateTime: '2026-09-20T10:00:00+09:00' },
+        end: { dateTime: '2026-09-20T10:30:00+09:00' },
+        extendedProperties: {
+            private: {
+                reactusManaged: '1',
+                reactusMonitorId: '7',
+                reactusType: 'post',
+            },
+        },
+    };
+    const detail = webScheduleDetail(event, { ...monitor, trigger_keyword: '告知' });
+    assert.equal(detail.type, 'post');
+    assert.equal(detail.title, 'マウスオーバー表示テスト');
+    assert.equal(detail.triggerKeyword, '告知');
+});
+
 test('webScheduleDetail restores structured rich mention targets', () => {
     const event = {
         id: 'event-3',
