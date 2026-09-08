@@ -16,6 +16,7 @@ import {
     getWebScheduleDetail,
     updateWebSchedule,
 } from '../lib/webCalendarEditService.js';
+import { duplicateWebSchedule } from '../lib/webCalendarDuplicateService.js';
 import {
     createWebReactionRule,
     deleteWebReactionRule,
@@ -196,6 +197,11 @@ export function createAdminHandler({ client }) {
             }
             if (pathname === '/api/admin/schedules' && req.method === 'POST') {
                 const event = await createWebSchedule(auth.session.guild_id, await readJson(req));
+                sendJson(req, res, 201, { ok: true, event: { id: event.id, summary: event.summary, htmlLink: event.htmlLink || null } });
+                return true;
+            }
+            if (pathname === '/api/admin/duplicate' && req.method === 'POST') {
+                const event = await duplicateWebSchedule(auth.session.guild_id, await readJson(req));
                 sendJson(req, res, 201, { ok: true, event: { id: event.id, summary: event.summary, htmlLink: event.htmlLink || null } });
                 return true;
             }
