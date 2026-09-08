@@ -1,4 +1,5 @@
 import { parseGiveawayDescription, parseTriggeredSummary } from './calendarEditHelpers.js';
+import { mentionConfigFromPrivate } from './calendarMentions.js';
 
 const FREQUENCY_TO_UNIT = {
     DAILY: 'day',
@@ -33,8 +34,6 @@ function untilToJstDate(value) {
     const raw = match[1];
     const date = new Date(`${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}T00:00:00Z`);
     if (Number.isNaN(date.getTime())) return null;
-    // RRULE UNTIL is stored in UTC. The recurrence builder uses JST end-of-day,
-    // so convert the actual instant back to the date observed in JST.
     const instant = new Date(String(value).replace(
         /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/,
         '$1-$2-$3T$4:$5:$6Z',
@@ -105,9 +104,7 @@ export function webScheduleDetail(event, monitor) {
     }
 
     const privateProperties = event.extendedProperties?.private || {};
-    const mentionMode = ['default', 'none', 'role'].includes(privateProperties.reactusMentionMode)
-        ? privateProperties.reactusMentionMode
-        : 'default';
+    const mention = mentionConfigFromPrivate(privateProperties);
     const type = parsedSummary.trigger === 'ラキショ' ? 'giveaway' : 'post';
     const base = {
         id: event.id,
@@ -121,10 +118,7 @@ export function webScheduleDetail(event, monitor) {
         recurrence: parseWebRecurrence(event.recurrence || []),
         isRecurringMaster: Boolean(event.recurrence?.length),
         recurringEventId: event.recurringEventId || null,
-        mention: {
-            mode: mentionMode,
-            roleId: privateProperties.reactusMentionRoleId || null,
-        },
+        mention,
         hasImage: Boolean(privateProperties.reactusAssetId),
     };
 
