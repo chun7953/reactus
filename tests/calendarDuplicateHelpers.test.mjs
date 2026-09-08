@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { buildDuplicatedEventBody } from '../src/lib/calendarDuplicateHelpers.js';
+import {
+    buildDuplicatedEventBody,
+    mergeDuplicatePrivateProperties,
+} from '../src/lib/calendarDuplicateHelpers.js';
 
 test('buildDuplicatedEventBody preserves duration and content but not recurrence', () => {
     const source = {
@@ -47,6 +50,26 @@ test('buildDuplicatedEventBody removes a stale image reference when no cloned as
     assert.equal(body.description, source.description);
     assert.equal(body.extendedProperties.private.reactusAssetId, undefined);
     assert.equal(body.extendedProperties.private.reactusMentionMode, 'none');
+});
+
+test('mergeDuplicatePrivateProperties inherits master metadata while instance overrides it', () => {
+    assert.deepEqual(
+        mergeDuplicatePrivateProperties(
+            {
+                reactusMentionMode: 'role',
+                reactusMentionRoleId: '1111111111',
+                reactusAssetId: 'master-image',
+            },
+            {
+                reactusMentionMode: 'none',
+            },
+        ),
+        {
+            reactusMentionMode: 'none',
+            reactusMentionRoleId: '1111111111',
+            reactusAssetId: 'master-image',
+        },
+    );
 });
 
 test('buildDuplicatedEventBody rejects an invalid source window', () => {
