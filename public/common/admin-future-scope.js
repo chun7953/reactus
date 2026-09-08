@@ -3,6 +3,7 @@ import './admin-mentions.js';
 import './admin-preview.js';
 import './admin-calendar-edit.js';
 import './admin-calendar-quick-create.js';
+import './admin-calendar-drag.js';
 
 function setTextIfChanged(node, value) {
   if (node && node.textContent !== value) node.textContent = value;
