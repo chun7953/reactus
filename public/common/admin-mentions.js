@@ -52,7 +52,10 @@ function syncLegacyControls() {
     option.textContent = '複数メンション';
     legacyMode.append(option);
   }
-  legacyMode.value = mentionState.mode === 'custom' ? 'custom' : mentionState.mode;
+  // admin.js and the existing Discord preview understand default/none/role.
+  // The fetch wrapper below replaces this compatibility value with the full
+  // structured custom payload before it reaches the server.
+  legacyMode.value = mentionState.mode === 'custom' ? 'none' : mentionState.mode;
   legacyMode.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
