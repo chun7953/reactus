@@ -75,3 +75,24 @@ test('supports exact and predicate invalidation', async () => {
     assert.equal(cache.invalidateWhere(key => key.startsWith('announcement:g1:')), 1);
     assert.equal(cache.size(), 1);
 });
+
+test('an invalidated in-flight load cannot repopulate stale data', async () => {
+    let release;
+    const gate = new Promise(resolve => { release = resolve; });
+    const cache = createAsyncCache();
+
+    const staleLoad = cache.get('key', async () => {
+        await gate;
+        return 'old';
+    });
+    cache.invalidate('key');
+    release();
+    assert.equal(await staleLoad, 'old');
+
+    let freshLoads = 0;
+    assert.equal(await cache.get('key', async () => {
+        freshLoads += 1;
+        return 'new';
+    }), 'new');
+    assert.equal(freshLoads, 1);
+});
