@@ -61,6 +61,10 @@ async function createTables(db) {
     await db.query(`CREATE TABLE IF NOT EXISTS giveaways ( message_id TEXT PRIMARY KEY, guild_id TEXT NOT NULL, channel_id TEXT NOT NULL, prize TEXT NOT NULL, winner_count INTEGER NOT NULL DEFAULT 1, end_time TIMESTAMP WITH TIME ZONE NOT NULL, status TEXT NOT NULL DEFAULT 'RUNNING', winners TEXT[], participants TEXT[] DEFAULT '{}'::TEXT[], validation_fails INTEGER DEFAULT 0 );`);
     await db.query(`CREATE TABLE IF NOT EXISTS scheduled_giveaways ( id SERIAL PRIMARY KEY, guild_id TEXT NOT NULL, prize TEXT NOT NULL, winner_count INTEGER NOT NULL DEFAULT 1, giveaway_channel_id TEXT NOT NULL, start_time TIMESTAMP WITH TIME ZONE, duration_hours NUMERIC, end_time TIMESTAMP WITH TIME ZONE, schedule_cron TEXT, confirmation_channel_id TEXT, confirmation_role_id TEXT );`);
     await db.query(`CREATE TABLE IF NOT EXISTS calendar_post_assets ( id UUID PRIMARY KEY, guild_id TEXT NOT NULL, filename TEXT NOT NULL, content_type TEXT NOT NULL, size_bytes INTEGER NOT NULL, data BYTEA NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL );`);
+    await db.query(`CREATE TABLE IF NOT EXISTS web_admin_login_tokens ( token_hash TEXT PRIMARY KEY, guild_id TEXT NOT NULL, user_id TEXT NOT NULL, expires_at TIMESTAMP WITH TIME ZONE NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL );`);
+    await db.query(`CREATE TABLE IF NOT EXISTS web_admin_sessions ( session_hash TEXT PRIMARY KEY, guild_id TEXT NOT NULL, user_id TEXT NOT NULL, expires_at TIMESTAMP WITH TIME ZONE NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL );`);
+    await db.query(`CREATE INDEX IF NOT EXISTS web_admin_login_tokens_expires_at_idx ON web_admin_login_tokens (expires_at);`);
+    await db.query(`CREATE INDEX IF NOT EXISTS web_admin_sessions_expires_at_idx ON web_admin_sessions (expires_at);`);
     await db.query(`ALTER TABLE giveaways ADD COLUMN IF NOT EXISTS validation_fails INTEGER DEFAULT 0;`);
     console.log('✅ Tables checked/created successfully.');
 }
