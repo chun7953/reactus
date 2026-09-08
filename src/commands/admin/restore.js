@@ -1,4 +1,4 @@
-// src/commands/admin/restore.js (修正後・完全版)
+// src/commands/admin/restore.js
 
 import {
     ActionRowBuilder,
@@ -17,7 +17,7 @@ import {
 } from '../../lib/backupValidation.js';
 import { initializeSheetsAPI } from '../../lib/sheetsAPI.js';
 import { restoreGuildSettings } from '../../lib/restoreSettings.js';
-import { getDBPool } from '../../lib/settingsCache.js';
+import { getDBPool, invalidateGuildHotSettings } from '../../lib/settingsCache.js';
 
 const CONFIRMATION_TIMEOUT_MS = 60_000;
 
@@ -119,9 +119,9 @@ export default {
             const confirmed = await requestConfirmation(interaction, backup);
             if (!confirmed) return;
 
-            // Open the database connection only after external reads, validation, and user confirmation.
             const pool = await getDBPool();
             const counts = await restoreGuildSettings(pool, guildId, backup.data);
+            invalidateGuildHotSettings(guildId);
 
             await interaction.editReply({
                 content: `✅ 復元完了！ データベースを更新しました。\n(リアクション: ${counts.reactions}件, アナウンス: ${counts.announces}件, カレンダー通知: ${counts.monitors}件, サーバー設定: ${counts.configs}件)`,
