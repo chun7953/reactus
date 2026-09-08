@@ -1,5 +1,3 @@
-import { google } from 'googleapis';
-import { initializeSheetsAPI } from './sheetsAPI.js';
 import {
     get,
     getDBPool,
@@ -10,61 +8,6 @@ import {
     descriptorsToReactionCsv,
     normalizeDiscordEmojiList,
 } from './discordEmoji.js';
-import {
-    calendarEventOptionsDetail,
-    calendarEventOptionsRequest,
-} from './calendarEventOptions.js';
-
-function cleanKeyword(value) {
-    return String(value || '').replace(/[【】]/g, '').trim();
-}
-
-async function calendarClient() {
-    const { auth } = await initializeSheetsAPI();
-    return { calendar: google.calendar({ version: 'v3', auth }), auth };
-}
-
-async function allowedCalendars(guildId) {
-    const monitors = await get.monitorsByGuild(guildId);
-    return new Set(monitors.map(monitor => monitor.calendar_id));
-}
-
-async function assertCalendarAllowed(guildId, calendarId) {
-    const allowed = await allowedCalendars(guildId);
-    if (!allowed.has(calendarId)) throw new Error('このカレンダーを操作する権限がありません。');
-}
-
-async function targetEventForRequest(guildId, { calendarId, eventId, scope = 'instance' }) {
-    if (!calendarId || !eventId) throw new Error('予定を特定できません。');
-    await assertCalendarAllowed(guildId, calendarId);
-    const { calendar } = await calendarClient();
-    const source = (await calendar.events.get({ calendarId, eventId })).data;
-    if (scope === 'series' && source.recurringEventId) {
-        const master = (await calendar.events.get({ calendarId, eventId: source.recurringEventId })).data;
-        return { calendar, event: master };
-    }
-    return { calendar, event: source };
-}
-
-export async function getWebCalendarExtras(guildId, request) {
-    const { event } = await targetEventForRequest(guildId, request);
-    return calendarEventOptionsDetail(event);
-}
-
-export async function applyWebCalendarExtras(guildId, payload, updatedEvent) {
-    if (payload?.calendarOptions === undefined || payload?.calendarOptions === null) return updatedEvent;
-    const calendarId = payload.calendarId || (await get.monitorsByGuild(guildId))
-        .find(monitor => String(monitor.id) === String(payload.monitorId))?.calendar_id;
-    if (!calendarId) throw new Error('カレンダーを特定できません。');
-    await assertCalendarAllowed(guildId, calendarId);
-
-    const { calendar } = await calendarClient();
-    const eventId = updatedEvent?.id;
-    if (!eventId) throw new Error('更新した予定を特定できません。');
-    const requestBody = calendarEventOptionsRequest(payload.calendarOptions);
-    const result = await calendar.events.patch({ calendarId, eventId, requestBody });
-    return result.data;
-}
 
 function guildEmojiMaps(guild) {
     const byId = new Map();
@@ -178,8 +121,4 @@ export function textChannelPayload(guild) {
         .filter(channel => channel?.isTextBased?.() && !channel?.isDMBased?.())
         .sort((a, b) => (a.rawPosition ?? 0) - (b.rawPosition ?? 0))
         .map(channel => ({ id: channel.id, name: channel.name || channel.id }));
-}
-
-export function cleanMonitorKeyword(value) {
-    return cleanKeyword(value);
 }
