@@ -4,15 +4,21 @@ import test from 'node:test';
 
 const modulePath = new URL('../public/common/admin-post-destinations.js', import.meta.url);
 const entryPath = new URL('../public/common/admin-future-scope.js', import.meta.url);
+const enhancementEntryPath = new URL('../public/admin-enhancements-entry.js', import.meta.url);
 
-test('post destinations load after the admin shell and refresh on channel interaction', async () => {
-  const [source, entry] = await Promise.all([
+test('post destinations initialize directly in the visible-admin enhancement runtime', async () => {
+  const [source, entry, enhancementEntry] = await Promise.all([
     readFile(modulePath, 'utf8'),
     readFile(entryPath, 'utf8'),
+    readFile(enhancementEntryPath, 'utf8'),
   ]);
 
   assert.match(entry, /import '\.\/admin-post-destinations\.js';/);
-  assert.match(source, /refreshAfterInitialRender\(\)/);
+  assert.match(enhancementEntry, /import '\.\/common\/admin-future-scope\.js';/);
+  assert.match(source, /void refreshDestinations\(\{ silent: true \}\);/);
+  assert.doesNotMatch(source, /refreshAfterInitialRender/);
+  assert.doesNotMatch(source, /new MutationObserver/);
+  assert.doesNotMatch(source, /observe\(app,/);
   assert.match(source, /channels=\$\{encodeURIComponent\(mode\)\}/);
   assert.match(source, /const mode = force \? 'refresh' : '1'/);
   assert.match(source, /select\.addEventListener\('focus'/);
