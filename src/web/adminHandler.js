@@ -41,6 +41,7 @@ import {
 
 const SESSION_COOKIE = 'reactus_admin';
 const MAX_JSON_BYTES = 12 * 1024 * 1024;
+const ADMIN_BOOTSTRAP_TIMEOUT_MS = 8000;
 
 function parseCookies(header) {
     const result = {};
@@ -82,6 +83,26 @@ function clearSessionCookie() {
     return `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`;
 }
 
+function timeoutError(message) {
+    const error = new Error(message);
+    error.statusCode = 503;
+    return error;
+}
+
+async function withTimeout(promise, timeoutMs, message) {
+    let timer;
+    try {
+        return await Promise.race([
+            Promise.resolve(promise),
+            new Promise((_, reject) => {
+                timer = setTimeout(() => reject(timeoutError(message)), timeoutMs);
+            }),
+        ]);
+    } finally {
+        if (timer) clearTimeout(timer);
+    }
+}
+
 async function readJson(req) {
     let size = 0;
     const chunks = [];
@@ -119,9 +140,11 @@ async function authorize(req, client) {
     const session = await getWebAdminSession(token);
     if (!session) return null;
     if (!client?.isReady?.()) return null;
-    const guild = await client.guilds.fetch(session.guild_id).catch(() => null);
+    const guild = client.guilds.cache.get(session.guild_id)
+        || await client.guilds.fetch(session.guild_id).catch(() => null);
     if (!guild) return null;
-    const member = await guild.members.fetch(session.user_id).catch(() => null);
+    const member = guild.members.cache.get(session.user_id)
+        || await guild.members.fetch(session.user_id).catch(() => null);
     if (!member) return null;
     if (!member.permissions.has(PermissionsBitField.Flags.ManageMessages)) return null;
     return { token, session, guild, member };
@@ -203,17 +226,17 @@ async function requireEventAccess(auth, payload) {
 }
 
 async function bootstrap(auth) {
-    const [monitors, channels, roles, mainCalendarId] = await Promise.all([
+    const channels = auth.guild.channels.cache;
+    const roles = auth.guild.roles.cache;
+    const [monitors, mainCalendarId, rawReactionRules] = await Promise.all([
         get.monitorsByGuild(auth.session.guild_id),
-        auth.guild.channels.fetch(),
-        auth.guild.roles.fetch(),
         currentMainCalendar(auth.session.guild_id),
+        listWebReactionRules(auth.session.guild_id, auth.guild),
     ]);
-    await auth.guild.emojis.fetch().catch(() => null);
 
     const visibleIds = visibleChannelIds(auth);
     const manageableIds = manageableChannelIds(auth);
-    const reactionRules = (await listWebReactionRules(auth.session.guild_id, auth.guild))
+    const reactionRules = rawReactionRules
         .filter(rule => visibleIds.has(String(rule.channelId)));
     const visibleMonitors = monitors.filter(monitor => visibleIds.has(String(monitor.channel_id)));
     const visibleChannels = [...channels.values()]
@@ -310,7 +333,14 @@ export function createAdminHandler({ client }) {
 
         if (!pathname.startsWith('/api/admin/')) return false;
 
-        const auth = await authorize(req, client);
+        let auth;
+        try {
+            auth = await authorize(req, client);
+        } catch (error) {
+            console.error('[WebAdmin] authorization failed:', error);
+            sendJson(req, res, 503, { error: '管理画面への接続に時間がかかっています。少し待って再試行してください。' });
+            return true;
+        }
         if (!auth) {
             sendJson(req, res, 401, { error: '管理画面のログインが必要です。Discordで `/reactus` を実行して開き直してください。' });
             return true;
@@ -323,7 +353,12 @@ export function createAdminHandler({ client }) {
 
         try {
             if (pathname === '/api/admin/bootstrap' && req.method === 'GET') {
-                sendJson(req, res, 200, await bootstrap(auth));
+                const payload = await withTimeout(
+                    bootstrap(auth),
+                    ADMIN_BOOTSTRAP_TIMEOUT_MS,
+                    '初期情報の読み込みに時間がかかっています。再試行してください。',
+                );
+                sendJson(req, res, 200, payload);
                 return true;
             }
             if (pathname === '/api/admin/members' && req.method === 'GET') {
