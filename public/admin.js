@@ -104,18 +104,21 @@ function updateMonitorOptions() {
   const monitorSelect = $('#monitor');
   const previous = monitorSelect.value;
   monitorSelect.replaceChildren();
-  const filtered = state.bootstrap.monitors.filter(m => type === 'giveaway' ? m.triggerKeyword === 'ラキショ' : m.triggerKeyword !== 'ラキショ');
+  const filtered = state.bootstrap.monitors.filter(m => (
+    m.canManage === true
+    && (type === 'giveaway' ? m.triggerKeyword === 'ラキショ' : m.triggerKeyword !== 'ラキショ')
+  ));
   for (const monitor of filtered) {
     const option = document.createElement('option');
     option.value = String(monitor.id);
-    option.textContent = `#${monitor.channelName} — ${monitor.triggerKeyword}`;
+    option.textContent = `#${monitor.channelName}`;
     monitorSelect.append(option);
   }
   if ([...monitorSelect.options].some(o => o.value === previous)) monitorSelect.value = previous;
   if (filtered.length === 0) {
     const option = document.createElement('option');
     option.value = '';
-    option.textContent = type === 'giveaway' ? 'ラキショ用の設定がありません' : '通常投稿用の設定がありません';
+    option.textContent = type === 'giveaway' ? '抽選用の投稿先がありません' : '通常投稿用の投稿先がありません';
     monitorSelect.append(option);
   }
 }
