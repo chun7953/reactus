@@ -28,9 +28,12 @@ function renderChannelLinks(node) {
 }
 
 function renderAnnouncementListLinks() {
-  document.querySelectorAll('.announcement-card-text').forEach(renderChannelLinks);
+  document.querySelectorAll('#announcementList .announcement-card-text').forEach(renderChannelLinks);
 }
 
-const observer = new MutationObserver(() => renderAnnouncementListLinks());
-observer.observe(document.documentElement, { childList: true, subtree: true });
+const list = document.querySelector('#announcementList');
+if (list) {
+  const observer = new MutationObserver(() => renderAnnouncementListLinks());
+  observer.observe(list, { childList: true, subtree: true });
+}
 renderAnnouncementListLinks();
