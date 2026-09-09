@@ -1,6 +1,5 @@
 const REACTION_PAGE_SIZE = 8;
 let reactionPage = 0;
-let reactionObserver = null;
 
 function ensureReactionControls() {
   const list = document.querySelector('#reactionRules');
@@ -98,16 +97,12 @@ function applyReactionPage() {
 }
 
 function install() {
-  const list = document.querySelector('#reactionRules');
-  if (!list || reactionObserver) return false;
   ensureReactionControls();
-  reactionObserver = new MutationObserver(() => {
+  document.addEventListener('reactus:reaction-rules-rendered', () => {
     reactionPage = 0;
     queueMicrotask(applyReactionPage);
   });
-  reactionObserver.observe(list, { childList: true });
   applyReactionPage();
-  return true;
 }
 
 install();
