@@ -50,6 +50,13 @@ export function getMonthEventsForDay(key) {
   return monthState.events.filter(event => eventOverlapsDay(event, normalized));
 }
 
+function monthOwnedSentinel() {
+  const sentinel = document.createElement('span');
+  sentinel.hidden = true;
+  sentinel.dataset.reactusMonthOwned = '1';
+  return sentinel;
+}
+
 function cleanEventTitle(event) {
   const raw = String(event?.summary || '').trim();
   const cleaned = raw.replace(/^【[^】]+】\s*/, '').trim();
@@ -282,11 +289,7 @@ function renderOwnedMonth() {
   const m = monthState.month.getMonth();
   label.textContent = `${y}年${m + 1}月`;
   grid.replaceChildren();
-
-  const sentinel = document.createElement('span');
-  sentinel.hidden = true;
-  sentinel.dataset.reactusMonthOwned = '1';
-  grid.append(sentinel);
+  grid.append(monthOwnedSentinel());
 
   ['日','月','火','水','木','金','土'].forEach(dayName => {
     const node = document.createElement('div');
@@ -333,6 +336,7 @@ function showMonthLoading() {
   if (label) label.textContent = `${monthState.month.getFullYear()}年${monthState.month.getMonth() + 1}月`;
   if (!grid) return;
   grid.replaceChildren();
+  grid.append(monthOwnedSentinel());
   const loading = document.createElement('p');
   loading.className = 'muted reactus-month-loading';
   loading.textContent = '読み込み中…';
@@ -343,6 +347,7 @@ function showMonthError(error) {
   const grid = mq('#monthGrid');
   if (!grid) return;
   grid.replaceChildren();
+  grid.append(monthOwnedSentinel());
 
   const wrap = document.createElement('div');
   wrap.className = 'reactus-month-error';
