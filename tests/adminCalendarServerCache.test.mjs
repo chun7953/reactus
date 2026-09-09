@@ -84,7 +84,7 @@ test('dashboard hides routing keywords and paginates long reaction-rule lists', 
   ]);
   assert.match(entry, /admin-monitor-labels\.js/);
   assert.match(entry, /admin-reaction-pagination\.js/);
-  assert.match(entry, /admin-panel-layout\.js/);
+  assert.doesNotMatch(entry, /admin-panel-layout\.js/);
   assert.match(pagination, /REACTION_PAGE_SIZE = 8/);
   assert.match(pagination, /reactionRuleSearch/);
   assert.match(pagination, /← 前へ/);

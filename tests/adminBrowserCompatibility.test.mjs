@@ -41,7 +41,7 @@ test('production image splits bootstrap-critical admin code from heavy UI enhanc
   assert.match(entry, /__reactusAdminEnhancementSrc/);
   assert.match(entry, /new MutationObserver\(startEnhancements\)/);
 
-  assert.match(enhancements, /admin-observer-guard\.js/);
+  assert.doesNotMatch(enhancements, /admin-observer-guard\.js/);
   assert.match(enhancements, /admin-tools\.js/);
   assert.match(enhancements, /admin-future-scope\.js/);
   assert.doesNotMatch(enhancements, /admin-calendar-polish\.js/);

@@ -329,8 +329,8 @@ function installAnnouncementPanel() {
       </div>
     </div>`;
 
-  const calendarSettings = aq('#calendarSettingsPanel');
-  if (calendarSettings) calendarSettings.after(panel);
+  const calendar = aq('#calendarOverview');
+  if (calendar && calendar.parentElement === app) calendar.after(panel);
   else app.append(panel);
   return true;
 }
@@ -394,9 +394,4 @@ async function initializeAnnouncements() {
   return true;
 }
 
-const announcementObserver = new MutationObserver(() => {
-  if (aq('#announcementPanel')) return;
-  void initializeAnnouncements();
-});
-announcementObserver.observe(document.documentElement, { childList: true, subtree: true });
 void initializeAnnouncements();
