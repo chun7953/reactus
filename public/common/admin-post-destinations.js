@@ -116,24 +116,6 @@ async function refreshDestinations({ force = false, preferredMonitorId = null, s
   return destinationState.loading;
 }
 
-function refreshAfterInitialRender() {
-  const app = document.querySelector('#app');
-  if (!app) return;
-
-  const start = () => {
-    if (app.classList.contains('hidden')) return false;
-    void refreshDestinations({ silent: true });
-    return true;
-  };
-
-  if (start()) return;
-  const observer = new MutationObserver(() => {
-    if (!start()) return;
-    observer.disconnect();
-  });
-  observer.observe(app, { attributes: true, attributeFilter: ['class'] });
-}
-
 const select = document.querySelector('#monitor');
 if (select) {
   select.addEventListener('focus', () => {
@@ -160,4 +142,4 @@ document.addEventListener('reactus:edit-event', event => {
   void refreshDestinations({ force: true, preferredMonitorId: monitorId, silent: true });
 });
 
-refreshAfterInitialRender();
+void refreshDestinations({ silent: true });
