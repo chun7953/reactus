@@ -20,7 +20,7 @@ test('web admin uses beginner-friendly wording for reaction rules and calendar m
   assert.match(entries.extras, /反応する言葉を入力してください。/);
   assert.match(entries.monitor, /予定を見分ける合図（キーワード）を入力してください。/);
   assert.match(entries.calendarSettings, /投稿先や、予定を見分ける合図を追加・変更/);
-  assert.match(entries.calendarSettings, /予定を見分ける合図（キーワード）/);
+  assert.match(entries.calendarSettings, /Googleカレンダーから直接作る予定の合図/);
   assert.match(entries.calendarSettings, /いつも付けるメンション/);
   assert.match(entries.calendarSettings, /投稿先の設定を追加/);
   assert.doesNotMatch(entries.preview, /トリガー:/);
