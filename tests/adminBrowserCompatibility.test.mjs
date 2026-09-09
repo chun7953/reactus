@@ -34,7 +34,7 @@ test('production image builds the bundled admin UI for older Android Chrome', as
   assert.match(entry, /admin-calendar-polish\.js/);
   assert.match(entry, /admin-future-scope\.js/);
   assert.match(docker, /esbuild@0\.25\.9/);
-  assert.match(docker, /--target=chrome49/);
+  assert.match(docker, /--target=chrome55/);
   assert.match(docker, /--outfile=public\/admin\.bundle\.js/);
 });
 
