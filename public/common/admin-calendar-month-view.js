@@ -25,6 +25,31 @@ function monthDateKey(value) {
   return `${map.year}-${map.month}-${map.day}`;
 }
 
+function dayKey(day) {
+  return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+}
+
+function jstDayBounds(key) {
+  const start = Date.parse(`${key}T00:00:00+09:00`);
+  return [start, start + MONTH_DAY_MS];
+}
+
+function eventOverlapsDay(event, key) {
+  const start = Date.parse(event?.start || '');
+  if (!Number.isFinite(start)) return false;
+  const parsedEnd = Date.parse(event?.end || '');
+  const end = Number.isFinite(parsedEnd) && parsedEnd > start ? parsedEnd : start + 1;
+  const [dayStart, dayEnd] = jstDayBounds(key);
+  return start < dayEnd && end > dayStart;
+}
+
+function cleanEventTitle(event) {
+  const raw = String(event?.summary || '').trim();
+  const cleaned = raw.replace(/^【[^】]+】\s*/, '').trim();
+  if (cleaned) return cleaned;
+  return event?.type === 'giveaway' ? '抽選' : '予定';
+}
+
 function monthTime(value) {
   if (!value) return '';
   return new Intl.DateTimeFormat('ja-JP', {
@@ -59,8 +84,6 @@ function gridStartForMonth(month) {
 function requestWindowForMonth(month) {
   const now = new Date();
   if (sameMonth(month, now)) {
-    // Match the legacy month-calendar compatibility window so all current-month
-    // callers share one in-flight request through admin-event-fetch-cache.js.
     return { days: 45, pastDays: 40 };
   }
 
@@ -123,7 +146,7 @@ function showMonthTooltip(event, node) {
 
   const title = document.createElement('div');
   title.className = 'reactus-month-tooltip-title';
-  title.textContent = event.summary || 'タイトルなし';
+  title.textContent = cleanEventTitle(event);
 
   const meta = document.createElement('div');
   meta.className = 'reactus-month-tooltip-meta';
@@ -168,10 +191,12 @@ function showMonthTooltip(event, node) {
   tooltip.style.top = `${top}px`;
 }
 
-function eventNode(event, extraClass = '') {
+function eventNode(event, extraClass = '', selectedKey = '') {
   const node = document.createElement(event.htmlLink ? 'a' : 'div');
   node.className = `month-event ${event.type === 'giveaway' ? 'giveaway' : ''} ${extraClass}`.trim();
-  node.textContent = `${monthTime(event.start)} ${String(event.summary || '').replace(/^【[^】]+】/,'')}`;
+  const startsToday = !selectedKey || monthDateKey(event.start) === selectedKey;
+  const prefix = startsToday ? monthTime(event.start) : '継続';
+  node.textContent = `${prefix} ${cleanEventTitle(event)}`.trim();
   node.dataset.reactusHoverReady = '1';
   if (event.htmlLink) {
     node.href = event.htmlLink;
@@ -209,6 +234,7 @@ function openDayDialog(day, events) {
   const title = mq('#reactusCalendarDayDialogTitle');
   const list = mq('#reactusCalendarDayDialogList');
   if (!title || !list) return;
+  const selectedKey = dayKey(day);
   title.textContent = new Intl.DateTimeFormat('ja-JP', {
     timeZone: 'Asia/Tokyo',
     year: 'numeric',
@@ -217,7 +243,7 @@ function openDayDialog(day, events) {
     weekday: 'short',
   }).format(day);
   list.replaceChildren();
-  for (const event of events) list.append(eventNode(event, 'reactus-day-dialog-event'));
+  for (const event of events) list.append(eventNode(event, 'reactus-day-dialog-event', selectedKey));
   if (!dialog.open) dialog.showModal();
 }
 
@@ -247,9 +273,10 @@ function renderOwnedMonth() {
   const todayKey = monthDateKey(new Date());
   for (let index = 0; index < 42; index += 1) {
     const day = new Date(start.getFullYear(), start.getMonth(), start.getDate() + index);
-    const key = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+    const key = dayKey(day);
     const cell = document.createElement('div');
     cell.className = 'month-day';
+    cell.dataset.reactusDate = key;
     if (day.getMonth() !== m) cell.classList.add('outside');
     if (key === todayKey) cell.classList.add('today');
 
@@ -258,8 +285,10 @@ function renderOwnedMonth() {
     number.textContent = String(day.getDate());
     cell.append(number);
 
-    const events = monthState.events.filter(event => monthDateKey(event.start) === key);
-    for (const event of events.slice(0, MONTH_VISIBLE_EVENTS)) cell.append(eventNode(event));
+    const events = monthState.events.filter(event => eventOverlapsDay(event, key));
+    for (const event of events.slice(0, MONTH_VISIBLE_EVENTS)) {
+      cell.append(eventNode(event, '', key));
+    }
     if (events.length > MONTH_VISIBLE_EVENTS) {
       const more = document.createElement('button');
       more.type = 'button';
