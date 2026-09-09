@@ -89,6 +89,25 @@ test('admin boots, renders overlapping events, and stays interactive', async ({ 
   expect(failures).toEqual([]);
 });
 
+test('Discord giveaway preview follows prize add and remove without DOM observation', async ({ page }) => {
+  const failures = await openAdmin(page);
+  await expect(page.locator('#discordPreviewPanel')).toBeVisible();
+
+  await page.getByRole('button', { name: '抽選', exact: true }).click();
+  await expect(page.locator('#discordPreviewContent .discord-giveaway-preview')).toHaveCount(1);
+
+  await page.locator('#addPrize').click();
+  await expect(page.locator('.prize-row')).toHaveCount(2);
+  await expect(page.locator('#discordPreviewContent .discord-giveaway-preview')).toHaveCount(2);
+
+  await page.locator('.prize-row .danger').last().click();
+  await expect(page.locator('.prize-row')).toHaveCount(1);
+  await expect(page.locator('#discordPreviewContent .discord-giveaway-preview')).toHaveCount(1);
+
+  await assertEventLoopResponsive(page);
+  expect(failures).toEqual([]);
+});
+
 test('month event opens the editor from rendered metadata without refetching the event list', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium');
   const failures = await openAdmin(page);

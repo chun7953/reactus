@@ -277,8 +277,6 @@ async function initialize() {
   if (form) {
     form.addEventListener('input', render);
     form.addEventListener('change', () => window.setTimeout(render, 0));
-    const observer = new MutationObserver(() => render());
-    observer.observe(form, { childList: true, subtree: true });
   }
   document.addEventListener('click', event => {
     if (event.target?.matches?.('.segment, #addPrize, .prize-row .danger, #clearImage')) {
