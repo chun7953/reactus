@@ -3,24 +3,22 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const enhancementsEntryPath = new URL('../public/admin-enhancements-entry.js', import.meta.url);
-const observerGuardPath = new URL('../public/common/admin-observer-guard.js', import.meta.url);
 const toolsPath = new URL('../public/common/admin-tools.js', import.meta.url);
 const monthViewPath = new URL('../public/common/admin-calendar-month-view.js', import.meta.url);
+const announcementsPath = new URL('../public/common/admin-announcements.js', import.meta.url);
+const futureScopePath = new URL('../public/common/admin-future-scope.js', import.meta.url);
 
-test('enhancement observers are deferred so DOM feedback cannot starve click handling', async () => {
-  const [entry, guard] = await Promise.all([
+test('admin enhancements do not replace the browser MutationObserver implementation', async () => {
+  const [entry, announcements, futureScope] = await Promise.all([
     readFile(enhancementsEntryPath, 'utf8'),
-    readFile(observerGuardPath, 'utf8'),
+    readFile(announcementsPath, 'utf8'),
+    readFile(futureScopePath, 'utf8'),
   ]);
 
-  assert.ok(
-    entry.indexOf("admin-observer-guard.js") < entry.indexOf("admin-tools.js"),
-    'observer guard must load before enhancement modules',
-  );
-  assert.match(guard, /const NativeMutationObserver = window\.MutationObserver/);
-  assert.match(guard, /window\.setTimeout\(\(\) => this\.flush\(\), 0\)/);
-  assert.match(guard, /MAX_CALLBACKS_PER_SECOND = 60/);
-  assert.match(guard, /runaway MutationObserver was disconnected/);
+  assert.doesNotMatch(entry, /admin-observer-guard\.js/);
+  assert.doesNotMatch(entry, /window\.MutationObserver\s*=/);
+  assert.doesNotMatch(announcements, /observe\(document\.documentElement/);
+  assert.doesNotMatch(futureScope, /admin-panel-layout\.js/);
 });
 
 test('the month calendar has one renderer and admin tools no longer replace its DOM', async () => {
