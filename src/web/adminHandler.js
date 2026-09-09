@@ -43,6 +43,7 @@ const SESSION_COOKIE = 'reactus_admin';
 const MAX_JSON_BYTES = 12 * 1024 * 1024;
 const ADMIN_AUTHORIZE_TIMEOUT_MS = 8000;
 const ADMIN_BOOTSTRAP_TIMEOUT_MS = 8000;
+const ADMIN_CHANNEL_REFRESH_TIMEOUT_MS = 15000;
 
 function parseCookies(header) {
     const result = {};
@@ -186,21 +187,20 @@ function manageableChannelIds(auth) {
     );
 }
 
-async function hydrateConfiguredChannels(auth, monitors) {
-    const missingIds = [...new Set(
+async function hydrateConfiguredChannels(auth, monitors, { force = false } = {}) {
+    const channelIds = [...new Set(
         monitors
             .map(monitor => String(monitor.channel_id || '').trim())
-            .filter(id => id && !auth.guild.channels.cache.has(id)),
+            .filter(id => id && (force || !auth.guild.channels.cache.has(id))),
     )];
     await Promise.all(
-        missingIds.map(id => auth.guild.channels.fetch(id).catch(() => null)),
+        channelIds.map(id => auth.guild.channels.fetch(id, { force }).catch(() => null)),
     );
 }
 
 async function requireManageableChannel(auth, channelId) {
     const id = String(channelId || '').trim();
-    const channel = auth.guild.channels.cache.get(id)
-        || await auth.guild.channels.fetch(id).catch(() => null);
+    const channel = await auth.guild.channels.fetch(id, { force: true }).catch(() => null);
     if (!canManageChannel(auth, channel)) {
         const error = new Error('このチャンネルを管理する権限がありません。');
         error.statusCode = 403;
@@ -237,7 +237,7 @@ async function requireEventAccess(auth, payload) {
     return detail;
 }
 
-async function bootstrap(auth) {
+async function bootstrap(auth, { channelMode = 'cached' } = {}) {
     const channels = auth.guild.channels.cache;
     const roles = auth.guild.roles.cache;
     const [monitors, mainCalendarId, rawReactionRules] = await Promise.all([
@@ -246,7 +246,9 @@ async function bootstrap(auth) {
         listWebReactionRules(auth.session.guild_id, auth.guild),
     ]);
 
-    await hydrateConfiguredChannels(auth, monitors);
+    if (channelMode === 'hydrate' || channelMode === 'refresh') {
+        await hydrateConfiguredChannels(auth, monitors, { force: channelMode === 'refresh' });
+    }
 
     const visibleIds = visibleChannelIds(auth);
     const manageableIds = manageableChannelIds(auth);
@@ -371,10 +373,16 @@ export function createAdminHandler({ client }) {
 
         try {
             if (pathname === '/api/admin/bootstrap' && req.method === 'GET') {
+                const requestedChannelMode = searchParams.get('channels');
+                const channelMode = requestedChannelMode === 'refresh'
+                    ? 'refresh'
+                    : requestedChannelMode === '1' ? 'hydrate' : 'cached';
                 const payload = await withTimeout(
-                    bootstrap(auth),
-                    ADMIN_BOOTSTRAP_TIMEOUT_MS,
-                    '初期情報の読み込みに時間がかかっています。再試行してください。',
+                    bootstrap(auth, { channelMode }),
+                    channelMode === 'cached' ? ADMIN_BOOTSTRAP_TIMEOUT_MS : ADMIN_CHANNEL_REFRESH_TIMEOUT_MS,
+                    channelMode === 'cached'
+                        ? '初期情報の読み込みに時間がかかっています。再試行してください。'
+                        : '投稿先の確認に時間がかかっています。再試行してください。',
                 );
                 sendJson(req, res, 200, payload);
                 return true;
