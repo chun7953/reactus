@@ -5,11 +5,13 @@ const BOOTSTRAP_GET_TIMEOUT_MS = 12000;
 const EVENT_GET_TIMEOUT_MS = 35000;
 const LEGACY_MONTH_DAYS = 45;
 const LEGACY_MONTH_PAST_DAYS = 40;
+const EXPLICIT_REFRESH_WINDOW_MS = 2000;
 
 const cachedRequests = new Map();
 const inflightRequests = new Map();
 let cachedBootstrap = null;
 let inflightBootstrap = null;
+let forceEventRefreshUntil = 0;
 
 function requestUrl(input) {
   try {
@@ -52,6 +54,15 @@ function invalidateBootstrap() {
   inflightBootstrap = null;
 }
 
+function beginExplicitCalendarRefresh() {
+  forceEventRefreshUntil = Date.now() + EXPLICIT_REFRESH_WINDOW_MS;
+  cachedRequests.clear();
+}
+
+function shouldForceCalendarRefresh(url) {
+  return url.searchParams.get('refresh') === '1' || Date.now() < forceEventRefreshUntil;
+}
+
 async function fetchText(url, timeoutMs, timeoutMessage) {
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), timeoutMs);
@@ -89,10 +100,10 @@ function responseFromResult(result) {
   });
 }
 
-async function cachedEventRequest(url) {
+async function cachedEventRequest(url, { forceRefresh = false } = {}) {
   const key = cacheKey(url);
   const cached = cachedRequests.get(key);
-  if (cached && Date.now() - cached.loadedAt < EVENT_CACHE_TTL_MS) return cached;
+  if (!forceRefresh && cached && Date.now() - cached.loadedAt < EVENT_CACHE_TTL_MS) return cached;
   if (inflightRequests.has(key)) return inflightRequests.get(key);
 
   const inflight = fetchText(
@@ -143,7 +154,9 @@ window.fetch = async function reactusAdminFetch(input, init = {}) {
 
   if (method === 'GET' && url?.origin === location.origin && url.pathname === '/api/admin/events') {
     const normalized = normalizedEventUrl(url);
-    return responseFromResult(await cachedEventRequest(normalized));
+    const forceRefresh = shouldForceCalendarRefresh(normalized);
+    if (forceRefresh) normalized.searchParams.set('refresh', '1');
+    return responseFromResult(await cachedEventRequest(normalized, { forceRefresh }));
   }
 
   const response = await originalFetch(input, init);
@@ -158,6 +171,12 @@ window.fetch = async function reactusAdminFetch(input, init = {}) {
   }
   return response;
 };
+
+document.addEventListener('click', event => {
+  if (event.target instanceof Element && event.target.closest('#refreshEvents')) {
+    beginExplicitCalendarRefresh();
+  }
+}, true);
 
 window.addEventListener('pageshow', event => {
   if (!event.persisted) return;
