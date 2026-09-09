@@ -46,21 +46,23 @@ function versionAdminHtml(content, filePath) {
     const adminRoot = path.dirname(filePath);
     const hasBundle = fs.existsSync(path.join(adminRoot, 'admin.bundle.js'));
     const noScript = '<noscript><style>#startupShell{display:none!important}#loginRequired{display:block!important}</style><section class="panel"><h2>JavaScriptを有効にしてください</h2><p>Reactus管理画面の利用にはJavaScriptが必要です。</p></section></noscript>';
-    const enhancementBoot = `<script>window.__reactusAdminEnhancementSrc=${JSON.stringify(`/admin-enhancements.bundle.js${assetQuery}`)};</script>`;
-    const startupGuard = `<script>(function(){var started=false;function ready(){if(started)return;started=true;var app=document.getElementById('app');var login=document.getElementById('loginRequired');var shell=document.getElementById('startupShell');var retry=document.getElementById('startupShellRetry');var title=document.getElementById('startupShellTitle');var message=document.getElementById('startupShellMessage');var identity=document.getElementById('identity');function visible(node){return !!node&&!node.classList.contains('hidden');}function resolved(){return visible(app)||visible(login);}function sync(){if(resolved()&&shell)shell.classList.add('hidden');}if(retry)retry.onclick=function(){window.location.reload();};if(window.MutationObserver){var observer=new MutationObserver(sync);if(app)observer.observe(app,{attributes:true,attributeFilter:['class']});if(login)observer.observe(login,{attributes:true,attributeFilter:['class']});}window.setTimeout(function(){if(resolved())return;if(title)title.textContent='管理画面を読み込めませんでした';if(message)message.textContent='初期情報の取得が完了していません。待ち続けず、再試行してください。';if(retry)retry.classList.remove('hidden');if(identity)identity.textContent='読み込みに失敗しました';},12500);sync();}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ready);else ready();})();</script>`;
+    const enhancementSrc = hasBundle
+        ? `/admin-enhancements.bundle.js${assetQuery}`
+        : `/admin-enhancements-entry.js${assetQuery}`;
+    const enhancementBoot = `<script>window.__reactusAdminEnhancementSrc=${JSON.stringify(enhancementSrc)};window.__reactusAdminEnhancementModule=${hasBundle ? 'false' : 'true'};</script>`;
 
     let html = content.toString('utf8')
-        .replace('</head>', `${noScript}${enhancementBoot}${startupGuard}</head>`)
+        .replace('</head>', `${noScript}${enhancementBoot}</head>`)
         .replace(/href="\/admin\.css"/g, `href="/admin.css${assetQuery}"`);
 
     if (hasBundle) {
         html = html
-            .replace(/\s*<script type="module" src="\/(?:admin\.js|common\/admin-[^"?]+\.js)"><\/script>/g, '')
+            .replace(/\s*<script type="module" src="\/admin-entry\.js"><\/script>/g, '')
             .replace('</body>', `  <script src="/admin.bundle.js${assetQuery}"></script>\n</body>`);
     } else {
         html = html.replace(
-            /src="\/(admin\.js|common\/admin-[^"?]+\.js)"/g,
-            (_, assetPath) => `src="/${assetPath}${assetQuery}"`,
+            /src="\/admin-entry\.js"/g,
+            `src="/admin-entry.js${assetQuery}"`,
         );
     }
 

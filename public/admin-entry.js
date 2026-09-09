@@ -33,6 +33,7 @@ function startEnhancements() {
     const script = document.createElement('script');
     script.src = window.__reactusAdminEnhancementSrc || '/admin-enhancements.bundle.js';
     script.async = true;
+    if (window.__reactusAdminEnhancementModule === true) script.type = 'module';
     script.onerror = showEnhancementFailure;
     document.body.appendChild(script);
   }, 0);
