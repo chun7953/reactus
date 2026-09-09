@@ -5,6 +5,7 @@ const destinationState = {
   loadedAt: 0,
   loading: null,
   rendering: false,
+  suppressObserver: false,
   preferredMonitorId: null,
 };
 
@@ -27,6 +28,7 @@ function renderDestinations(preferredMonitorId = null) {
   const monitors = destinationState.monitors.filter(monitor => destinationMatchesType(monitor, type));
 
   destinationState.rendering = true;
+  destinationState.suppressObserver = true;
   try {
     select.replaceChildren();
     for (const monitor of monitors) {
@@ -49,6 +51,9 @@ function renderDestinations(preferredMonitorId = null) {
     }
   } finally {
     destinationState.rendering = false;
+    queueMicrotask(() => {
+      destinationState.suppressObserver = false;
+    });
   }
 }
 
@@ -136,7 +141,7 @@ if (select) {
   });
 
   const observer = new MutationObserver(() => {
-    if (destinationState.rendering || !destinationState.monitors) return;
+    if (destinationState.suppressObserver || !destinationState.monitors) return;
     queueMicrotask(() => {
       if (!destinationState.rendering) renderDestinations();
     });
