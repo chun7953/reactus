@@ -1,6 +1,7 @@
 const originalFetch = window.fetch.bind(window);
 const EVENT_CACHE_TTL_MS = 2000;
 const BOOTSTRAP_CACHE_TTL_MS = 5000;
+const ADMIN_GET_TIMEOUT_MS = 12000;
 const LEGACY_MONTH_DAYS = 45;
 const LEGACY_MONTH_PAST_DAYS = 40;
 
@@ -51,17 +52,29 @@ function invalidateBootstrap() {
 }
 
 async function fetchText(url) {
-  const response = await originalFetch(`${url.pathname}${url.search}`, {
-    credentials: 'same-origin',
-  });
-  const text = await response.text();
-  return {
-    loadedAt: Date.now(),
-    ok: response.ok,
-    status: response.status,
-    statusText: response.statusText,
-    text,
-  };
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), ADMIN_GET_TIMEOUT_MS);
+  try {
+    const response = await originalFetch(`${url.pathname}${url.search}`, {
+      credentials: 'same-origin',
+      signal: controller.signal,
+    });
+    const text = await response.text();
+    return {
+      loadedAt: Date.now(),
+      ok: response.ok,
+      status: response.status,
+      statusText: response.statusText,
+      text,
+    };
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error('読み込みに時間がかかっています。再試行してください。');
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timer);
+  }
 }
 
 function responseFromResult(result) {

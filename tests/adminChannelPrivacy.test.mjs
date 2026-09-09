@@ -10,7 +10,8 @@ test('web admin hides channels the signed-in moderator cannot view', async () =>
   assert.match(source, /permissions\?\.has\(PermissionsBitField\.Flags\.ViewChannel\)/);
   assert.match(source, /const visibleIds = visibleChannelIds\(auth\)/);
   assert.match(source, /visibleMonitors = monitors\.filter/);
-  assert.match(source, /reactionRules = \(await listWebReactionRules/);
+  assert.match(source, /listWebReactionRules\(auth\.session\.guild_id, auth\.guild\)/);
+  assert.match(source, /rawReactionRules[\s\S]*\.filter\(rule => visibleIds\.has\(String\(rule\.channelId\)\)\)/);
   assert.match(source, /announcements: announcements\.filter/);
   assert.match(source, /events: events\.filter/);
 });
