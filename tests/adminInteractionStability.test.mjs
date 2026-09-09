@@ -113,11 +113,13 @@ test('rich mentions are owned by the core schedule data flow without a fetch wra
     readFile(futureScopePath, 'utf8'),
   ]);
 
-  assert.match(admin, /import \{ loadMentionConfig, mentionPayload \} from '\.\/common\/admin-mentions\.js';/);
+  assert.match(admin, /import \{ loadMentionConfig, mentionPayload, syncMentionRoleOptions \} from '\.\/common\/admin-mentions\.js';/);
   assert.match(admin, /mention:\s*mentionPayload\(\)/);
   assert.match(admin, /loadMentionConfig\(detail\.mention\)/);
+  assert.match(admin, /syncMentionRoleOptions\(\)/);
   assert.doesNotMatch(mentions, /window\.fetch\s*=/);
   assert.doesNotMatch(mentions, /originalFetch/);
+  assert.doesNotMatch(mentions, /new MutationObserver\(/);
   assert.doesNotMatch(mentions, /observe\(document\.documentElement/);
   assert.doesNotMatch(mentions, /window\.ReactusMentions/);
   assert.doesNotMatch(futureScope, /admin-mentions\.js/);
