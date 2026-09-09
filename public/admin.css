@@ -21,7 +21,7 @@ button { cursor: pointer; }
 h1, h2, p { margin-top: 0; }
 h1 { margin-bottom: 6px; font-size: clamp(1.6rem, 4vw, 2.4rem); }
 h2 { margin-bottom: 0; font-size: 1.2rem; }
-.eyebrow { margin-bottom: 6px; color: #8f9dae; letter-spacing: .14em; font-size: .72rem; font-weight: 800; }
+.eyebrow { display: none; }
 .muted, .hint { color: #8f9dae; }
 .hint { font-size: .82rem; margin: 8px 0 0; }
 .panel {
