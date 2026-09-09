@@ -67,9 +67,6 @@ function confirmMentionedAnnouncement(message) {
 }
 
 installStyles();
-
-const observer = new MutationObserver(() => ensureSafetyUi());
-observer.observe(document.documentElement, { childList: true, subtree: true });
 ensureSafetyUi();
 
 document.addEventListener('input', event => {
