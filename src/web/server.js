@@ -30,6 +30,12 @@ function safeStaticPath(root, requestPath) {
     return candidate.startsWith(`${root}${path.sep}`) ? candidate : null;
 }
 
+function staticCacheControl(filePath) {
+    const base = path.basename(filePath || '');
+    if (filePath?.endsWith('.html') || base.startsWith('admin')) return 'no-store';
+    return 'public, max-age=300';
+}
+
 function serveFile(req, res, filePath, contentType) {
     if (!filePath) {
         res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
@@ -47,7 +53,7 @@ function serveFile(req, res, filePath, contentType) {
 
         res.writeHead(200, {
             'Content-Type': contentType,
-            'Cache-Control': filePath.endsWith('.html') ? 'no-store' : 'public, max-age=300',
+            'Cache-Control': staticCacheControl(filePath),
             'X-Content-Type-Options': 'nosniff',
         });
         res.end(req.method === 'HEAD' ? undefined : content);
