@@ -6,7 +6,6 @@ const htmlPath = new URL('../public/admin.html', import.meta.url);
 const entryPath = new URL('../public/admin-entry.js', import.meta.url);
 const enhancementsEntryPath = new URL('../public/admin-enhancements-entry.js', import.meta.url);
 const polyfillPath = new URL('../public/admin-polyfills.js', import.meta.url);
-const fetchCachePath = new URL('../public/common/admin-event-fetch-cache.js', import.meta.url);
 const serverPath = new URL('../src/web/server.js', import.meta.url);
 const dockerPath = new URL('../Dockerfile', import.meta.url);
 const futureScopePath = new URL('../public/common/admin-future-scope.js', import.meta.url);
@@ -46,7 +45,7 @@ test('production image splits bootstrap-critical admin code from heavy UI enhanc
   ]);
 
   assert.match(entry, /admin-polyfills\.js/);
-  assert.match(entry, /admin-event-fetch-cache\.js/);
+  assert.doesNotMatch(entry, /admin-event-fetch-cache\.js/);
   assert.match(entry, /\.\/admin\.js/);
   assert.doesNotMatch(entry, /admin-tools\.js/);
   assert.doesNotMatch(entry, /admin-calendar-polish\.js/);
@@ -81,11 +80,10 @@ test('bundled compatibility path polyfills helpers used by admin modules', async
   assert.match(source, /Element\.prototype\.replaceChildren/);
 });
 
-test('admin fetch wrapper degrades safely when AbortController is unavailable', async () => {
-  const source = await readFile(fetchCachePath, 'utf8');
-  assert.match(source, /typeof AbortController === 'function'/);
-  assert.match(source, /if \(controller\) requestOptions\.signal = controller\.signal/);
-  assert.match(source, /if \(timer !== null\) window\.clearTimeout\(timer\)/);
+test('admin bootstrap leaves browser fetch ownership untouched', async () => {
+  const entry = await readFile(entryPath, 'utf8');
+  assert.doesNotMatch(entry, /window\.fetch\s*=/);
+  assert.doesNotMatch(entry, /admin-event-fetch-cache\.js/);
 });
 
 test('an expired one-time login link does not keep warning on a browser with a valid session', async () => {
