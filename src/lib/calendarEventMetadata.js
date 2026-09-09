@@ -1,3 +1,4 @@
+const MASTER_LOOKUP_TIMEOUT_MS = 5_000;
 const MASTER_PRIVATE_PROPERTIES = Symbol.for('reactus.calendarMasterPrivateProperties');
 
 export async function resolveCalendarEventPrivateProperties(
@@ -27,7 +28,7 @@ export async function resolveCalendarEventPrivateProperties(
                 const response = await calendar.events.get({
                     calendarId,
                     eventId: recurringEventId,
-                });
+                }, { timeout: MASTER_LOOKUP_TIMEOUT_MS });
                 return response.data?.extendedProperties?.private || {};
             } catch (error) {
                 // Posting should remain possible even if the master lookup fails.

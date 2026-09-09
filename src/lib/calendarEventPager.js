@@ -1,4 +1,6 @@
 const MASTER_PREFETCH_CONCURRENCY = 8;
+const CALENDAR_LIST_TIMEOUT_MS = 12_000;
+const MASTER_LOOKUP_TIMEOUT_MS = 5_000;
 const MASTER_PRIVATE_PROPERTIES = Symbol.for('reactus.calendarMasterPrivateProperties');
 
 async function prefetchRecurringMasterMetadata(calendar, calendarId, items) {
@@ -22,7 +24,7 @@ async function prefetchRecurringMasterMetadata(calendar, calendarId, items) {
                 const response = await calendar.events.get({
                     calendarId,
                     eventId: recurringEventId,
-                });
+                }, { timeout: MASTER_LOOKUP_TIMEOUT_MS });
                 metadataById.set(
                     recurringEventId,
                     response.data?.extendedProperties?.private || {},
@@ -58,7 +60,7 @@ export async function listAllCalendarEvents(calendar, params) {
             ...params,
             maxResults: params.maxResults || 250,
             ...(pageToken ? { pageToken } : {}),
-        });
+        }, { timeout: CALENDAR_LIST_TIMEOUT_MS });
         items.push(...(response.data.items || []));
         pageToken = response.data.nextPageToken || undefined;
     } while (pageToken);
@@ -66,3 +68,8 @@ export async function listAllCalendarEvents(calendar, params) {
     await prefetchRecurringMasterMetadata(calendar, params.calendarId, items);
     return items;
 }
+
+export const calendarEventPagerTimeouts = Object.freeze({
+    listMs: CALENDAR_LIST_TIMEOUT_MS,
+    masterLookupMs: MASTER_LOOKUP_TIMEOUT_MS,
+});
