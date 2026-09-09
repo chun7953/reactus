@@ -32,6 +32,9 @@ function bindMonthEvents() {
   });
 }
 
-const observer = new MutationObserver(() => bindMonthEvents());
-observer.observe(document.documentElement, { childList: true, subtree: true });
+const grid = document.querySelector('#monthGrid');
+if (grid) {
+  const observer = new MutationObserver(() => bindMonthEvents());
+  observer.observe(grid, { childList: true, subtree: true });
+}
 void loadEvents();
