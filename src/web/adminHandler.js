@@ -398,8 +398,9 @@ export function createAdminHandler({ client }) {
             if (pathname === '/api/admin/events' && req.method === 'GET') {
                 const days = Number(searchParams.get('days') || 90);
                 const pastDays = Number(searchParams.get('pastDays') || 0);
+                const forceRefresh = searchParams.get('refresh') === '1';
                 const visibleIds = visibleChannelIds(auth);
-                const events = await listWebSchedules(auth.session.guild_id, days, pastDays);
+                const events = await listWebSchedules(auth.session.guild_id, days, pastDays, { forceRefresh });
                 sendJson(req, res, 200, {
                     events: events.filter(event => visibleIds.has(String(event.channelId))),
                 });

@@ -18,6 +18,17 @@ test('admin calendar event cache deduplicates equal windows without forcing a ye
   assert.doesNotMatch(source, /CANONICAL_DAYS = 365/);
 });
 
+test('explicit update bypasses browser event cache while keeping concurrent refreshes single-flight', async () => {
+  const source = await readFile(cachePath, 'utf8');
+  assert.match(source, /EXPLICIT_REFRESH_WINDOW_MS = 2000/);
+  assert.match(source, /beginExplicitCalendarRefresh\(\)/);
+  assert.match(source, /closest\('#refreshEvents'\)/);
+  assert.match(source, /normalized\.searchParams\.set\('refresh', '1'\)/);
+  assert.match(source, /cachedEventRequest\(normalized, \{ forceRefresh \}\)/);
+  assert.match(source, /if \(!forceRefresh && cached/);
+  assert.match(source, /if \(inflightRequests\.has\(key\)\) return inflightRequests\.get\(key\)/);
+});
+
 test('initial admin bootstrap calls share one in-flight request', async () => {
   const source = await readFile(cachePath, 'utf8');
   assert.match(source, /BOOTSTRAP_CACHE_TTL_MS = 5000/);

@@ -8,6 +8,7 @@ import {
 } from '../src/lib/webCalendarAdmin.js';
 
 const adminPath = new URL('../src/lib/webCalendarAdmin.js', import.meta.url);
+const handlerPath = new URL('../src/web/adminHandler.js', import.meta.url);
 const mentionPath = new URL('../src/lib/webCalendarMentionService.js', import.meta.url);
 const duplicatePath = new URL('../src/lib/webCalendarDuplicateService.js', import.meta.url);
 const monitorPath = new URL('../src/lib/webCalendarMonitorService.js', import.meta.url);
@@ -38,6 +39,17 @@ test('calendar cache deduplicates inflight loads, bounds cold loads, and rejects
   assert.match(source, /\[WebAdminCalendar\] loaded/);
   assert.match(source, /SHARED_FORWARD_DAYS = 90/);
   assert.match(source, /SHARED_PAST_DAYS = 45/);
+});
+
+test('normal event reads use cache while refresh=1 forces a Google Calendar reload', async () => {
+  const [adminSource, handlerSource] = await Promise.all([
+    readFile(adminPath, 'utf8'),
+    readFile(handlerPath, 'utf8'),
+  ]);
+  assert.match(adminSource, /\{ forceRefresh = false \} = \{\}/);
+  assert.match(adminSource, /if \(!forceRefresh && cached/);
+  assert.match(handlerSource, /const forceRefresh = searchParams\.get\('refresh'\) === '1'/);
+  assert.match(handlerSource, /listWebSchedules\(auth\.session\.guild_id, days, pastDays, \{ forceRefresh \}\)/);
 });
 
 test('all schedule mutations that can change list output invalidate the cache', async () => {
