@@ -191,7 +191,6 @@ function recurrencePayload() {
 function fillRecurrence(recurrence = { unit: 'once', interval: 1 }) {
   $('#repeatUnit').value = recurrence.unit || 'once';
   $('#repeatInterval').value = String(recurrence.interval || 1);
-  $$('input[name="weekday"]:checked').forEach(() => {});
   $$('input[name="weekday"]').forEach(input => {
     input.checked = (recurrence.weekdays || []).includes(input.value);
   });
