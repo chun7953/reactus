@@ -28,7 +28,7 @@ test('redundant small eyebrow headings are not rendered', async () => {
 test('web admin keeps Japanese fallbacks for dynamically created sections', async () => {
   const source = await readFile(uiPath, 'utf8');
   assert.match(source, /\['EDIT SCHEDULE', '予定を編集中'\]/);
-  assert.match(source, /\['CALENDAR', '月カレンダー'\]/);
+  assert.match(source, /\['CALENDAR', 'カレンダー'\]/);
   assert.match(source, /\['REACTIONS', '自動リアクション'\]/);
   assert.doesNotMatch(source, /\['HISTORY', '予定の履歴'\]/);
 });
@@ -49,14 +49,14 @@ test('web admin explains technical settings in beginner-friendly words', async (
   assert.match(source, /\.hint,.discord-preview-meta,#notice/);
 });
 
-test('web admin offers purpose-based navigation for common tasks', async () => {
+test('web admin offers purpose-based navigation for common tasks without duplicating calendar settings', async () => {
   const source = await readFile(uiPath, 'utf8');
   assert.match(source, /何をしたいですか？/);
   assert.match(source, /予定・抽選を作る/);
   assert.match(source, /チャンネル下部に案内を出す/);
-  assert.match(source, /月カレンダーを見る/);
+  assert.match(source, /カレンダーを見る/);
   assert.match(source, /自動リアクションを設定する/);
-  assert.match(source, /Googleカレンダー・投稿先を設定する/);
+  assert.doesNotMatch(source, /title: 'Googleカレンダー・投稿先を設定する'/);
   assert.match(source, /scrollIntoView\(\{ behavior: 'smooth', block: 'start' \}\)/);
   assert.match(source, /Googleカレンダーで開く/);
 });
