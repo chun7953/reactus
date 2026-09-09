@@ -6,7 +6,6 @@ const monthState = {
   month: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   events: [],
   loadingId: 0,
-  gridObserver: null,
 };
 
 function mq(selector) {
@@ -328,6 +327,10 @@ function renderOwnedMonth() {
     }
     grid.append(cell);
   }
+
+  document.dispatchEvent(new CustomEvent('reactus:month-rendered', {
+    detail: { year: y, month: m + 1 },
+  }));
 }
 
 function showMonthLoading() {
@@ -435,13 +438,6 @@ function installOwnedMonth() {
   installMonthStyles();
   replaceNavButton('#monthPrev', -1);
   replaceNavButton('#monthNext', 1);
-
-  monthState.gridObserver = new MutationObserver(() => {
-    if (!grid.querySelector('[data-reactus-month-owned="1"]') && monthState.events.length) {
-      queueMicrotask(renderOwnedMonth);
-    }
-  });
-  monthState.gridObserver.observe(grid, { childList: true });
 
   document.querySelector('#refreshEvents')?.addEventListener('click', () => void loadOwnedMonth({ forceRefresh: true }));
   document.querySelector('#scheduleForm')?.addEventListener('submit', () => {
