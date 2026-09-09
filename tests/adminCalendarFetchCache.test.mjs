@@ -4,7 +4,11 @@ import test from 'node:test';
 
 const cachePath = new URL('../public/common/admin-event-fetch-cache.js', import.meta.url);
 const monthPath = new URL('../public/common/admin-calendar-month-view.js', import.meta.url);
+const entryPath = new URL('../public/admin-entry.js', import.meta.url);
 const futureScopePath = new URL('../public/common/admin-future-scope.js', import.meta.url);
+const shellPath = new URL('../public/common/admin-calendar-shell.js', import.meta.url);
+const guardPath = new URL('../public/common/admin-calendar-load-guard.js', import.meta.url);
+const foldPath = new URL('../public/common/admin-calendar-settings-fold.js', import.meta.url);
 const htmlPath = new URL('../public/admin.html', import.meta.url);
 
 test('admin calendar event cache deduplicates equal windows without forcing a year-wide load', async () => {
@@ -49,15 +53,39 @@ test('month calendar loads a focused window and exposes days with more than six 
   assert.match(source, /openDayDialog\(day, events\)/);
 });
 
-test('focused month helper is loaded and schedule history UI remains removed', async () => {
-  const [futureSource, htmlSource] = await Promise.all([
+test('calendar shell and month loader are bootstrap-critical instead of deferred behind optional UI', async () => {
+  const [entrySource, futureSource, shellSource, guardSource, htmlSource] = await Promise.all([
+    readFile(entryPath, 'utf8'),
     readFile(futureScopePath, 'utf8'),
+    readFile(shellPath, 'utf8'),
+    readFile(guardPath, 'utf8'),
     readFile(htmlPath, 'utf8'),
   ]);
-  assert.match(futureSource, /admin-calendar-month-view\.js/);
+  assert.match(entrySource, /admin-calendar-shell\.js/);
+  assert.match(entrySource, /admin-calendar-month-view\.js/);
+  assert.match(entrySource, /admin-calendar-load-guard\.js/);
+  assert.doesNotMatch(futureSource, /admin-calendar-month-view\.js/);
+  assert.match(shellSource, /<h2>カレンダー<\/h2>/);
+  assert.doesNotMatch(shellSource, /カレンダー表示/);
+  assert.match(guardSource, /CALENDAR_STUCK_MS = 40000/);
+  assert.match(guardSource, /カレンダーを再読み込み/);
   const cacheIndex = htmlSource.indexOf('/common/admin-event-fetch-cache.js');
   const adminIndex = htmlSource.indexOf('/admin.js');
   assert.ok(cacheIndex >= 0 && adminIndex > cacheIndex);
   assert.doesNotMatch(htmlSource, /admin-history\.js/);
   assert.doesNotMatch(htmlSource, /予定履歴/);
+});
+
+test('calendar integration settings fold into the calendar instead of using a separate full panel', async () => {
+  const [futureSource, foldSource] = await Promise.all([
+    readFile(futureScopePath, 'utf8'),
+    readFile(foldPath, 'utf8'),
+  ]);
+  assert.match(futureSource, /admin-calendar-settings-fold\.js/);
+  assert.match(foldSource, /#calendarOverview/);
+  assert.match(foldSource, /#calendarSettingsPanel/);
+  assert.match(foldSource, /カレンダー連携設定/);
+  assert.match(foldSource, /panel\.classList\.remove\('panel'\)/);
+  assert.match(foldSource, /mount\.append\(panel\)/);
+  assert.doesNotMatch(foldSource, /panel\.remove\(\)/);
 });
