@@ -179,10 +179,17 @@ function renderChannelOptions() {
   const select = q('#reactionChannel');
   if (!select) return;
   select.replaceChildren();
-  for (const channel of toolsState.bootstrap?.channels || []) {
+  const channels = (toolsState.bootstrap?.channels || []).filter(channel => channel.canManage === true);
+  for (const channel of channels) {
     const option = document.createElement('option');
     option.value = channel.id;
     option.textContent = `#${channel.name}`;
+    select.append(option);
+  }
+  if (!channels.length) {
+    const option = document.createElement('option');
+    option.value = '';
+    option.textContent = '設定できるチャンネルがありません';
     select.append(option);
   }
 }
@@ -198,31 +205,68 @@ function ruleEmojiNode(item) {
   return img;
 }
 
+function notifyReactionRulesRendered(count) {
+  document.dispatchEvent(new CustomEvent('reactus:reaction-rules-rendered', { detail: { count } }));
+}
+
 function renderRules() {
   const list = q('#reactionRules');
   if (!list) return;
   list.replaceChildren();
   const rules = toolsState.bootstrap?.reactionRules || [];
   if (!rules.length) {
-    const p = document.createElement('p'); p.className='muted'; p.textContent='自動リアクション設定はありません。'; list.append(p); return;
+    const p = document.createElement('p');
+    p.className = 'muted';
+    p.textContent = '自動リアクション設定はありません。';
+    list.append(p);
+    notifyReactionRulesRendered(0);
+    return;
   }
   for (const rule of rules) {
-    const row = document.createElement('div'); row.className='reaction-rule';
+    const row = document.createElement('div');
+    row.className = 'reaction-rule';
     const main = document.createElement('div');
     const channel = toolsState.bootstrap.channels.find(c => c.id === rule.channelId);
-    const title = document.createElement('strong'); title.textContent = `#${channel?.name || rule.channelId} · 「${rule.trigger}」`;
-    const emojis = document.createElement('div'); emojis.className='rule-emojis';
+    const canManage = channel?.canManage === true;
+    const title = document.createElement('strong');
+    title.textContent = `#${channel?.name || rule.channelId} · 「${rule.trigger}」`;
+    const emojis = document.createElement('div');
+    emojis.className = 'rule-emojis';
     for (const item of rule.emojis || []) emojis.append(ruleEmojiNode(item));
     if (!rule.emojis?.length) emojis.textContent = rule.rawEmojis || 'なし';
     main.append(title, emojis);
     if (rule.invalid) {
-      const warn = document.createElement('div'); warn.className='invalid-rule'; warn.textContent='⚠ 現在のDiscordでは使えない絵文字が含まれています。編集してください。'; main.append(warn);
+      const warn = document.createElement('div');
+      warn.className = 'invalid-rule';
+      warn.textContent = '⚠ 現在のDiscordでは使えない絵文字が含まれています。編集してください。';
+      main.append(warn);
     }
-    const actions = document.createElement('div'); actions.className='reaction-actions';
-    const edit = document.createElement('button'); edit.type='button'; edit.className='small'; edit.textContent='編集'; edit.addEventListener('click', () => beginRuleEdit(rule));
-    const del = document.createElement('button'); del.type='button'; del.className='small danger'; del.textContent='削除'; del.addEventListener('click', () => deleteRule(rule));
-    actions.append(edit,del); row.append(main,actions); list.append(row);
+    if (!canManage) {
+      const badge = document.createElement('div');
+      badge.className = 'muted reactus-readonly-badge';
+      badge.textContent = '閲覧のみ';
+      main.append(badge);
+      row.append(main);
+      list.append(row);
+      continue;
+    }
+    const actions = document.createElement('div');
+    actions.className = 'reaction-actions';
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.className = 'small';
+    edit.textContent = '編集';
+    edit.addEventListener('click', () => beginRuleEdit(rule));
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'small danger';
+    del.textContent = '削除';
+    del.addEventListener('click', () => deleteRule(rule));
+    actions.append(edit, del);
+    row.append(main, actions);
+    list.append(row);
   }
+  notifyReactionRulesRendered(rules.length);
 }
 
 function beginRuleEdit(rule) {
@@ -253,6 +297,7 @@ async function reloadToolsBootstrap() {
 async function saveRule() {
   const channelId = q('#reactionChannel').value;
   const trigger = q('#reactionTrigger').value.trim();
+  if (!channelId) return notice('設定できるチャンネルがありません。', true);
   if (!trigger) return notice('反応する言葉を入力してください。', true);
   if (!toolsState.draft.length) return notice('絵文字を1つ以上選択してください。', true);
   const payload = { channelId, trigger, emojis:toolsState.draft };

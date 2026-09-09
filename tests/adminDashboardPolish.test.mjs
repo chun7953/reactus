@@ -4,6 +4,7 @@ import test from 'node:test';
 
 const entryPath = new URL('../public/common/admin-future-scope.js', import.meta.url);
 const guidePath = new URL('../public/common/admin-japanese-ui.js', import.meta.url);
+const toolsPath = new URL('../public/common/admin-tools.js', import.meta.url);
 const permissionsPath = new URL('../public/common/admin-manageable-targets.js', import.meta.url);
 const settingsPath = new URL('../public/common/admin-calendar-settings-usability.js', import.meta.url);
 const navigationPath = new URL('../public/common/admin-navigation-polish.js', import.meta.url);
@@ -25,14 +26,21 @@ test('beginner guide keeps calendar first and does not duplicate folded connecti
   assert.doesNotMatch(source, /title: 'Googleカレンダー・投稿先を設定する'/);
 });
 
-test('write-target selectors only keep channels and monitors the signed-in moderator can manage', async () => {
-  const source = await readFile(permissionsPath, 'utf8');
-  assert.match(source, /filter\(channel => channel\.canManage\)/);
-  assert.match(source, /filter\(monitor => monitor\.canManage\)/);
-  assert.match(source, /#reactionChannel/);
-  assert.match(source, /#calendarSettingChannel/);
-  assert.match(source, /#monitor/);
-  assert.match(source, /閲覧のみ/);
+test('reaction owner renders manageable channels and read-only rules without a repair pass', async () => {
+  const [tools, permissions] = await Promise.all([
+    readFile(toolsPath, 'utf8'),
+    readFile(permissionsPath, 'utf8'),
+  ]);
+  assert.match(tools, /filter\(channel => channel\.canManage === true\)/);
+  assert.match(tools, /channel\?\.canManage === true/);
+  assert.match(tools, /reactus-readonly-badge/);
+  assert.match(tools, /閲覧のみ/);
+  assert.doesNotMatch(permissions, /#reactionChannel/);
+  assert.doesNotMatch(permissions, /#reactionRules/);
+  assert.match(permissions, /filter\(channel => channel\.canManage\)/);
+  assert.match(permissions, /filter\(monitor => monitor\.canManage\)/);
+  assert.match(permissions, /#calendarSettingChannel/);
+  assert.match(permissions, /#monitor/);
 });
 
 test('calendar connection settings hide routing jargon in the list and paginate long configurations', async () => {

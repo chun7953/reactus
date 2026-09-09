@@ -96,7 +96,8 @@ test('bootstrap helpers rely on owned startup order instead of document-wide obs
     assert.match(source, /addEventListener\('reactus:month-rendered'/);
   }
   assert.match(settingsUsability, /calendarSettingsListObserver\.observe\(list,/);
-  assert.match(reactionPagination, /reactionObserver\.observe\(list,/);
+  assert.doesNotMatch(reactionPagination, /new MutationObserver\(/);
+  assert.match(reactionPagination, /addEventListener\('reactus:reaction-rules-rendered'/);
   assert.doesNotMatch(mobile, /appObserver/);
   assert.doesNotMatch(mobile, /observe\(app,/);
   assert.doesNotMatch(mobile, /reactusMobileNav/);

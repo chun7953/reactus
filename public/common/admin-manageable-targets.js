@@ -31,26 +31,6 @@ function ensureEmptyMonitorMessage(select) {
 }
 
 function markReadOnlyRows(bootstrap) {
-  const channelManage = new Map((bootstrap.channels || []).map(channel => [String(channel.id), Boolean(channel.canManage)]));
-
-  const reactionRows = [...document.querySelectorAll('#reactionRules > .reaction-rule')];
-  reactionRows.forEach((row, index) => {
-    const rule = bootstrap.reactionRules?.[index];
-    if (!rule) return;
-    const canManage = channelManage.get(String(rule.channelId)) === true;
-    row.querySelectorAll('.reaction-actions button').forEach(button => {
-      button.hidden = !canManage;
-    });
-    let badge = row.querySelector('.reactus-readonly-badge');
-    if (!canManage && !badge) {
-      badge = document.createElement('div');
-      badge.className = 'muted reactus-readonly-badge';
-      badge.textContent = '閲覧のみ';
-      row.querySelector(':scope > div')?.append(badge);
-    }
-    if (canManage && badge) badge.remove();
-  });
-
   const calendarCards = [...document.querySelectorAll('#calendarSettingList > .calendar-setting-card')];
   calendarCards.forEach((card, index) => {
     const monitor = bootstrap.monitors?.[index];
@@ -82,7 +62,6 @@ async function applyManageableTargets() {
       (bootstrap.monitors || []).filter(monitor => monitor.canManage).map(monitor => String(monitor.id)),
     );
 
-    removeUnavailableOptions(document.querySelector('#reactionChannel'), manageableChannels);
     removeUnavailableOptions(document.querySelector('#calendarSettingChannel'), manageableChannels);
     const monitorSelect = document.querySelector('#monitor');
     removeUnavailableOptions(monitorSelect, manageableMonitors);
@@ -112,9 +91,7 @@ function observeTarget(selector, options = { childList: true, subtree: true }) {
 }
 
 function install() {
-  observeTarget('#reactionRules');
   observeTarget('#calendarSettingList');
-  observeTarget('#reactionChannel', { childList: true });
   observeTarget('#calendarSettingChannel', { childList: true });
   document.querySelectorAll('.segment').forEach(button => {
     button.addEventListener('click', scheduleApply);
