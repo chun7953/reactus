@@ -8,6 +8,9 @@ import { createAdminHandler } from './adminHandler.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const publicPath = path.resolve(__dirname, '..', '..', 'public');
+const adminAssetVersion = encodeURIComponent(
+    process.env.FLY_IMAGE_REF || process.env.GITHUB_SHA || `boot-${Date.now()}`,
+);
 
 function sendJson(req, res, statusCode, body) {
     const content = JSON.stringify(body);
@@ -36,6 +39,17 @@ function staticCacheControl(filePath) {
     return 'public, max-age=300';
 }
 
+function versionAdminHtml(content, filePath) {
+    if (path.basename(filePath || '') !== 'admin.html') return content;
+    const html = content.toString('utf8')
+        .replace(/href="\/admin\.css"/g, `href="/admin.css?v=${adminAssetVersion}"`)
+        .replace(
+            /src="\/(admin\.js|common\/admin-[^"?]+\.js)"/g,
+            (_, assetPath) => `src="/${assetPath}?v=${adminAssetVersion}"`,
+        );
+    return Buffer.from(html, 'utf8');
+}
+
 function serveFile(req, res, filePath, contentType) {
     if (!filePath) {
         res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
@@ -56,7 +70,8 @@ function serveFile(req, res, filePath, contentType) {
             'Cache-Control': staticCacheControl(filePath),
             'X-Content-Type-Options': 'nosniff',
         });
-        res.end(req.method === 'HEAD' ? undefined : content);
+        const payload = versionAdminHtml(content, filePath);
+        res.end(req.method === 'HEAD' ? undefined : payload);
     });
 }
 
