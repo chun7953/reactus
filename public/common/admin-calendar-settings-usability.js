@@ -1,7 +1,7 @@
 const CALENDAR_SETTINGS_PAGE_SIZE = 8;
 let calendarSettingsPage = 0;
 let calendarSettingsBootstrap = null;
-let calendarSettingsObserver = null;
+let calendarSettingsListObserver = null;
 
 async function loadCalendarSettingsBootstrap() {
   if (calendarSettingsBootstrap) return calendarSettingsBootstrap;
@@ -14,6 +14,10 @@ async function loadCalendarSettingsBootstrap() {
 
 function friendlyMonitorType(monitor) {
   return String(monitor?.triggerKeyword || '') === 'ラキショ' ? '抽選' : '通常投稿';
+}
+
+function setText(node, value) {
+  if (node && node.textContent !== value) node.textContent = value;
 }
 
 function ensureCalendarSettingsControls() {
@@ -98,9 +102,9 @@ function applyCalendarSettingsPage() {
   const status = document.querySelector('#calendarSettingStatus');
   if (prev) prev.disabled = calendarSettingsPage === 0;
   if (next) next.disabled = calendarSettingsPage >= totalPages - 1;
-  if (status) status.textContent = query
+  setText(status, query
     ? `${matched.length}件一致 · ${calendarSettingsPage + 1} / ${totalPages}ページ`
-    : `${cards.length}件 · ${calendarSettingsPage + 1} / ${totalPages}ページ`;
+    : `${cards.length}件 · ${calendarSettingsPage + 1} / ${totalPages}ページ`);
 }
 
 function clarifyLegacyKeywordField() {
@@ -108,7 +112,7 @@ function clarifyLegacyKeywordField() {
   if (!input) return;
   const label = input.closest('label');
   const title = label?.querySelector('span');
-  if (title) title.textContent = 'Googleカレンダーから直接作る予定の合図';
+  setText(title, 'Googleカレンダーから直接作る予定の合図');
   input.placeholder = '例: ご連絡';
 
   const form = document.querySelector('#calendarSettingForm');
@@ -128,24 +132,36 @@ async function relabelMonitorCards() {
       const monitor = bootstrap.monitors?.[index];
       if (!monitor) return;
       const title = card.querySelector('strong');
-      if (title) title.textContent = `#${monitor.channelName || monitor.channelId} · ${friendlyMonitorType(monitor)}`;
+      setText(title, `#${monitor.channelName || monitor.channelId} · ${friendlyMonitorType(monitor)}`);
     });
   } catch {
     // The base settings panel handles bootstrap errors.
   }
 }
 
-function applyCalendarSettingsUsability() {
+function refreshCalendarSettingsUsability() {
   clarifyLegacyKeywordField();
   ensureCalendarSettingsControls();
   void relabelMonitorCards().then(applyCalendarSettingsPage);
 }
 
-function install() {
-  if (calendarSettingsObserver) return;
-  calendarSettingsObserver = new MutationObserver(() => queueMicrotask(applyCalendarSettingsUsability));
-  calendarSettingsObserver.observe(document.documentElement, { childList: true, subtree: true });
-  applyCalendarSettingsUsability();
+function installForList() {
+  const list = document.querySelector('#calendarSettingList');
+  if (!list) return false;
+  if (!calendarSettingsListObserver) {
+    calendarSettingsListObserver = new MutationObserver(() => {
+      calendarSettingsPage = 0;
+      queueMicrotask(refreshCalendarSettingsUsability);
+    });
+    calendarSettingsListObserver.observe(list, { childList: true });
+  }
+  refreshCalendarSettingsUsability();
+  return true;
 }
 
-install();
+if (!installForList()) {
+  const observer = new MutationObserver(() => {
+    if (installForList()) observer.disconnect();
+  });
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+}
