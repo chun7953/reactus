@@ -60,13 +60,4 @@ function installCalendarShell() {
   return true;
 }
 
-function bootCalendarShell() {
-  if (installCalendarShell()) return;
-  if (!window.MutationObserver) return;
-  const observer = new MutationObserver(() => {
-    if (installCalendarShell()) observer.disconnect();
-  });
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-}
-
-bootCalendarShell();
+installCalendarShell();
