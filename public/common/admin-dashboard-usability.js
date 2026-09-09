@@ -1,7 +1,6 @@
 const PAGE_SIZE = 12;
 
 let upcomingLimit = PAGE_SIZE;
-let upcomingObserver = null;
 
 function ensureUpcomingControls() {
   const list = document.querySelector('#eventList');
@@ -83,17 +82,14 @@ function applyUpcomingLimit() {
   collapse.hidden = shown <= PAGE_SIZE;
 }
 
-function watchUpcomingList() {
-  const list = document.querySelector('#eventList');
-  if (!list || upcomingObserver) return;
-  upcomingObserver = new MutationObserver(() => window.queueMicrotask(applyUpcomingLimit));
-  upcomingObserver.observe(list, { childList: true });
-  document.querySelector('#eventSearch')?.addEventListener('input', () => window.queueMicrotask(applyUpcomingLimit));
-  applyUpcomingLimit();
+function scheduleUpcomingUpdate() {
+  window.queueMicrotask(applyUpcomingLimit);
 }
 
 function install() {
-  watchUpcomingList();
+  document.addEventListener('reactus:event-list-rendered', scheduleUpcomingUpdate);
+  document.querySelector('#eventSearch')?.addEventListener('input', scheduleUpcomingUpdate);
+  applyUpcomingLimit();
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install, { once: true });
