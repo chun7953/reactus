@@ -45,6 +45,16 @@
     };
   }
 
+  if (!window.queueMicrotask) {
+    window.queueMicrotask = function (callback) {
+      Promise.resolve()
+        .then(callback)
+        .catch(function (error) {
+          window.setTimeout(function () { throw error; }, 0);
+        });
+    };
+  }
+
   function nodesFromArgs(args) {
     var nodes = [];
     for (var i = 0; i < args.length; i += 1) {
