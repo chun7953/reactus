@@ -315,18 +315,4 @@ async function initializeCalendarSettings() {
   }
 }
 
-function boot() {
-  if (installPanel()) {
-    void initializeCalendarSettings();
-    return;
-  }
-  const observer = new MutationObserver(() => {
-    if (installPanel()) {
-      observer.disconnect();
-      void initializeCalendarSettings();
-    }
-  });
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-}
-
-boot();
+void initializeCalendarSettings();
