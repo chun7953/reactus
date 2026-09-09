@@ -21,6 +21,8 @@ test('schedule editor owns post destinations instead of a deferred helper', asyn
   assert.match(source, /addEventListener\('focus'/);
   assert.match(source, /addEventListener\('change'/);
   assert.match(source, /reactus:edit-event/);
+  assert.match(source, /^\$\$\('\.segment'\)\.forEach/m);
+  assert.doesNotMatch(source, /^\$\('\.segment'\)\.forEach/m);
   assert.doesNotMatch(source, /new MutationObserver/);
 });
 
