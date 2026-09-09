@@ -198,6 +198,11 @@ function eventNode(event, extraClass = '', selectedKey = '') {
   const prefix = startsToday ? monthTime(event.start) : '継続';
   node.textContent = `${prefix} ${cleanEventTitle(event)}`.trim();
   node.dataset.reactusHoverReady = '1';
+  node.dataset.reactusEventId = String(event.id || '');
+  node.dataset.reactusCalendarId = String(event.calendarId || '');
+  node.dataset.reactusEventStart = String(event.start || '');
+  node.dataset.reactusRecurringEventId = String(event.recurringEventId || '');
+  node.dataset.reactusEventSummary = String(event.summary || '');
   if (event.htmlLink) {
     node.href = event.htmlLink;
     node.target = '_blank';
@@ -313,12 +318,13 @@ function showMonthLoading() {
   grid.append(loading);
 }
 
-async function loadOwnedMonth({ quiet = false } = {}) {
+async function loadOwnedMonth({ quiet = false, forceRefresh = false } = {}) {
   const loadId = ++monthState.loadingId;
   if (!quiet) showMonthLoading();
   const window = requestWindowForMonth(monthState.month);
+  const refreshQuery = forceRefresh ? '&refresh=1' : '';
   try {
-    const result = await monthApi(`/api/admin/events?days=${window.days}&pastDays=${window.pastDays}`);
+    const result = await monthApi(`/api/admin/events?days=${window.days}&pastDays=${window.pastDays}${refreshQuery}`);
     if (loadId !== monthState.loadingId) return;
     monthState.events = result.events || [];
     renderOwnedMonth();
@@ -392,7 +398,7 @@ function installOwnedMonth() {
   });
   monthState.gridObserver.observe(grid, { childList: true });
 
-  document.querySelector('#refreshEvents')?.addEventListener('click', () => void loadOwnedMonth());
+  document.querySelector('#refreshEvents')?.addEventListener('click', () => void loadOwnedMonth({ forceRefresh: true }));
   document.querySelector('#scheduleForm')?.addEventListener('submit', () => {
     window.setTimeout(() => void loadOwnedMonth({ quiet: true }), 900);
   });

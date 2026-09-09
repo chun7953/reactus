@@ -89,6 +89,25 @@ test('admin boots, renders overlapping events, and stays interactive', async ({ 
   expect(failures).toEqual([]);
 });
 
+test('month event opens the editor from rendered metadata without refetching the event list', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium');
+  const failures = await openAdmin(page);
+  const duplicateEventListRequests = [];
+  page.on('request', request => {
+    if (new URL(request.url()).pathname === '/api/admin/events') duplicateEventListRequests.push(request.url());
+  });
+
+  const detailRequest = page.waitForRequest(request => new URL(request.url()).pathname === '/api/admin/event');
+  await page.locator('[data-reactus-date="2026-09-09"] .month-event').filter({ hasText: '朝のお知らせ' }).click();
+  await detailRequest;
+
+  await expect(page.locator('#editBanner')).toBeVisible();
+  await expect(page.locator('#schedulePanel h2')).toHaveText('予定を編集');
+  expect(duplicateEventListRequests).toEqual([]);
+  await assertEventLoopResponsive(page);
+  expect(failures).toEqual([]);
+});
+
 test('rich mention selection is sent directly in the schedule payload', async ({ page }) => {
   const failures = await openAdmin(page);
 

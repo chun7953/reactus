@@ -17,9 +17,12 @@ test('main admin editor accepts calendar edit events', async () => {
     assert.match(source, /void editEvent\(source\)/);
 });
 
-test('month calendar click dispatches the existing editor and preserves modifier navigation', async () => {
+test('month calendar click dispatches the existing editor from month-owned metadata and preserves modifier navigation', async () => {
     const source = await readFile(calendarEditPath, 'utf8');
-    assert.match(source, /#monthGrid \.month-event\[href\]/);
+    assert.match(source, /month-event\[data-reactus-event-id\]\[data-reactus-calendar-id\]/);
+    assert.match(source, /dataset\.reactusCalendarId/);
+    assert.match(source, /dataset\.reactusEventId/);
+    assert.doesNotMatch(source, /\/api\/admin\/events/);
     assert.match(source, /new CustomEvent\('reactus:edit-event'/);
     assert.match(source, /event\.ctrlKey/);
     assert.match(source, /event\.metaKey/);

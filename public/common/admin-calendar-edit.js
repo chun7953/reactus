@@ -1,30 +1,24 @@
-const state = {
-  events: [],
-  byLink: new Map(),
-  ready: false,
-};
-
-async function loadEvents() {
-  try {
-    const response = await fetch('/api/admin/events?days=45&pastDays=40', { credentials: 'same-origin' });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) return;
-    state.events = data.events || [];
-    state.byLink = new Map(state.events.filter(event => event.htmlLink).map(event => [event.htmlLink, event]));
-    state.ready = true;
-    bindMonthEvents();
-  } catch {}
+function eventForNode(node) {
+  const calendarId = String(node.dataset.reactusCalendarId || '').trim();
+  const id = String(node.dataset.reactusEventId || '').trim();
+  if (!calendarId || !id) return null;
+  return {
+    calendarId,
+    id,
+    summary: String(node.dataset.reactusEventSummary || '').trim(),
+  };
 }
 
 function bindMonthEvents() {
-  if (!state.ready) return;
-  document.querySelectorAll('#monthGrid .month-event[href]').forEach(link => {
-    if (link.dataset.reactusEditBound === '1') return;
-    const source = state.byLink.get(link.href) || state.byLink.get(link.getAttribute('href'));
+  document.querySelectorAll(
+    '#monthGrid .month-event[data-reactus-event-id][data-reactus-calendar-id]',
+  ).forEach(node => {
+    if (node.dataset.reactusEditBound === '1') return;
+    const source = eventForNode(node);
     if (!source) return;
-    link.dataset.reactusEditBound = '1';
-    link.title = `${source.summary || '予定'} — クリックでReactus編集（Ctrl/Cmd/ShiftクリックでGoogleを開く）`;
-    link.addEventListener('click', event => {
+    node.dataset.reactusEditBound = '1';
+    node.title = `${source.summary || '予定'} — クリックでReactus編集（Ctrl/Cmd/ShiftクリックでGoogleを開く）`;
+    node.addEventListener('click', event => {
       if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button === 1) return;
       event.preventDefault();
       document.dispatchEvent(new CustomEvent('reactus:edit-event', { detail: source }));
@@ -34,7 +28,7 @@ function bindMonthEvents() {
 
 const grid = document.querySelector('#monthGrid');
 if (grid) {
-  const observer = new MutationObserver(() => bindMonthEvents());
+  const observer = new MutationObserver(bindMonthEvents);
   observer.observe(grid, { childList: true, subtree: true });
 }
-void loadEvents();
+bindMonthEvents();

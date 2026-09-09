@@ -14,10 +14,15 @@ test('dashboard loads drag controls after quick-create date bindings', async () 
     );
 });
 
-test('dragging a one-off month event calls the dedicated move API', async () => {
+test('dragging a one-off month event uses month-owned metadata and calls the dedicated move API', async () => {
     const source = await readFile(dragPath, 'utf8');
     assert.match(source, /draggable = true/);
+    assert.match(source, /month-event\[data-reactus-event-id\]\[data-reactus-calendar-id\]/);
     assert.match(source, /month-day\[data-reactus-date\]/);
+    assert.match(source, /dataset\.reactusCalendarId/);
+    assert.match(source, /dataset\.reactusEventId/);
+    assert.match(source, /dataset\.reactusEventStart/);
+    assert.doesNotMatch(source, /\/api\/admin\/events/);
     assert.match(source, /\/api\/admin\/move/);
     assert.match(source, /calendarId: event\.calendarId/);
     assert.match(source, /eventId: event\.id/);
@@ -26,6 +31,7 @@ test('dragging a one-off month event calls the dedicated move API', async () => 
 
 test('recurring month events are not silently drag-moved', async () => {
     const source = await readFile(dragPath, 'utf8');
+    assert.match(source, /dataset\.reactusRecurringEventId/);
     assert.match(source, /source\.recurringEventId/);
     assert.match(source, /定期予定はドラッグ移動できません/);
     assert.match(source, /この予定のみ \/ これ以降 \/ すべて/);
