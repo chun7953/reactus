@@ -1,6 +1,5 @@
 const MOBILE_QUERY = window.matchMedia('(max-width: 760px)');
 let calendarObserver = null;
-let appObserver = null;
 
 function mobile(selector) {
   return document.querySelector(selector);
@@ -37,16 +36,6 @@ function installMobileNav() {
     nav.append(button);
   }
   document.body.append(nav);
-
-  const app = mobile('#app');
-  const update = () => {
-    nav.hidden = !app || app.classList.contains('hidden');
-  };
-  update();
-  if (app) {
-    appObserver = new MutationObserver(update);
-    appObserver.observe(app, { attributes: true, attributeFilter: ['class'] });
-  }
 }
 
 function installMobileDayDialog() {
