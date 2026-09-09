@@ -97,4 +97,7 @@ test('an expired one-time login link does not keep warning on a browser with a v
   assert.match(polish, /ログインリンクの有効期限が切れています/);
   assert.match(polish, /classList\.add\('hidden'\)/);
   assert.match(polish, /history\.replaceState/);
+  assert.match(polish, /clearExpiredLoginWarningForActiveSession\(\);/);
+  assert.doesNotMatch(polish, /new MutationObserver/);
+  assert.doesNotMatch(polish, /\.observe\(/);
 });

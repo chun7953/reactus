@@ -21,10 +21,4 @@ function clearExpiredLoginWarningForActiveSession() {
   } catch {}
 }
 
-const loginPolishObserver = new MutationObserver(clearExpiredLoginWarningForActiveSession);
-const loginPolishApp = document.querySelector('#app');
-if (loginPolishApp) {
-  loginPolishObserver.observe(loginPolishApp, { attributes: true, attributeFilter: ['class'] });
-}
-
 clearExpiredLoginWarningForActiveSession();
