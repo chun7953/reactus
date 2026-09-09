@@ -1,5 +1,4 @@
 const MOBILE_QUERY = window.matchMedia('(max-width: 760px)');
-let calendarObserver = null;
 
 function mobile(selector) {
   return document.querySelector(selector);
@@ -88,15 +87,6 @@ function enhanceCalendarForMobile() {
       });
     }
   }
-  return true;
-}
-
-function watchCalendar() {
-  const grid = mobile('#monthGrid');
-  if (!grid || calendarObserver) return false;
-  calendarObserver = new MutationObserver(() => queueMicrotask(enhanceCalendarForMobile));
-  calendarObserver.observe(grid, { childList: true, subtree: true });
-  enhanceCalendarForMobile();
   return true;
 }
 
@@ -198,7 +188,8 @@ function installStyles() {
 function install() {
   installStyles();
   prepareRecurrenceForMobile();
-  watchCalendar();
+  document.addEventListener('reactus:month-rendered', enhanceCalendarForMobile);
+  enhanceCalendarForMobile();
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install, { once: true });
