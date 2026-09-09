@@ -46,7 +46,7 @@ test('schedule editor owns destination permissions, labels and refresh lifecycle
   await expect(page.locator('#monitor option')).toHaveCount(1);
   await expect(page.locator('#monitor option')).toHaveText('#giveaway');
 
-  await page.locator('#title').focus();
+  await page.locator('#message').focus();
   before = refreshRequests;
   await page.locator('#monitor').focus();
   await expect.poll(() => refreshRequests).toBeGreaterThan(before);
