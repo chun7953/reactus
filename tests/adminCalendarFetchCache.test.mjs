@@ -22,26 +22,41 @@ test('admin no longer installs a browser-wide fetch cache or legacy calendar URL
   await assert.rejects(readFile(legacyCachePath, 'utf8'), error => error?.code === 'ENOENT');
 });
 
-test('calendar edit and drag helpers request their focused window directly instead of days=365 compatibility requests', async () => {
-  const [editSource, dragSource] = await Promise.all([
+test('month view owns rendered event metadata and edit/drag do not refetch the same event list', async () => {
+  const [monthSource, editSource, dragSource] = await Promise.all([
+    readFile(monthPath, 'utf8'),
     readFile(editPath, 'utf8'),
     readFile(dragPath, 'utf8'),
   ]);
+
+  assert.match(monthSource, /dataset\.reactusEventId = String\(event\.id \|\| ''\)/);
+  assert.match(monthSource, /dataset\.reactusCalendarId = String\(event\.calendarId \|\| ''\)/);
+  assert.match(monthSource, /dataset\.reactusEventStart = String\(event\.start \|\| ''\)/);
+  assert.match(monthSource, /dataset\.reactusRecurringEventId = String\(event\.recurringEventId \|\| ''\)/);
+  assert.match(monthSource, /dataset\.reactusEventSummary = String\(event\.summary \|\| ''\)/);
+
   for (const source of [editSource, dragSource]) {
-    assert.match(source, /\/api\/admin\/events\?days=45&pastDays=40/);
-    assert.doesNotMatch(source, /days=365/);
+    assert.doesNotMatch(source, /\/api\/admin\/events/);
+    assert.match(source, /dataset\.reactusEventId/);
+    assert.match(source, /dataset\.reactusCalendarId/);
   }
+  assert.match(dragSource, /dataset\.reactusEventStart/);
+  assert.match(dragSource, /dataset\.reactusRecurringEventId/);
 });
 
 test('explicit update asks the server to bypass the calendar cache directly', async () => {
-  const [adminSource, handlerSource, calendarSource] = await Promise.all([
+  const [adminSource, monthSource, handlerSource, calendarSource] = await Promise.all([
     readFile(adminPath, 'utf8'),
+    readFile(monthPath, 'utf8'),
     readFile(handlerPath, 'utf8'),
     readFile(calendarAdminPath, 'utf8'),
   ]);
   assert.match(adminSource, /loadEvents\(\{ forceRefresh = false \} = \{\}\)/);
   assert.match(adminSource, /forceRefresh \? '&refresh=1' : ''/);
   assert.match(adminSource, /loadEvents\(\{ forceRefresh: true \}\)/);
+  assert.match(monthSource, /loadOwnedMonth\(\{ quiet = false, forceRefresh = false \} = \{\}\)/);
+  assert.match(monthSource, /forceRefresh \? '&refresh=1' : ''/);
+  assert.match(monthSource, /loadOwnedMonth\(\{ forceRefresh: true \}\)/);
   assert.match(handlerSource, /const forceRefresh = searchParams\.get\('refresh'\) === '1'/);
   assert.match(handlerSource, /listWebSchedules\(auth\.session\.guild_id, days, pastDays, \{ forceRefresh \}\)/);
   assert.match(calendarSource, /if \(forceRefresh\) return refreshSnapshot\(guildId, window\)/);
@@ -52,7 +67,7 @@ test('month calendar loads a focused window and exposes days with more than six 
   const source = await readFile(monthPath, 'utf8');
   assert.match(source, /MONTH_VISIBLE_EVENTS = 6/);
   assert.match(source, /requestWindowForMonth/);
-  assert.match(source, /\/api\/admin\/events\?days=\$\{window\.days\}&pastDays=\$\{window\.pastDays\}/);
+  assert.match(source, /\/api\/admin\/events\?days=\$\{window\.days\}&pastDays=\$\{window\.pastDays\}\$\{refreshQuery\}/);
   assert.match(source, /ほか\$\{events\.length - MONTH_VISIBLE_EVENTS\}件/);
   assert.match(source, /reactusCalendarDayDialog/);
   assert.match(source, /openDayDialog\(day, events\)/);
