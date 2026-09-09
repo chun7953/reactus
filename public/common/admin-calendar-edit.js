@@ -6,7 +6,7 @@ const state = {
 
 async function loadEvents() {
   try {
-    const response = await fetch('/api/admin/events?days=365', { credentials: 'same-origin' });
+    const response = await fetch('/api/admin/events?days=45&pastDays=40', { credentials: 'same-origin' });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) return;
     state.events = data.events || [];
