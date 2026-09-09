@@ -43,12 +43,7 @@ function installFoldStyles() {
 
 function bootCalendarSettingsFold() {
   installFoldStyles();
-  if (foldCalendarSettingsIntoCalendar()) return;
-  if (!window.MutationObserver) return;
-  const observer = new MutationObserver(() => {
-    if (foldCalendarSettingsIntoCalendar()) observer.disconnect();
-  });
-  observer.observe(document.documentElement, { childList: true, subtree: true });
+  foldCalendarSettingsIntoCalendar();
 }
 
 bootCalendarSettingsFold();

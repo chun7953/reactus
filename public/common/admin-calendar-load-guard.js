@@ -70,9 +70,4 @@ function watchCalendar() {
   return true;
 }
 
-if (!watchCalendar() && window.MutationObserver) {
-  const observer = new MutationObserver(() => {
-    if (watchCalendar()) observer.disconnect();
-  });
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-}
+watchCalendar();

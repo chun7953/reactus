@@ -159,9 +159,4 @@ function installForList() {
   return true;
 }
 
-if (!installForList()) {
-  const observer = new MutationObserver(() => {
-    if (installForList()) observer.disconnect();
-  });
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-}
+installForList();
