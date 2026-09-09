@@ -19,7 +19,8 @@ test('mobile admin keeps a compact seven-column month calendar with tap day coun
   assert.match(source, /reactus-mobile-event-count/);
   assert.match(source, /currentMore\.click\(\)/);
   assert.match(source, /openCompactDay\(cell, currentEvents\)/);
-  assert.match(source, /calendarObserver\.observe\(grid,/);
+  assert.match(source, /addEventListener\('reactus:month-rendered', enhanceCalendarForMobile\)/);
+  assert.doesNotMatch(source, /new MutationObserver\(/);
 });
 
 test('mobile admin keeps compact forms and canonical layout without the retired fixed navigation', async () => {
