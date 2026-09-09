@@ -21,6 +21,7 @@ import './admin-mobile-day-inline.js';
 import './admin-login-link-polish.js';
 import './admin-panel-layout.js';
 import './admin-edit-feedback.js';
+import './admin-post-destinations.js';
 
 function setTextIfChanged(node, value) {
   if (node && node.textContent !== value) node.textContent = value;
