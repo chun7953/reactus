@@ -1,4 +1,4 @@
-import { loadMentionConfig, mentionPayload } from './common/admin-mentions.js';
+import { loadMentionConfig, mentionPayload, syncMentionRoleOptions } from './common/admin-mentions.js';
 
 const state = {
   bootstrap: null,
@@ -244,6 +244,7 @@ function populateRoles() {
     option.textContent = `@${role.name}`;
     select.append(option);
   }
+  syncMentionRoleOptions();
 }
 
 function recurrencePayload() {
