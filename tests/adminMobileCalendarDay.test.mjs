@@ -20,9 +20,21 @@ test('mobile calendar day badge uses inline details instead of opening a modal d
   assert.doesNotMatch(source, /document\.createElement\(['"]dialog['"]\)/);
 });
 
-test('inline day details fetch all events for the selected day so 6+ events are not truncated', async () => {
+test('inline day details include every event overlapping the selected JST day', async () => {
   const source = await readFile(inlinePath, 'utf8');
   assert.match(source, /\/api\/admin\/events\?days=90&pastDays=45/);
-  assert.match(source, /filter\(item => dateKeyJst\(item\.start\) === key\)/);
-  assert.match(source, /for \(const item of events\) appendPayloadEvent\(list, item\)/);
+  assert.match(source, /function eventOverlapsJstDay\(item, key\)/);
+  assert.match(source, /start < dayEnd && end > dayStart/);
+  assert.match(source, /filter\(item => eventOverlapsJstDay\(item, key\)\)/);
+  assert.match(source, /for \(const item of events\) appendPayloadEvent\(list, item, key\)/);
+});
+
+test('inline day cards show useful details even when a legacy trigger-only title becomes empty', async () => {
+  const source = await readFile(inlinePath, 'utf8');
+  assert.match(source, /function cleanEventTitle\(item\)/);
+  assert.match(source, /item\?\.type === 'giveaway' \? '抽選' : '予定'/);
+  assert.match(source, /reactus-mobile-day-inline-meta/);
+  assert.match(source, /reactus-mobile-day-inline-body/);
+  assert.match(source, /parseGiveaway/);
+  assert.match(source, /前日から継続/);
 });
