@@ -16,12 +16,14 @@ test('web admin hides channels the signed-in moderator cannot view', async () =>
   assert.match(source, /events: events\.filter/);
 });
 
-test('bootstrap hydrates configured monitor channels before applying visibility filters', async () => {
+test('initial bootstrap stays cache-only while explicit channel refresh hydrates configured monitors', async () => {
   const source = await readFile(handlerPath, 'utf8');
   assert.match(source, /async function hydrateConfiguredChannels/);
-  assert.match(source, /!auth\.guild\.channels\.cache\.has\(id\)/);
-  assert.match(source, /auth\.guild\.channels\.fetch\(id\)\.catch\(\(\) => null\)/);
-  assert.match(source, /await hydrateConfiguredChannels\(auth, monitors\);/);
+  assert.match(source, /async function bootstrap\(auth, \{ channelMode = 'cached' \} = \{\}\)/);
+  assert.match(source, /channelMode === 'hydrate' \|\| channelMode === 'refresh'/);
+  assert.match(source, /await hydrateConfiguredChannels\(auth, monitors, \{ force: channelMode === 'refresh' \}\)/);
+  assert.match(source, /searchParams\.get\('channels'\)/);
+  assert.match(source, /requestedChannelMode === 'refresh'/);
 });
 
 test('bootstrap distinguishes visible channels from channels the moderator can manage', async () => {
@@ -34,6 +36,7 @@ test('bootstrap distinguishes visible channels from channels the moderator can m
 
 test('channel-targeting web admin writes re-check manage access server-side', async () => {
   const source = await readFile(handlerPath, 'utf8');
+  assert.match(source, /auth\.guild\.channels\.fetch\(id, \{ force: true \}\)/);
   assert.match(source, /await requireManageableChannel\(auth, payload\?\.channelId\)/);
   assert.match(source, /await requireMonitorAccess\(auth, payload\?\.monitorId\)/);
   assert.match(source, /await requireEventAccess\(auth, payload\)/);
