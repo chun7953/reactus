@@ -18,6 +18,7 @@ const monitorLabelsPath = new URL('../public/common/admin-monitor-labels.js', im
 test('admin calendar list cache shares the common dashboard window for one minute', () => {
   assert.deepEqual(webCalendarListCacheConfig, {
     ttlMs: 60_000,
+    loadTimeoutMs: 28_000,
     sharedForwardDays: 90,
     sharedPastDays: 45,
   });
@@ -25,12 +26,16 @@ test('admin calendar list cache shares the common dashboard window for one minut
   assert.doesNotThrow(() => invalidateWebScheduleCache());
 });
 
-test('calendar cache deduplicates inflight loads and rejects stale writes after mutation', async () => {
+test('calendar cache deduplicates inflight loads, bounds cold loads, and rejects stale writes after mutation', async () => {
   const source = await readFile(adminPath, 'utf8');
   assert.match(source, /calendarListInflight = new Map\(\)/);
   assert.match(source, /calendarListGeneration = new Map\(\)/);
   assert.match(source, /calendarListInflight\.has\(key\)/);
   assert.match(source, /generationFor\(guildId\) === generation/);
+  assert.match(source, /CALENDAR_LOAD_TIMEOUT_MS = 28_000/);
+  assert.match(source, /withCalendarTimeout\(/);
+  assert.match(source, /using stale cache/);
+  assert.match(source, /\[WebAdminCalendar\] loaded/);
   assert.match(source, /SHARED_FORWARD_DAYS = 90/);
   assert.match(source, /SHARED_PAST_DAYS = 45/);
 });
