@@ -3,9 +3,11 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const adminEntryPath = new URL('../public/admin-entry.js', import.meta.url);
+const adminPath = new URL('../public/admin.js', import.meta.url);
 const enhancementsEntryPath = new URL('../public/admin-enhancements-entry.js', import.meta.url);
 const toolsPath = new URL('../public/common/admin-tools.js', import.meta.url);
 const monthViewPath = new URL('../public/common/admin-calendar-month-view.js', import.meta.url);
+const mentionsPath = new URL('../public/common/admin-mentions.js', import.meta.url);
 const announcementsPath = new URL('../public/common/admin-announcements.js', import.meta.url);
 const futureScopePath = new URL('../public/common/admin-future-scope.js', import.meta.url);
 const calendarSettingsFoldPath = new URL('../public/common/admin-calendar-settings-fold.js', import.meta.url);
@@ -49,6 +51,23 @@ test('bootstrap helpers rely on owned startup order instead of document-wide obs
   assert.match(loadGuard, /observer\.observe\(grid,/);
   assert.match(settingsUsability, /calendarSettingsListObserver\.observe\(list,/);
   assert.match(reactionPagination, /reactionObserver\.observe\(list,/);
+});
+
+test('rich mentions are owned by the core schedule data flow without a fetch wrapper', async () => {
+  const [admin, mentions, futureScope] = await Promise.all([
+    readFile(adminPath, 'utf8'),
+    readFile(mentionsPath, 'utf8'),
+    readFile(futureScopePath, 'utf8'),
+  ]);
+
+  assert.match(admin, /import \{ loadMentionConfig, mentionPayload \} from '\.\/common\/admin-mentions\.js';/);
+  assert.match(admin, /mention:\s*mentionPayload\(\)/);
+  assert.match(admin, /loadMentionConfig\(detail\.mention\)/);
+  assert.doesNotMatch(mentions, /window\.fetch\s*=/);
+  assert.doesNotMatch(mentions, /originalFetch/);
+  assert.doesNotMatch(mentions, /observe\(document\.documentElement/);
+  assert.doesNotMatch(mentions, /window\.ReactusMentions/);
+  assert.doesNotMatch(futureScope, /admin-mentions\.js/);
 });
 
 test('the month calendar has one renderer and admin tools no longer replace its DOM', async () => {
