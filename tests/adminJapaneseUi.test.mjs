@@ -4,6 +4,7 @@ import test from 'node:test';
 
 const uiPath = new URL('../public/common/admin-japanese-ui.js', import.meta.url);
 const htmlPath = new URL('../public/admin.html', import.meta.url);
+const cssPath = new URL('../public/admin.css', import.meta.url);
 
 test('primary web admin markup is Japanese before helper scripts run', async () => {
   const source = await readFile(htmlPath, 'utf8');
@@ -17,6 +18,11 @@ test('primary web admin markup is Japanese before helper scripts run', async () 
   assert.match(source, /この予定だけ別のロールを使う/);
   assert.doesNotMatch(source, />NEW SCHEDULE</);
   assert.doesNotMatch(source, />UPCOMING</);
+});
+
+test('redundant small eyebrow headings are not rendered', async () => {
+  const source = await readFile(cssPath, 'utf8');
+  assert.match(source, /\.eyebrow \{ display: none; \}/);
 });
 
 test('web admin keeps Japanese fallbacks for dynamically created sections', async () => {
