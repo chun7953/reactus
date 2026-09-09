@@ -10,8 +10,8 @@ test('admin assets are not served from a stale five-minute browser cache', async
   assert.match(source, /return 'no-store'/);
   assert.match(source, /adminAssetVersion/);
   assert.match(source, /href="\\\/admin\\\.css"/);
-  assert.match(source, /admin-entry\\\.js/);
-  assert.match(source, /admin-enhancements-entry\\\.js/);
+  assert.match(source, /admin-entry\.js/);
+  assert.match(source, /admin-enhancements-entry\.js/);
   assert.match(source, /__reactusAdminEnhancementModule/);
   assert.match(source, /\?v=\$\{adminAssetVersion\}/);
 });
