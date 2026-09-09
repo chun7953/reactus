@@ -5,7 +5,7 @@ import test from 'node:test';
 const assetPath = new URL('../src/lib/calendarPostAssets.js', import.meta.url);
 const taskMonitorPath = new URL('../src/lib/taskMonitor.js', import.meta.url);
 const callerPaths = [
-  new URL('../src/lib/webCalendarAdmin.js', import.meta.url),
+  new URL('../src/lib/webCalendarAdminCore.js', import.meta.url),
   new URL('../src/lib/webCalendarDuplicateService.js', import.meta.url),
   new URL('../src/lib/webCalendarEditService.js', import.meta.url),
   new URL('../src/commands/calendar/calendarpost.js', import.meta.url),

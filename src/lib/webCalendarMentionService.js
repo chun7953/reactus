@@ -4,6 +4,7 @@ import { get } from './settingsCache.js';
 import {
     createWebSchedule as createBaseSchedule,
     deleteWebSchedule,
+    invalidateWebScheduleCache,
 } from './webCalendarAdmin.js';
 import {
     getWebScheduleDetail as getBaseScheduleDetail,
@@ -134,7 +135,9 @@ export async function updateWebSchedule(guildId, payload) {
     const event = await updateBaseSchedule(guildId, transformed.payload);
     // Always rewrite the rich-mention metadata after an edit. This also
     // removes stale reactusMentionTargets when switching back to default/none.
-    return patchMentionMetadata(guildId, payload.monitorId, event, transformed.mention);
+    const patched = await patchMentionMetadata(guildId, payload.monitorId, event, transformed.mention);
+    invalidateWebScheduleCache(guildId);
+    return patched;
 }
 
 export async function getWebScheduleDetail(guildId, request) {
