@@ -157,15 +157,10 @@ function json(res, value, status = 200) {
 
 async function adminFixtureHtml() {
   const html = await readFile(path.join(publicRoot, 'admin.html'), 'utf8');
-  return html
-    .replace(
-      '<script type="module" src="/common/admin-event-fetch-cache.js"></script>',
-      '<script>window.__reactusAdminEnhancementSrc="/__e2e/enhancements.js";</script>\n  <script type="module" src="/admin-entry.js"></script>',
-    )
-    .replace('<script type="module" src="/admin.js"></script>', '')
-    .replace('<script type="module" src="/common/admin-tools.js"></script>', '')
-    .replace('<script type="module" src="/common/admin-calendar-polish.js"></script>', '')
-    .replace('<script type="module" src="/common/admin-future-scope.js"></script>', '');
+  return html.replace(
+    '<script type="module" src="/admin-entry.js"></script>',
+    '<script>window.__reactusAdminEnhancementSrc="/__e2e/enhancements.js";</script>\n  <script type="module" src="/admin-entry.js"></script>',
+  );
 }
 
 function apiResponse(req, res, url) {
