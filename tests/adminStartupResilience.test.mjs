@@ -27,13 +27,15 @@ test('admin bootstrap has a bounded server-side wait', async () => {
   assert.match(source, /error\.statusCode = 503/);
 });
 
-test('admin GET cache aborts stalled bootstrap and calendar requests', async () => {
+test('admin GET cache keeps bootstrap bounded without aborting a normal cold calendar load too early', async () => {
   const source = await readFile(fetchCachePath, 'utf8');
-  assert.match(source, /ADMIN_GET_TIMEOUT_MS = 12000/);
+  assert.match(source, /BOOTSTRAP_GET_TIMEOUT_MS = 12000/);
+  assert.match(source, /EVENT_GET_TIMEOUT_MS = 35000/);
+  assert.match(source, /fetchText\(url, timeoutMs, timeoutMessage\)/);
   assert.match(source, /new AbortController\(\)/);
   assert.match(source, /controller\.abort\(\)/);
   assert.match(source, /signal: controller\.signal/);
-  assert.match(source, /読み込みに時間がかかっています。再試行してください。/);
+  assert.match(source, /カレンダーの読み込みに時間がかかっています。更新して再試行してください。/);
 });
 
 test('admin startup offers an explicit retry instead of an endless loading state', async () => {
