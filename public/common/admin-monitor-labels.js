@@ -9,27 +9,9 @@ function cleanMonitorLabels() {
       continue;
     }
     const visible = String(option.textContent || '').split(' — ')[0].trim();
-    if (visible) option.textContent = visible;
+    if (visible && option.textContent !== visible) option.textContent = visible;
   }
   return true;
 }
 
-function install() {
-  const select = document.querySelector('#monitor');
-  if (!select) return false;
-  cleanMonitorLabels();
-  const observer = new MutationObserver(() => queueMicrotask(cleanMonitorLabels));
-  observer.observe(select, { childList: true, subtree: true, characterData: true });
-  document.querySelector('#scheduleType')?.addEventListener('change', () => queueMicrotask(cleanMonitorLabels));
-  document.querySelectorAll('.segment').forEach(button => {
-    button.addEventListener('click', () => queueMicrotask(cleanMonitorLabels));
-  });
-  return true;
-}
-
-if (!install()) {
-  const observer = new MutationObserver(() => {
-    if (install()) observer.disconnect();
-  });
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-}
+cleanMonitorLabels();
