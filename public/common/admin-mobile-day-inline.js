@@ -1,5 +1,6 @@
+import { getMonthEventsForDay } from './admin-calendar-month-view.js';
+
 const MOBILE_DAY_QUERY = window.matchMedia('(max-width: 760px)');
-let mobileDayLoadId = 0;
 
 function dayInline(selector) {
   return document.querySelector(selector);
@@ -48,23 +49,13 @@ function ensureMobileDayInline() {
   grid.after(panel);
   panel.querySelector('[data-close-mobile-day-inline]')?.addEventListener('click', () => {
     panel.hidden = true;
-    mobileDayLoadId += 1;
   });
   return panel;
 }
 
-function selectedDateForCell(cell) {
-  const label = String(dayInline('#monthLabel')?.textContent || '');
-  const match = label.match(/(\d{4})年\s*(\d{1,2})月/);
-  if (!match) return null;
-  const cells = [...document.querySelectorAll('#monthGrid .month-day')];
-  const index = cells.indexOf(cell);
-  if (index < 0) return null;
-
-  const year = Number(match[1]);
-  const monthIndex = Number(match[2]) - 1;
-  const first = new Date(year, monthIndex, 1);
-  return new Date(year, monthIndex, 1 - first.getDay() + index);
+function selectedDateForKey(key) {
+  const timestamp = Date.parse(`${key}T00:00:00+09:00`);
+  return Number.isFinite(timestamp) ? new Date(timestamp) : null;
 }
 
 function dateKeyJst(value) {
@@ -81,26 +72,9 @@ function dateKeyJst(value) {
   return `${values.year}-${values.month}-${values.day}`;
 }
 
-function localDateKey(date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-}
-
-function jstDayBounds(key) {
-  const start = Date.parse(`${key}T00:00:00+09:00`);
-  return [start, start + 24 * 60 * 60 * 1000];
-}
-
-function eventOverlapsJstDay(item, key) {
-  const start = Date.parse(item?.start || '');
-  if (!Number.isFinite(start)) return false;
-  const parsedEnd = Date.parse(item?.end || '');
-  const end = Number.isFinite(parsedEnd) && parsedEnd > start ? parsedEnd : start + 1;
-  const [dayStart, dayEnd] = jstDayBounds(key);
-  return start < dayEnd && end > dayStart;
-}
-
 function dayTitle(date) {
   return new Intl.DateTimeFormat('ja-JP', {
+    timeZone: 'Asia/Tokyo',
     year: 'numeric',
     month: 'long',
     day: 'numeric',
@@ -153,7 +127,11 @@ function appendPayloadEvent(list, item, selectedKey) {
 
   const meta = document.createElement('div');
   meta.className = 'reactus-mobile-day-inline-meta';
-  const spanning = dateKeyJst(item?.start) !== dateKeyJst(new Date(Math.max(Date.parse(item?.start || '') + 1, Date.parse(item?.end || '') - 1)));
+  const startTimestamp = Date.parse(item?.start || '');
+  const endTimestamp = Date.parse(item?.end || '');
+  const spanning = Number.isFinite(startTimestamp)
+    && Number.isFinite(endTimestamp)
+    && dateKeyJst(item.start) !== dateKeyJst(new Date(Math.max(startTimestamp + 1, endTimestamp - 1)));
   const parts = [
     item?.type === 'giveaway' ? '抽選' : '通常投稿',
     `${fullDateTime(item?.start)} → ${fullDateTime(item?.end)}`,
@@ -194,69 +172,29 @@ function appendPayloadEvent(list, item, selectedKey) {
   list.append(node);
 }
 
-function appendRenderedFallback(list, source) {
-  const node = document.createElement(source.href ? 'a' : 'div');
-  node.className = `reactus-mobile-day-inline-event${source.classList.contains('giveaway') ? ' giveaway' : ''}`;
-  const title = document.createElement('div');
-  title.className = 'reactus-mobile-day-inline-title';
-  title.textContent = source.textContent?.trim() || '予定';
-  node.append(title);
-  if (source.href) {
-    node.href = source.href;
-    node.target = '_blank';
-    node.rel = 'noopener noreferrer';
-  }
-  list.append(node);
-}
-
-async function openInlineDay(cell) {
+function openInlineDay(cell) {
   const panel = ensureMobileDayInline();
   const list = dayInline('#reactusMobileDayInlineList');
   const title = dayInline('#reactusMobileDayInlineTitle');
-  const selectedDate = selectedDateForCell(cell);
+  const key = String(cell.dataset.reactusDate || '').trim();
+  const selectedDate = selectedDateForKey(key);
   if (!panel || !list || !title || !selectedDate) return;
 
-  const loadId = ++mobileDayLoadId;
   panel.hidden = false;
   title.textContent = `${dayTitle(selectedDate)}の予定`;
   list.replaceChildren();
 
-  const rendered = [...cell.querySelectorAll('.month-event')];
-  for (const source of rendered) appendRenderedFallback(list, source);
-  if (!rendered.length) {
-    const loading = document.createElement('p');
-    loading.className = 'reactus-mobile-day-inline-loading';
-    loading.textContent = '予定を確認しています…';
-    list.append(loading);
+  const events = getMonthEventsForDay(key);
+  if (!events.length) {
+    const empty = document.createElement('p');
+    empty.className = 'reactus-mobile-day-inline-loading';
+    empty.textContent = 'この日の予定はありません。';
+    list.append(empty);
+  } else {
+    for (const item of events) appendPayloadEvent(list, item, key);
   }
 
   panel.scrollIntoView({ block: 'nearest' });
-
-  try {
-    const response = await fetch('/api/admin/events?days=90&pastDays=45', { credentials: 'same-origin' });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data?.error || `HTTP ${response.status}`);
-    if (loadId !== mobileDayLoadId || panel.hidden) return;
-
-    const key = localDateKey(selectedDate);
-    const events = (data.events || []).filter(item => eventOverlapsJstDay(item, key));
-    list.replaceChildren();
-    if (!events.length) {
-      const empty = document.createElement('p');
-      empty.className = 'reactus-mobile-day-inline-loading';
-      empty.textContent = 'この日の予定はありません。';
-      list.append(empty);
-      return;
-    }
-    for (const item of events) appendPayloadEvent(list, item, key);
-  } catch {
-    if (loadId !== mobileDayLoadId || panel.hidden || rendered.length) return;
-    list.replaceChildren();
-    const failed = document.createElement('p');
-    failed.className = 'reactus-mobile-day-inline-loading';
-    failed.textContent = '予定の詳細を読み込めませんでした。';
-    list.append(failed);
-  }
 }
 
 function interceptMobileCalendarBadge(event) {
@@ -270,7 +208,7 @@ function interceptMobileCalendarBadge(event) {
 
   event.preventDefault();
   event.stopImmediatePropagation();
-  void openInlineDay(cell);
+  openInlineDay(cell);
 }
 
 installMobileDayInlineStyles();

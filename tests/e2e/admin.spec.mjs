@@ -160,9 +160,13 @@ test('desktop day overflow exposes all seven events without locking the page', a
   expect(failures).toEqual([]);
 });
 
-test('mobile day badges show complete inline details for 7+ and spanning events', async ({ page }, testInfo) => {
+test('mobile day badges show complete inline details for 7+ and spanning events without refetching the event list', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile-chromium');
   const failures = await openAdmin(page);
+  const duplicateEventListRequests = [];
+  page.on('request', request => {
+    if (new URL(request.url()).pathname === '/api/admin/events') duplicateEventListRequests.push(request.url());
+  });
 
   const day24Badge = page.locator('[data-reactus-date="2026-09-24"] .reactus-mobile-event-count');
   await expect(day24Badge).toHaveText('7');
@@ -189,6 +193,7 @@ test('mobile day badges show complete inline details for 7+ and spanning events'
   const day25Badge = page.locator('[data-reactus-date="2026-09-25"] .reactus-mobile-event-count');
   await expect(day25Badge).toHaveText('6');
 
+  expect(duplicateEventListRequests).toEqual([]);
   await assertEventLoopResponsive(page);
   await page.waitForTimeout(250);
   expect(failures).toEqual([]);

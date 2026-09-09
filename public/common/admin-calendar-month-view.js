@@ -43,6 +43,12 @@ function eventOverlapsDay(event, key) {
   return start < dayEnd && end > dayStart;
 }
 
+export function getMonthEventsForDay(key) {
+  const normalized = String(key || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return [];
+  return monthState.events.filter(event => eventOverlapsDay(event, normalized));
+}
+
 function cleanEventTitle(event) {
   const raw = String(event?.summary || '').trim();
   const cleaned = raw.replace(/^【[^】]+】\s*/, '').trim();
@@ -290,7 +296,7 @@ function renderOwnedMonth() {
     number.textContent = String(day.getDate());
     cell.append(number);
 
-    const events = monthState.events.filter(event => eventOverlapsDay(event, key));
+    const events = getMonthEventsForDay(key);
     for (const event of events.slice(0, MONTH_VISIBLE_EVENTS)) {
       cell.append(eventNode(event, '', key));
     }
