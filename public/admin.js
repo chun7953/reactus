@@ -7,6 +7,14 @@ const state = {
   edit: null,
 };
 
+const DESTINATION_TTL_MS = 15_000;
+const destinationState = {
+  monitors: null,
+  loadedAt: 0,
+  loading: null,
+  preferredMonitorId: null,
+};
+
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 
@@ -99,28 +107,97 @@ function selectedType() {
   return $('#scheduleType').value;
 }
 
-function updateMonitorOptions() {
+function monitorMatchesType(monitor, type) {
+  if (monitor.canManage !== true) return false;
+  return type === 'giveaway'
+    ? monitor.triggerKeyword === 'ラキショ'
+    : monitor.triggerKeyword !== 'ラキショ';
+}
+
+function monitorLabel(monitor, duplicateChannelIds) {
+  const base = `#${monitor.channelName}`;
+  if (!duplicateChannelIds.has(String(monitor.channelId))) return base;
+  const calendar = String(monitor.calendarName || monitor.calendarId || '').trim();
+  return calendar ? `${base} (${calendar})` : `${base} (設定${monitor.id})`;
+}
+
+function updateMonitorOptions(preferredMonitorId = null) {
   const type = selectedType();
   const monitorSelect = $('#monitor');
-  const previous = monitorSelect.value;
+  const previous = String(preferredMonitorId || destinationState.preferredMonitorId || monitorSelect.value || '');
+  const source = Array.isArray(destinationState.monitors)
+    ? destinationState.monitors
+    : (state.bootstrap?.monitors || []);
+  const filtered = source.filter(monitor => monitorMatchesType(monitor, type));
+  const channelCounts = new Map();
+  for (const monitor of filtered) {
+    const key = String(monitor.channelId);
+    channelCounts.set(key, (channelCounts.get(key) || 0) + 1);
+  }
+  const duplicateChannelIds = new Set(
+    [...channelCounts].filter(([, count]) => count > 1).map(([channelId]) => channelId),
+  );
+
   monitorSelect.replaceChildren();
-  const filtered = state.bootstrap.monitors.filter(m => (
-    m.canManage === true
-    && (type === 'giveaway' ? m.triggerKeyword === 'ラキショ' : m.triggerKeyword !== 'ラキショ')
-  ));
   for (const monitor of filtered) {
     const option = document.createElement('option');
     option.value = String(monitor.id);
-    option.textContent = `#${monitor.channelName}`;
+    option.textContent = monitorLabel(monitor, duplicateChannelIds);
     monitorSelect.append(option);
   }
-  if ([...monitorSelect.options].some(o => o.value === previous)) monitorSelect.value = previous;
+
+  const matching = [...monitorSelect.options].find(option => option.value === previous);
+  if (matching) monitorSelect.value = matching.value;
+
   if (filtered.length === 0) {
     const option = document.createElement('option');
     option.value = '';
-    option.textContent = type === 'giveaway' ? '抽選用の投稿先がありません' : '通常投稿用の投稿先がありません';
+    option.textContent = type === 'giveaway'
+      ? '抽選用の投稿先がありません'
+      : '通常投稿用の投稿先がありません';
     monitorSelect.append(option);
   }
+}
+
+async function refreshMonitorOptions({ force = false, preferredMonitorId = null, silent = false } = {}) {
+  if (preferredMonitorId) destinationState.preferredMonitorId = String(preferredMonitorId);
+
+  const fresh = destinationState.monitors
+    && (Date.now() - destinationState.loadedAt) < DESTINATION_TTL_MS;
+  if (!force && fresh) {
+    updateMonitorOptions(preferredMonitorId);
+    return destinationState.monitors;
+  }
+
+  if (destinationState.loading) {
+    try {
+      await destinationState.loading;
+      updateMonitorOptions(preferredMonitorId);
+      return destinationState.monitors;
+    } catch {
+      return destinationState.monitors;
+    }
+  }
+
+  const mode = force ? 'refresh' : '1';
+  destinationState.loading = api(`/api/admin/bootstrap?channels=${encodeURIComponent(mode)}`)
+    .then(result => {
+      destinationState.monitors = Array.isArray(result.monitors) ? result.monitors : [];
+      destinationState.loadedAt = Date.now();
+      state.bootstrap.monitors = destinationState.monitors;
+      updateMonitorOptions(preferredMonitorId);
+      return destinationState.monitors;
+    })
+    .catch(error => {
+      if (silent) return destinationState.monitors;
+      showNotice(`投稿先を更新できませんでした。${error.message ? ` ${error.message}` : ''}`, true);
+      throw error;
+    })
+    .finally(() => {
+      destinationState.loading = null;
+    });
+
+  return destinationState.loading;
 }
 
 function updateType(type) {
@@ -456,6 +533,14 @@ async function editEvent(event) {
 document.addEventListener('reactus:edit-event', event => {
   const source = event.detail;
   if (!source?.calendarId || !source?.id) return;
+  if (source.monitorId) {
+    destinationState.preferredMonitorId = String(source.monitorId);
+    void refreshMonitorOptions({
+      force: true,
+      preferredMonitorId: source.monitorId,
+      silent: true,
+    });
+  }
   void editEvent(source);
 });
 
@@ -597,17 +682,34 @@ async function initialize() {
     return;
   }
 
+  destinationState.monitors = Array.isArray(state.bootstrap.monitors) ? state.bootstrap.monitors : [];
+  destinationState.loadedAt = 0;
+
   $('#app').classList.remove('hidden');
   $('#identity').textContent = `${state.bootstrap.guild.name} · ${state.bootstrap.user.displayName}`;
   populateRoles();
   editControls();
   resetCreateMode();
+  void refreshMonitorOptions({ silent: true });
   await loadEvents();
 }
 
-$$('.segment').forEach(button => button.addEventListener('click', () => {
-  if (!state.edit) updateType(button.dataset.type);
+$('.segment').forEach(button => button.addEventListener('click', () => {
+  if (state.edit) return;
+  destinationState.preferredMonitorId = null;
+  updateType(button.dataset.type);
+  void refreshMonitorOptions({ force: true, silent: true });
 }));
+$('#monitor').addEventListener('focus', () => {
+  void refreshMonitorOptions({
+    force: true,
+    preferredMonitorId: $('#monitor').value,
+    silent: true,
+  });
+});
+$('#monitor').addEventListener('change', () => {
+  destinationState.preferredMonitorId = $('#monitor').value || null;
+});
 $('#addPrize').addEventListener('click', () => addPrize());
 $('#mentionMode').addEventListener('change', updateMention);
 $('#repeatUnit').addEventListener('change', updateRecurrence);
