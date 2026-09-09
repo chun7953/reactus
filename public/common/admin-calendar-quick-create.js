@@ -193,8 +193,10 @@ function refreshBindings() {
 function initialize() {
   installStyles();
   refreshBindings();
+  const grid = q('#monthGrid');
+  if (!grid) return;
   quickCreate.observer = new MutationObserver(() => refreshBindings());
-  quickCreate.observer.observe(document.documentElement, { childList: true, subtree: true });
+  quickCreate.observer.observe(grid, { childList: true });
 }
 
 initialize();
