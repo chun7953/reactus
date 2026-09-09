@@ -64,13 +64,14 @@ function shouldForceCalendarRefresh(url) {
 }
 
 async function fetchText(url, timeoutMs, timeoutMessage) {
-  const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  const controller = typeof AbortController === 'function' ? new AbortController() : null;
+  const timer = controller
+    ? window.setTimeout(() => controller.abort(), timeoutMs)
+    : null;
   try {
-    const response = await originalFetch(`${url.pathname}${url.search}`, {
-      credentials: 'same-origin',
-      signal: controller.signal,
-    });
+    const requestOptions = { credentials: 'same-origin' };
+    if (controller) requestOptions.signal = controller.signal;
+    const response = await originalFetch(`${url.pathname}${url.search}`, requestOptions);
     const text = await response.text();
     return {
       loadedAt: Date.now(),
@@ -85,7 +86,7 @@ async function fetchText(url, timeoutMs, timeoutMessage) {
     }
     throw error;
   } finally {
-    window.clearTimeout(timer);
+    if (timer !== null) window.clearTimeout(timer);
   }
 }
 

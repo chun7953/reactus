@@ -32,9 +32,9 @@ test('admin GET cache keeps bootstrap bounded without aborting a normal cold cal
   assert.match(source, /BOOTSTRAP_GET_TIMEOUT_MS = 12000/);
   assert.match(source, /EVENT_GET_TIMEOUT_MS = 35000/);
   assert.match(source, /fetchText\(url, timeoutMs, timeoutMessage\)/);
-  assert.match(source, /new AbortController\(\)/);
+  assert.match(source, /typeof AbortController === 'function'/);
   assert.match(source, /controller\.abort\(\)/);
-  assert.match(source, /signal: controller\.signal/);
+  assert.match(source, /requestOptions\.signal = controller\.signal/);
   assert.match(source, /カレンダーの読み込みに時間がかかっています。更新して再試行してください。/);
 });
 
