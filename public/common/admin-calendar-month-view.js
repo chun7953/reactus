@@ -403,9 +403,4 @@ function installOwnedMonth() {
   return true;
 }
 
-if (!installOwnedMonth()) {
-  const observer = new MutationObserver(() => {
-    if (installOwnedMonth()) observer.disconnect();
-  });
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-}
+installOwnedMonth();
