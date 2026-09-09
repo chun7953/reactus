@@ -112,7 +112,7 @@ function enhanceCalendarForMobile() {
       badge.className = 'reactus-mobile-event-count';
       cell.append(badge);
     }
-    badge.textContent = String(count);
+    if (badge.textContent !== String(count)) badge.textContent = String(count);
     badge.setAttribute('aria-label', `${count}件の予定を表示`);
     cell.classList.add('reactus-mobile-has-events');
 
