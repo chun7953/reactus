@@ -9,14 +9,15 @@ function monitor(id, channelId, channelName, triggerKeyword, canManage, calendar
   return { id, channelId, channelName, triggerKeyword, canManage, calendarId, calendarName };
 }
 
-test('schedule editor owns destination permissions, labels and refresh lifecycle', async ({ page }) => {
-  let refreshRequests = 0;
+function isRefreshResponse(response) {
+  const url = new URL(response.url());
+  return url.pathname === '/api/admin/bootstrap' && url.searchParams.get('channels') === 'refresh';
+}
 
+test('schedule editor owns destination permissions, labels and refresh lifecycle', async ({ page }) => {
   await page.route('**/api/admin/bootstrap**', async route => {
     const response = await route.fetch();
     const body = await response.json();
-    const url = new URL(route.request().url());
-    if (url.searchParams.get('channels') === 'refresh') refreshRequests += 1;
     const monitors = [
       monitor(MANAGEABLE_NORMAL, '100000000000000101', 'general', '通常', true, 'main@example.com', 'メイン'),
       monitor(MANAGEABLE_DUPLICATE, '100000000000000101', 'general', '告知', true, 'sub@example.com', 'サブ'),
@@ -35,17 +36,26 @@ test('schedule editor owns destination permissions, labels and refresh lifecycle
   await expect(normal.nth(1)).toHaveText('#general (サブ)');
   expect(await normal.evaluateAll(options => options.map(option => option.value))).not.toContain(READ_ONLY);
 
+  const giveawayRefresh = page.waitForResponse(isRefreshResponse);
   await page.locator('.segment[data-type="giveaway"]').click();
+  await giveawayRefresh;
   await expect(page.locator('#monitor option')).toHaveCount(1);
   await expect(page.locator('#monitor option')).toHaveText('#giveaway');
 
-  const beforeFocus = refreshRequests;
+  await page.locator('#title').focus();
+  const focusRefresh = page.waitForResponse(isRefreshResponse);
   await page.locator('#monitor').focus();
-  await expect.poll(() => refreshRequests).toBeGreaterThan(beforeFocus);
+  await focusRefresh;
+  await expect(page.locator('#monitor option')).toHaveText('#giveaway');
 
+  const postRefresh = page.waitForResponse(isRefreshResponse);
   await page.locator('.segment[data-type="post"]').click();
+  await postRefresh;
   await expect(page.locator('#monitor option')).toHaveCount(2);
   await page.locator('#monitor').selectOption(MANAGEABLE_DUPLICATE);
+  await page.locator('#title').focus();
+  const preserveRefresh = page.waitForResponse(isRefreshResponse);
   await page.locator('#monitor').focus();
+  await preserveRefresh;
   await expect(page.locator('#monitor')).toHaveValue(MANAGEABLE_DUPLICATE);
 });
