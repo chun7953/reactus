@@ -133,12 +133,6 @@ function installGuideStyles() {
   document.head.append(style);
 }
 
-function makeGoogleLinksClearer() {
-  document.querySelectorAll('#eventList a.small').forEach(link => {
-    if (link.textContent?.trim() === 'Google') link.textContent = 'Googleカレンダーで開く';
-  });
-}
-
 function applyJapaneseAdminUi() {
   replaceEnglishEyebrows();
   replaceTechnicalLabels();
@@ -146,14 +140,8 @@ function applyJapaneseAdminUi() {
   preparePanelIds();
   installGuideStyles();
   installBeginnerGuide();
-  makeGoogleLinksClearer();
   const heading = document.querySelector('.topbar h1');
   if (heading && heading.textContent !== 'Reactus 管理画面') heading.textContent = 'Reactus 管理画面';
 }
 
 applyJapaneseAdminUi();
-const eventList = document.querySelector('#eventList');
-if (eventList) {
-  const eventListObserver = new MutationObserver(makeGoogleLinksClearer);
-  eventListObserver.observe(eventList, { childList: true, subtree: true });
-}
