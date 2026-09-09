@@ -2,7 +2,7 @@ const japaneseLabels = new Map([
   ['NEW SCHEDULE', '新しい予定'],
   ['EDIT SCHEDULE', '予定を編集中'],
   ['UPCOMING', '今後の予定'],
-  ['CALENDAR', '月カレンダー'],
+  ['CALENDAR', 'カレンダー'],
   ['REACTIONS', '自動リアクション'],
   ['DISCORD PREVIEW', 'Discord投稿イメージ'],
   ['CALENDAR INTEGRATION', 'カレンダー連携'],
@@ -34,11 +34,10 @@ const beginnerPhrasePatterns = [
 ];
 
 const beginnerActions = [
-  { target: 'calendarOverview', title: '月カレンダーを見る', text: '登録済みの予定を月ごとに確認・移動できます。' },
+  { target: 'calendarOverview', title: 'カレンダーを見る', text: '登録済みの予定を月ごとに確認・移動できます。' },
   { target: 'schedulePanel', title: '予定・抽選を作る', text: '日時や繰り返しを決めて、Googleカレンダーへ登録します。' },
   { target: 'announcementPanel', title: 'チャンネル下部に案内を出す', text: '長文・改行・チャンネルリンクを含む案内文を設定できます。' },
   { target: 'reactionPanel', title: '自動リアクションを設定する', text: '指定した言葉を含む投稿へ絵文字を自動で付けます。' },
-  { target: 'calendarSettingsPanel', title: 'Googleカレンダー・投稿先を設定する', text: '接続先や投稿先を変更するときだけ使います。' },
 ];
 
 function replaceEnglishEyebrows() {
