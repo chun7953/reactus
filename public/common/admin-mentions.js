@@ -1,5 +1,4 @@
 const MAX_TARGETS = 20;
-const originalFetch = window.fetch.bind(window);
 
 const mentionState = {
   mode: 'default',
@@ -46,15 +45,8 @@ function targetLabel(target) {
 function syncLegacyControls() {
   const legacyMode = q('#mentionMode');
   if (!legacyMode) return;
-  if (![...legacyMode.options].some(option => option.value === 'custom')) {
-    const option = document.createElement('option');
-    option.value = 'custom';
-    option.textContent = '複数メンション';
-    legacyMode.append(option);
-  }
-  // admin.js and the existing Discord preview understand default/none/role.
-  // The fetch wrapper below replaces this compatibility value with the full
-  // structured custom payload before it reaches the server.
+  // Keep the hidden base controls aligned so the base preview does not add a
+  // second mention while the rich editor renders its structured custom targets.
   legacyMode.value = mentionState.mode === 'custom' ? 'none' : mentionState.mode;
   legacyMode.dispatchEvent(new Event('change', { bubbles: true }));
 }
@@ -173,7 +165,7 @@ async function searchMembers(query) {
     return;
   }
   try {
-    const response = await originalFetch(`/api/admin/members?q=${encodeURIComponent(value)}`, { credentials:'same-origin' });
+    const response = await fetch(`/api/admin/members?q=${encodeURIComponent(value)}`, { credentials:'same-origin' });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
     mentionState.memberResults = data.members || [];
@@ -269,7 +261,7 @@ function installEditor() {
   return true;
 }
 
-function loadMentionConfig(config) {
+export function loadMentionConfig(config) {
   const mode = config?.mode || 'default';
   mentionState.targets = dedupe((config?.targets || []).map(target => ({ ...target, id: target.id ? String(target.id) : undefined })));
   setMode(mode === 'role' ? 'custom' : mode);
@@ -279,7 +271,7 @@ function loadMentionConfig(config) {
   }
 }
 
-function mentionPayload() {
+export function mentionPayload() {
   if (mentionState.mode !== 'custom') return { mode: mentionState.mode };
   return {
     mode: 'custom',
@@ -339,43 +331,9 @@ function decoratePreview() {
   root.append(card);
 }
 
-window.fetch = async function richMentionFetch(input, init = {}) {
-  const url = typeof input === 'string' ? input : input?.url || '';
-  const path = (() => { try { return new URL(url, location.href).pathname; } catch { return String(url); } })();
-
-  if ((path === '/api/admin/schedules' || path === '/api/admin/update') && init?.body) {
-    try {
-      const payload = JSON.parse(init.body);
-      payload.mention = mentionPayload();
-      init = { ...init, body: JSON.stringify(payload) };
-    } catch {}
-  }
-
-  const response = await originalFetch(input, init);
-  if (path === '/api/admin/event' && response.ok) {
-    try {
-      const data = await response.clone().json();
-      if (data?.event?.mention) {
-        loadMentionConfig(data.event.mention);
-        window.setTimeout(() => {
-          syncLegacyControls();
-          renderTargets();
-          refreshPreview();
-        }, 0);
-      }
-    } catch {}
-  }
-  return response;
-};
-
 function initialize() {
   installStyles();
-  if (!installEditor()) {
-    const observer = new MutationObserver(() => {
-      if (installEditor()) observer.disconnect();
-    });
-    observer.observe(document.documentElement, { childList:true, subtree:true });
-  }
+  installEditor();
 
   const form = q('#scheduleForm');
   form?.addEventListener('reset', () => window.setTimeout(() => {
@@ -385,11 +343,5 @@ function initialize() {
   form?.addEventListener('input', () => window.setTimeout(decoratePreview, 0));
   form?.addEventListener('change', () => window.setTimeout(decoratePreview, 0));
 }
-
-window.ReactusMentions = {
-  payload: mentionPayload,
-  targets: () => mentionState.targets.map(target => ({ ...target })),
-  previewText,
-};
 
 initialize();
