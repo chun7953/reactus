@@ -6,6 +6,7 @@ const entryPath = new URL('../public/common/admin-future-scope.js', import.meta.
 const guidePath = new URL('../public/common/admin-japanese-ui.js', import.meta.url);
 const toolsPath = new URL('../public/common/admin-tools.js', import.meta.url);
 const permissionsPath = new URL('../public/common/admin-manageable-targets.js', import.meta.url);
+const calendarSettingsPath = new URL('../public/common/admin-calendar-settings.js', import.meta.url);
 const settingsPath = new URL('../public/common/admin-calendar-settings-usability.js', import.meta.url);
 const navigationPath = new URL('../public/common/admin-navigation-polish.js', import.meta.url);
 const announcementsPath = new URL('../public/common/admin-announcements.js', import.meta.url);
@@ -37,19 +38,30 @@ test('reaction owner renders manageable channels and read-only rules without a r
   assert.match(tools, /閲覧のみ/);
   assert.doesNotMatch(permissions, /#reactionChannel/);
   assert.doesNotMatch(permissions, /#reactionRules/);
-  assert.match(permissions, /filter\(channel => channel\.canManage\)/);
   assert.match(permissions, /filter\(monitor => monitor\.canManage\)/);
-  assert.match(permissions, /#calendarSettingChannel/);
   assert.match(permissions, /#monitor/);
 });
 
-test('calendar connection settings hide routing jargon in the list and paginate long configurations', async () => {
-  const source = await readFile(settingsPath, 'utf8');
-  assert.match(source, /CALENDAR_SETTINGS_PAGE_SIZE = 8/);
-  assert.match(source, /friendlyMonitorType/);
-  assert.match(source, /'抽選' : '通常投稿'/);
-  assert.match(source, /Googleカレンダーから直接作る予定の合図/);
-  assert.match(source, /投稿先・カレンダーで検索/);
+test('calendar settings owner renders permissions and final wording while pagination follows its lifecycle', async () => {
+  const [owner, usability, permissions] = await Promise.all([
+    readFile(calendarSettingsPath, 'utf8'),
+    readFile(settingsPath, 'utf8'),
+    readFile(permissionsPath, 'utf8'),
+  ]);
+  assert.match(owner, /filter\(item => item\.canManage === true\)/);
+  assert.match(owner, /monitor\.canManage !== true/);
+  assert.match(owner, /reactus-readonly-badge/);
+  assert.match(owner, /friendlyMonitorType/);
+  assert.match(owner, /'抽選' : '通常投稿'/);
+  assert.match(owner, /Googleカレンダーから直接作る予定の合図/);
+  assert.match(owner, /new CustomEvent\('reactus:calendar-settings-rendered'/);
+  assert.match(usability, /CALENDAR_SETTINGS_PAGE_SIZE = 8/);
+  assert.match(usability, /投稿先・カレンダーで検索/);
+  assert.match(usability, /addEventListener\('reactus:calendar-settings-rendered'/);
+  assert.doesNotMatch(usability, /new MutationObserver\(/);
+  assert.doesNotMatch(usability, /\/api\/admin\/bootstrap/);
+  assert.doesNotMatch(permissions, /calendarSettingList/);
+  assert.doesNotMatch(permissions, /calendarSettingChannel/);
 });
 
 test('announcement panel owns its top-level placement without a repair pass', async () => {

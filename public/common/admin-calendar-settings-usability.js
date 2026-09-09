@@ -1,20 +1,5 @@
 const CALENDAR_SETTINGS_PAGE_SIZE = 8;
 let calendarSettingsPage = 0;
-let calendarSettingsBootstrap = null;
-let calendarSettingsListObserver = null;
-
-async function loadCalendarSettingsBootstrap() {
-  if (calendarSettingsBootstrap) return calendarSettingsBootstrap;
-  const response = await fetch('/api/admin/bootstrap', { credentials: 'same-origin' });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data?.error || `HTTP ${response.status}`);
-  calendarSettingsBootstrap = data;
-  return data;
-}
-
-function friendlyMonitorType(monitor) {
-  return String(monitor?.triggerKeyword || '') === 'ラキショ' ? '抽選' : '通常投稿';
-}
 
 function setText(node, value) {
   if (node && node.textContent !== value) node.textContent = value;
@@ -107,55 +92,15 @@ function applyCalendarSettingsPage() {
     : `${cards.length}件 · ${calendarSettingsPage + 1} / ${totalPages}ページ`);
 }
 
-function clarifyLegacyKeywordField() {
-  const input = document.querySelector('#calendarSettingTrigger');
-  if (!input) return;
-  const label = input.closest('label');
-  const title = label?.querySelector('span');
-  setText(title, 'Googleカレンダーから直接作る予定の合図');
-  input.placeholder = '例: ご連絡';
-
-  const form = document.querySelector('#calendarSettingForm');
-  if (!form || form.querySelector('.reactus-calendar-routing-hint')) return;
-  const hint = document.createElement('p');
-  hint.className = 'hint reactus-calendar-routing-hint';
-  hint.textContent = 'Reactus管理画面から予定を作るときは、この合図を意識する必要はありません。Googleカレンダーで予定を直接作る場合だけ使います。抽選は「ラキショ」です。';
-  label?.after(hint);
-}
-
-async function relabelMonitorCards() {
-  const cards = [...document.querySelectorAll('#calendarSettingList > .calendar-setting-card')];
-  if (!cards.length) return;
-  try {
-    const bootstrap = await loadCalendarSettingsBootstrap();
-    cards.forEach((card, index) => {
-      const monitor = bootstrap.monitors?.[index];
-      if (!monitor) return;
-      const title = card.querySelector('strong');
-      setText(title, `#${monitor.channelName || monitor.channelId} · ${friendlyMonitorType(monitor)}`);
-    });
-  } catch {
-    // The base settings panel handles bootstrap errors.
-  }
-}
-
-function refreshCalendarSettingsUsability() {
-  clarifyLegacyKeywordField();
-  ensureCalendarSettingsControls();
-  void relabelMonitorCards().then(applyCalendarSettingsPage);
-}
-
 function installForList() {
   const list = document.querySelector('#calendarSettingList');
   if (!list) return false;
-  if (!calendarSettingsListObserver) {
-    calendarSettingsListObserver = new MutationObserver(() => {
-      calendarSettingsPage = 0;
-      queueMicrotask(refreshCalendarSettingsUsability);
-    });
-    calendarSettingsListObserver.observe(list, { childList: true });
-  }
-  refreshCalendarSettingsUsability();
+  ensureCalendarSettingsControls();
+  document.addEventListener('reactus:calendar-settings-rendered', () => {
+    calendarSettingsPage = 0;
+    queueMicrotask(applyCalendarSettingsPage);
+  });
+  applyCalendarSettingsPage();
   return true;
 }
 

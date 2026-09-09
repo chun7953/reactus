@@ -35,6 +35,10 @@ function channelName(id) {
   return channel ? `#${channel.name}` : `#${id}`;
 }
 
+function friendlyMonitorType(monitor) {
+  return String(monitor?.triggerKeyword || '') === 'ラキショ' ? '抽選' : '通常投稿';
+}
+
 function option(value, label) {
   const node = document.createElement('option');
   node.value = String(value ?? '');
@@ -47,7 +51,7 @@ function buildSelectOptions() {
   const role = q('#calendarSettingRole');
   if (!channel || !role) return;
   channel.replaceChildren(option('', '投稿先チャンネルを選択'));
-  for (const item of calendarSettingsState.bootstrap.channels || []) {
+  for (const item of (calendarSettingsState.bootstrap.channels || []).filter(item => item.canManage === true)) {
     channel.append(option(item.id, `#${item.name}`));
   }
   role.replaceChildren(option('', '既定メンションなし'));
@@ -83,7 +87,7 @@ function monitorCard(monitor) {
 
   const body = document.createElement('div');
   const title = document.createElement('strong');
-  title.textContent = `${channelName(monitor.channelId)} · 【${monitor.triggerKeyword}】`;
+  title.textContent = `${channelName(monitor.channelId)} · ${friendlyMonitorType(monitor)}`;
   const calendar = document.createElement('div');
   calendar.className = 'muted calendar-setting-id';
   calendar.textContent = monitor.calendarId;
@@ -91,6 +95,15 @@ function monitorCard(monitor) {
   mention.className = 'muted';
   mention.textContent = `既定メンション: ${roleName(monitor.defaultMentionRoleId)}`;
   body.append(title, calendar, mention);
+
+  if (monitor.canManage !== true) {
+    const badge = document.createElement('div');
+    badge.className = 'muted reactus-readonly-badge';
+    badge.textContent = '閲覧のみ';
+    body.append(badge);
+    card.append(body);
+    return card;
+  }
 
   const actions = document.createElement('div');
   actions.className = 'event-actions';
@@ -127,6 +140,10 @@ function monitorCard(monitor) {
   return card;
 }
 
+function notifyCalendarSettingsRendered(count) {
+  document.dispatchEvent(new CustomEvent('reactus:calendar-settings-rendered', { detail: { count } }));
+}
+
 function renderMonitors() {
   const list = q('#calendarSettingList');
   if (!list) return;
@@ -137,9 +154,11 @@ function renderMonitors() {
     empty.className = 'muted';
     empty.textContent = 'カレンダー監視設定はまだありません。';
     list.append(empty);
+    notifyCalendarSettingsRendered(0);
     return;
   }
   for (const monitor of monitors) list.append(monitorCard(monitor));
+  notifyCalendarSettingsRendered(monitors.length);
 }
 
 function installStyles() {
@@ -198,13 +217,14 @@ function installPanel() {
           <form id="calendarSettingForm">
             <div class="grid two">
               <label><span>投稿先チャンネル</span><select id="calendarSettingChannel" required></select></label>
-              <label><span>予定を見分ける合図（キーワード）</span><input id="calendarSettingTrigger" maxlength="100" required placeholder="例: ご連絡 / ラキショ"></label>
+              <label><span>Googleカレンダーから直接作る予定の合図</span><input id="calendarSettingTrigger" maxlength="100" required placeholder="例: ご連絡"></label>
             </div>
+            <p class="hint">Reactus管理画面から予定を作るときは、この合図を意識する必要はありません。Googleカレンダーで予定を直接作る場合だけ使います。抽選は「ラキショ」です。</p>
             <div class="grid two">
               <label><span>GoogleカレンダーID</span><input id="calendarSettingCalendarId" required autocomplete="off" placeholder="example@gmail.com"></label>
               <label><span>いつも付けるメンション</span><select id="calendarSettingRole"></select></label>
             </div>
-            <p class="hint">抽選用は、予定を見分ける合図を「ラキショ」にします。予定ごとのメンション設定は、予定作成画面でこの既定値を上書きできます。</p>
+            <p class="hint">予定ごとのメンション設定は、予定作成画面でこの既定値を上書きできます。</p>
             <div class="actions">
               <button id="calendarSettingSave" type="submit" class="primary">投稿先の設定を追加</button>
               <button id="calendarSettingCancel" type="button" class="small hidden">編集をやめる</button>

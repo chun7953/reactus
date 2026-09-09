@@ -95,7 +95,8 @@ test('bootstrap helpers rely on owned startup order instead of document-wide obs
   for (const source of [calendarEdit, calendarQuickCreate, calendarDrag, mobile]) {
     assert.match(source, /addEventListener\('reactus:month-rendered'/);
   }
-  assert.match(settingsUsability, /calendarSettingsListObserver\.observe\(list,/);
+  assert.doesNotMatch(settingsUsability, /new MutationObserver\(/);
+  assert.match(settingsUsability, /addEventListener\('reactus:calendar-settings-rendered'/);
   assert.doesNotMatch(reactionPagination, /new MutationObserver\(/);
   assert.match(reactionPagination, /addEventListener\('reactus:reaction-rules-rendered'/);
   assert.doesNotMatch(mobile, /appObserver/);
