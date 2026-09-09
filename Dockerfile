@@ -12,11 +12,11 @@ RUN npm ci --omit=dev
 COPY . .
 
 # 管理画面は本番では単一のclassic bundleとして配信する。
-# Androidの古いChrome / Custom Tabでも動くようChrome 49相当まで構文を落とす。
+# Androidの古いChrome / Custom Tabでも動くようChrome 55相当まで構文を落とす。
 RUN npx --yes esbuild@0.25.9 public/admin-entry.js \
     --bundle \
     --format=iife \
-    --target=chrome49 \
+    --target=chrome55 \
     --outfile=public/admin.bundle.js
 
 # ボットを起動するコマンド
