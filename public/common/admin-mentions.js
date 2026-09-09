@@ -110,7 +110,7 @@ function renderTargets() {
   }
 }
 
-function copyRoleOptions() {
+export function syncMentionRoleOptions() {
   const source = q('#mentionRole');
   const select = q('#richMentionRole');
   if (!source || !select) return;
@@ -253,10 +253,7 @@ function installEditor() {
   });
   q('#richMentionMemberSearch').addEventListener('input', scheduleMemberSearch);
 
-  const roleObserver = new MutationObserver(copyRoleOptions);
-  const roleSelect = q('#mentionRole');
-  if (roleSelect) roleObserver.observe(roleSelect, { childList:true });
-  copyRoleOptions();
+  syncMentionRoleOptions();
   setMode('default');
   return true;
 }

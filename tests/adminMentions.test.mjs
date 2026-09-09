@@ -13,9 +13,20 @@ test('core admin owns the rich mention editor before the Discord preview enhance
         readFile(adminPath, 'utf8'),
         readFile(loaderPath, 'utf8'),
     ]);
-    assert.match(admin, /import \{ loadMentionConfig, mentionPayload \} from '\.\/common\/admin-mentions\.js';/);
+    assert.match(admin, /import \{ loadMentionConfig, mentionPayload, syncMentionRoleOptions \} from '\.\/common\/admin-mentions\.js';/);
     assert.match(loader, /import '\.\/admin-preview\.js';/);
     assert.doesNotMatch(loader, /import '\.\/admin-mentions\.js';/);
+});
+
+test('core role owner explicitly synchronizes the rich mention role selector', async () => {
+    const [admin, mentions] = await Promise.all([
+        readFile(adminPath, 'utf8'),
+        readFile(mentionsPath, 'utf8'),
+    ]);
+    assert.match(admin, /function populateRoles\(\)[\s\S]*syncMentionRoleOptions\(\);\n}/);
+    assert.match(mentions, /export function syncMentionRoleOptions\(\)/);
+    assert.doesNotMatch(mentions, /roleObserver/);
+    assert.doesNotMatch(mentions, /new MutationObserver\(/);
 });
 
 test('rich mention editor supports roles, users, everyone, here and multiple targets', async () => {
