@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   apply:
-    if: contains(github.event.head_commit.message, '[apply-mention-role-sync]')
+    if: ${{ contains(github.event.head_commit.message, '[apply-mention-role-sync]') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout branch
@@ -23,7 +23,6 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-
           mentions = Path('public/common/admin-mentions.js')
           source = mentions.read_text()
           old_fn = 'function copyRoleOptions() {'
@@ -37,7 +36,6 @@ jobs:
           if 'copyRoleOptions' in source:
               raise SystemExit('stale copyRoleOptions reference remains')
           mentions.write_text(source)
-
           admin = Path('public/admin.js')
           source = admin.read_text()
           old_import = "import { loadMentionConfig, mentionPayload } from './common/admin-mentions.js';"
@@ -45,29 +43,8 @@ jobs:
           if source.count(old_import) != 1:
               raise SystemExit(f'expected one mention import, got {source.count(old_import)}')
           source = source.replace(old_import, new_import, 1)
-          old_roles = """function populateRoles() {
-  const select = $('#mentionRole');
-  select.replaceChildren();
-  for (const role of state.bootstrap.roles) {
-    const option = document.createElement('option');
-    option.value = role.id;
-    option.textContent = `@${role.name}`;
-    select.append(option);
-  }
-}
-"""
-          new_roles = """function populateRoles() {
-  const select = $('#mentionRole');
-  select.replaceChildren();
-  for (const role of state.bootstrap.roles) {
-    const option = document.createElement('option');
-    option.value = role.id;
-    option.textContent = `@${role.name}`;
-    select.append(option);
-  }
-  syncMentionRoleOptions();
-}
-"""
+          old_roles = "function populateRoles() {\n  const select = $('#mentionRole');\n  select.replaceChildren();\n  for (const role of state.bootstrap.roles) {\n    const option = document.createElement('option');\n    option.value = role.id;\n    option.textContent = `@${role.name}`;\n    select.append(option);\n  }\n}\n"
+          new_roles = "function populateRoles() {\n  const select = $('#mentionRole');\n  select.replaceChildren();\n  for (const role of state.bootstrap.roles) {\n    const option = document.createElement('option');\n    option.value = role.id;\n    option.textContent = `@${role.name}`;\n    select.append(option);\n  }\n  syncMentionRoleOptions();\n}\n"
           if source.count(old_roles) != 1:
               raise SystemExit(f'expected one populateRoles block, got {source.count(old_roles)}')
           source = source.replace(old_roles, new_roles, 1)
