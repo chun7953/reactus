@@ -20,6 +20,14 @@
 
     <div id="notice" class="notice hidden" role="status"></div>
 
+    <section id="startupShell" class="panel" role="status" aria-live="polite">
+      <h2 id="startupShellTitle">管理画面を読み込んでいます</h2>
+      <p id="startupShellMessage" class="muted">Discordのサーバー設定を確認しています。通常は数秒で表示されます。</p>
+      <div class="actions">
+        <button id="startupShellRetry" class="primary hidden" type="button">再試行</button>
+      </div>
+    </section>
+
     <section id="loginRequired" class="panel hidden">
       <h2>Discordから開いてください</h2>
       <p>Discordで <code>/reactus</code> を実行し、「Reactus 管理画面を開く」を押すとログインできます。</p>
@@ -222,6 +230,41 @@
       </section>
     </div>
   </main>
+
+  <script>
+    (() => {
+      const shell = document.querySelector('#startupShell');
+      const title = document.querySelector('#startupShellTitle');
+      const message = document.querySelector('#startupShellMessage');
+      const retry = document.querySelector('#startupShellRetry');
+      const app = document.querySelector('#app');
+      const loginRequired = document.querySelector('#loginRequired');
+      const identity = document.querySelector('#identity');
+
+      const resolved = () => (
+        (app && !app.classList.contains('hidden'))
+        || (loginRequired && !loginRequired.classList.contains('hidden'))
+      );
+      const sync = () => {
+        if (resolved()) shell?.classList.add('hidden');
+      };
+
+      const observer = new MutationObserver(sync);
+      if (app) observer.observe(app, { attributes: true, attributeFilter: ['class'] });
+      if (loginRequired) observer.observe(loginRequired, { attributes: true, attributeFilter: ['class'] });
+      retry?.addEventListener('click', () => window.location.reload());
+
+      window.setTimeout(() => {
+        if (resolved()) return;
+        if (title) title.textContent = '管理画面を読み込めませんでした';
+        if (message) message.textContent = '初期情報の取得が完了していません。待ち続けず、再試行してください。';
+        retry?.classList.remove('hidden');
+        if (identity) identity.textContent = '読み込みに失敗しました';
+      }, 12500);
+
+      sync();
+    })();
+  </script>
   <script type="module" src="/common/admin-event-fetch-cache.js"></script>
   <script type="module" src="/admin.js"></script>
   <script type="module" src="/common/admin-tools.js"></script>
