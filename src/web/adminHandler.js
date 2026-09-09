@@ -186,6 +186,17 @@ function manageableChannelIds(auth) {
     );
 }
 
+async function hydrateConfiguredChannels(auth, monitors) {
+    const missingIds = [...new Set(
+        monitors
+            .map(monitor => String(monitor.channel_id || '').trim())
+            .filter(id => id && !auth.guild.channels.cache.has(id)),
+    )];
+    await Promise.all(
+        missingIds.map(id => auth.guild.channels.fetch(id).catch(() => null)),
+    );
+}
+
 async function requireManageableChannel(auth, channelId) {
     const id = String(channelId || '').trim();
     const channel = auth.guild.channels.cache.get(id)
@@ -234,6 +245,8 @@ async function bootstrap(auth) {
         currentMainCalendar(auth.session.guild_id),
         listWebReactionRules(auth.session.guild_id, auth.guild),
     ]);
+
+    await hydrateConfiguredChannels(auth, monitors);
 
     const visibleIds = visibleChannelIds(auth);
     const manageableIds = manageableChannelIds(auth);
