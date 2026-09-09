@@ -1,5 +1,3 @@
-import './admin-startup-resilience.js';
-import './admin-bootstrap-fallback.js';
 import './admin-calendar-month-view.js';
 import './admin-calendar-settings.js';
 import './admin-mentions.js';
