@@ -1,3 +1,5 @@
+import { loadMentionConfig, mentionPayload } from './common/admin-mentions.js';
+
 const state = {
   bootstrap: null,
   image: null,
@@ -241,10 +243,7 @@ function schedulePayload() {
     type,
     monitorId: $('#monitor').value,
     startTime: $('#startTime').value,
-    mention: {
-      mode: $('#mentionMode').value,
-      roleId: $('#mentionMode').value === 'role' ? $('#mentionRole').value : null,
-    },
+    mention: mentionPayload(),
     recurrence: recurrencePayload(),
     image: state.image,
   };
@@ -401,11 +400,7 @@ function populateEditForm(detail) {
     replacePrizes(detail.prizes || []);
   }
 
-  $('#mentionMode').value = detail.mention?.mode || 'default';
-  if (detail.mention?.roleId && [...$('#mentionRole').options].some(option => option.value === detail.mention.roleId)) {
-    $('#mentionRole').value = detail.mention.roleId;
-  }
-  updateMention();
+  loadMentionConfig(detail.mention);
   fillRecurrence(detail.recurrence || { unit: 'once', interval: 1 });
   renderEditImageState();
   applyEditRestrictions();
