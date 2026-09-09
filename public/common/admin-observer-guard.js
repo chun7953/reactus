@@ -6,9 +6,16 @@ if (NativeMutationObserver && !window.__reactusEnhancementObserverGuardInstalled
   const active = new Set();
   const MAX_CALLBACKS_PER_SECOND = 60;
 
+  function observerOwner() {
+    const stack = String(new Error().stack || '');
+    const match = stack.split('\n').find(line => /admin-[^/ )]+\.js/.test(line) && !/admin-observer-guard\.js/.test(line));
+    return match?.trim() || 'unknown observer';
+  }
+
   class ReactusDeferredMutationObserver {
     constructor(callback) {
       this.callback = callback;
+      this.owner = observerOwner();
       this.pending = [];
       this.scheduled = false;
       this.windowStartedAt = Date.now();
@@ -37,10 +44,11 @@ if (NativeMutationObserver && !window.__reactusEnhancementObserverGuardInstalled
 
       if (this.callbackCount > MAX_CALLBACKS_PER_SECOND) {
         const dropped = this.pending.length;
+        const owner = this.owner;
         this.disconnect();
-        console.error('[WebAdmin] runaway MutationObserver was disconnected', { dropped });
+        console.error(`[WebAdmin] runaway MutationObserver was disconnected: ${owner}`, { dropped });
         document.dispatchEvent(new CustomEvent('reactus:observer-runaway', {
-          detail: { dropped },
+          detail: { dropped, owner },
         }));
         return;
       }

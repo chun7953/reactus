@@ -1,6 +1,6 @@
 let permissionBootstrap = null;
-let permissionObserver = null;
 let applying = false;
+let scheduled = false;
 
 async function loadPermissionBootstrap() {
   if (permissionBootstrap) return permissionBootstrap;
@@ -95,12 +95,29 @@ async function applyManageableTargets() {
   }
 }
 
+function scheduleApply() {
+  if (scheduled) return;
+  scheduled = true;
+  window.setTimeout(() => {
+    scheduled = false;
+    void applyManageableTargets();
+  }, 0);
+}
+
+function observeTarget(selector, options = { childList: true, subtree: true }) {
+  const target = document.querySelector(selector);
+  if (!target) return;
+  const observer = new MutationObserver(scheduleApply);
+  observer.observe(target, options);
+}
+
 function install() {
-  if (permissionObserver) return;
-  permissionObserver = new MutationObserver(() => queueMicrotask(applyManageableTargets));
-  permissionObserver.observe(document.documentElement, { childList: true, subtree: true });
+  observeTarget('#reactionRules');
+  observeTarget('#calendarSettingList');
+  observeTarget('#reactionChannel', { childList: true });
+  observeTarget('#calendarSettingChannel', { childList: true });
   document.querySelectorAll('.segment').forEach(button => {
-    button.addEventListener('click', () => queueMicrotask(applyManageableTargets));
+    button.addEventListener('click', scheduleApply);
   });
   void applyManageableTargets();
 }

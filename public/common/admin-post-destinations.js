@@ -4,8 +4,6 @@ const destinationState = {
   monitors: null,
   loadedAt: 0,
   loading: null,
-  rendering: false,
-  suppressObserver: false,
   preferredMonitorId: null,
 };
 
@@ -14,9 +12,17 @@ function currentScheduleType() {
 }
 
 function destinationMatchesType(monitor, type) {
+  if (monitor.canManage === false) return false;
   return type === 'giveaway'
     ? monitor.triggerKeyword === 'ラキショ'
     : monitor.triggerKeyword !== 'ラキショ';
+}
+
+function destinationLabel(monitor, duplicateChannelIds) {
+  const base = `#${monitor.channelName}`;
+  if (!duplicateChannelIds.has(String(monitor.channelId))) return base;
+  const calendar = String(monitor.calendarName || monitor.calendarId || '').trim();
+  return calendar ? `${base} (${calendar})` : `${base} (設定${monitor.id})`;
 }
 
 function renderDestinations(preferredMonitorId = null) {
@@ -26,34 +32,33 @@ function renderDestinations(preferredMonitorId = null) {
   const type = currentScheduleType();
   const previous = String(preferredMonitorId || destinationState.preferredMonitorId || select.value || '');
   const monitors = destinationState.monitors.filter(monitor => destinationMatchesType(monitor, type));
+  const channelCounts = new Map();
+  for (const monitor of monitors) {
+    const key = String(monitor.channelId);
+    channelCounts.set(key, (channelCounts.get(key) || 0) + 1);
+  }
+  const duplicateChannelIds = new Set(
+    [...channelCounts].filter(([, count]) => count > 1).map(([channelId]) => channelId),
+  );
 
-  destinationState.rendering = true;
-  destinationState.suppressObserver = true;
-  try {
-    select.replaceChildren();
-    for (const monitor of monitors) {
-      const option = document.createElement('option');
-      option.value = String(monitor.id);
-      option.textContent = `#${monitor.channelName} — ${monitor.triggerKeyword}`;
-      select.append(option);
-    }
+  select.replaceChildren();
+  for (const monitor of monitors) {
+    const option = document.createElement('option');
+    option.value = String(monitor.id);
+    option.textContent = destinationLabel(monitor, duplicateChannelIds);
+    select.append(option);
+  }
 
-    const matching = [...select.options].find(option => option.value === previous);
-    if (matching) select.value = matching.value;
+  const matching = [...select.options].find(option => option.value === previous);
+  if (matching) select.value = matching.value;
 
-    if (monitors.length === 0) {
-      const option = document.createElement('option');
-      option.value = '';
-      option.textContent = type === 'giveaway'
-        ? 'ラキショ用の設定がありません'
-        : '通常投稿用の設定がありません';
-      select.append(option);
-    }
-  } finally {
-    destinationState.rendering = false;
-    queueMicrotask(() => {
-      destinationState.suppressObserver = false;
-    });
+  if (monitors.length === 0) {
+    const option = document.createElement('option');
+    option.value = '';
+    option.textContent = type === 'giveaway'
+      ? '抽選用の投稿先がありません'
+      : '通常投稿用の投稿先がありません';
+    select.append(option);
   }
 }
 
@@ -136,16 +141,7 @@ if (select) {
   });
   select.addEventListener('change', () => {
     destinationState.preferredMonitorId = select.value || null;
-    void refreshDestinations({ force: true, preferredMonitorId: select.value, silent: true });
   });
-
-  const observer = new MutationObserver(() => {
-    if (destinationState.suppressObserver || !destinationState.monitors) return;
-    queueMicrotask(() => {
-      if (!destinationState.rendering) renderDestinations();
-    });
-  });
-  observer.observe(select, { childList: true });
 }
 
 document.querySelectorAll('.segment').forEach(button => {

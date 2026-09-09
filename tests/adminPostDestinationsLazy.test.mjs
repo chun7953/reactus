@@ -21,10 +21,12 @@ test('post destinations load after the admin shell and refresh on channel intera
   assert.match(source, /reactus:edit-event/);
 });
 
-test('lazy destination renderer repairs monitor options overwritten by the base editor', async () => {
+test('destination renderer is permission-aware and avoids select observer feedback loops', async () => {
   const source = await readFile(modulePath, 'utf8');
-  assert.match(source, /new MutationObserver/);
-  assert.match(source, /observer\.observe\(select, \{ childList: true \}\)/);
-  assert.match(source, /destinationState\.rendering/);
-  assert.match(source, /renderDestinations\(\)/);
+  assert.match(source, /monitor\.canManage === false/);
+  assert.match(source, /function destinationLabel\(/);
+  assert.match(source, /抽選用の投稿先がありません/);
+  assert.doesNotMatch(source, /observer\.observe\(select, \{ childList: true \}\)/);
+  assert.doesNotMatch(source, /destinationState\.rendering/);
+  assert.match(source, /renderDestinations\(preferredMonitorId\)/);
 });
