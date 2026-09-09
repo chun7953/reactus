@@ -30,7 +30,7 @@ test('admin enhancements do not replace the browser MutationObserver implementat
   assert.doesNotMatch(futureScope, /admin-panel-layout\.js/);
 });
 
-test('bootstrap helpers rely on owned startup order instead of document-wide observers', async () => {
+test('bootstrap helpers rely on owned startup order instead of document-wide observers or an external calendar guard', async () => {
   const [
     adminEntry,
     enhancementsEntry,
@@ -38,7 +38,6 @@ test('bootstrap helpers rely on owned startup order instead of document-wide obs
     monthView,
     calendarSettings,
     fold,
-    loadGuard,
     settingsUsability,
     reactionPagination,
     mobile,
@@ -49,7 +48,6 @@ test('bootstrap helpers rely on owned startup order instead of document-wide obs
     readFile(monthViewPath, 'utf8'),
     readFile(calendarSettingsPath, 'utf8'),
     readFile(calendarSettingsFoldPath, 'utf8'),
-    readFile(calendarLoadGuardPath, 'utf8'),
     readFile(calendarSettingsUsabilityPath, 'utf8'),
     readFile(reactionPaginationPath, 'utf8'),
     readFile(mobilePath, 'utf8'),
@@ -59,7 +57,6 @@ test('bootstrap helpers rely on owned startup order instead of document-wide obs
     monthView,
     calendarSettings,
     fold,
-    loadGuard,
     settingsUsability,
     reactionPagination,
     mobile,
@@ -68,14 +65,18 @@ test('bootstrap helpers rely on owned startup order instead of document-wide obs
   }
 
   assert.ok(adminEntry.indexOf("./common/admin-calendar-shell.js") < adminEntry.indexOf("./common/admin-calendar-month-view.js"));
-  assert.ok(adminEntry.indexOf("./common/admin-calendar-shell.js") < adminEntry.indexOf("./common/admin-calendar-load-guard.js"));
+  assert.doesNotMatch(adminEntry, /admin-calendar-load-guard\.js/);
+  await assert.rejects(readFile(calendarLoadGuardPath, 'utf8'), error => error?.code === 'ENOENT');
   assert.ok(enhancementsEntry.indexOf("./common/admin-tools.js") < enhancementsEntry.indexOf("./common/admin-future-scope.js"));
   assert.ok(futureScope.indexOf("./admin-calendar-settings.js") < futureScope.indexOf("./admin-calendar-settings-fold.js"));
   assert.ok(futureScope.indexOf("./admin-calendar-settings.js") < futureScope.indexOf("./admin-calendar-settings-usability.js"));
   assert.ok(futureScope.indexOf("./admin-calendar-settings.js") < futureScope.indexOf("./admin-mobile.js"));
 
+  assert.match(monthView, /MONTH_REQUEST_TIMEOUT_MS = 40_000/);
+  assert.match(monthView, /new AbortController\(\)/);
+  assert.match(monthView, /signal: controller\.signal/);
+  assert.match(monthView, /reactus-month-retry/);
   assert.match(monthView, /monthState\.gridObserver\.observe\(grid,/);
-  assert.match(loadGuard, /observer\.observe\(grid,/);
   assert.match(settingsUsability, /calendarSettingsListObserver\.observe\(list,/);
   assert.match(reactionPagination, /reactionObserver\.observe\(list,/);
   assert.match(mobile, /calendarObserver\.observe\(grid,/);
