@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
+const htmlPath = new URL('../public/admin.html', import.meta.url);
 const entryPath = new URL('../public/admin-entry.js', import.meta.url);
 const enhancementsEntryPath = new URL('../public/admin-enhancements-entry.js', import.meta.url);
 const polyfillPath = new URL('../public/admin-polyfills.js', import.meta.url);
@@ -11,17 +12,30 @@ const dockerPath = new URL('../Dockerfile', import.meta.url);
 const futureScopePath = new URL('../public/common/admin-future-scope.js', import.meta.url);
 const loginPolishPath = new URL('../public/common/admin-login-link-polish.js', import.meta.url);
 
-test('production admin uses a classic core bundle and an inline ES5 startup guard', async () => {
-  const server = await readFile(serverPath, 'utf8');
+test('bundled and unbundled admin use the same canonical entry graph', async () => {
+  const [server, html, entry] = await Promise.all([
+    readFile(serverPath, 'utf8'),
+    readFile(htmlPath, 'utf8'),
+    readFile(entryPath, 'utf8'),
+  ]);
+
   assert.match(server, /fs\.existsSync\(path\.join\(adminRoot, 'admin\.bundle\.js'\)\)/);
   assert.match(server, /<script src="\/admin\.bundle\.js/);
   assert.match(server, /admin-enhancements\.bundle\.js/);
+  assert.match(server, /admin-enhancements-entry\.js/);
   assert.match(server, /__reactusAdminEnhancementSrc/);
-  assert.match(server, /script type="module"/);
-  assert.match(server, /const startupGuard = `<script>\(function\(\)\{/);
-  assert.match(server, /window\.setTimeout\(function\(\)\{/);
-  assert.match(server, /12500/);
+  assert.match(server, /__reactusAdminEnhancementModule/);
+  assert.doesNotMatch(server, /const startupGuard =/);
   assert.match(server, /<noscript>/);
+
+  assert.match(html, /<script type="module" src="\/admin-entry\.js"><\/script>/);
+  assert.doesNotMatch(html, /admin-calendar-polish\.js/);
+  assert.doesNotMatch(html, /common\/admin-event-fetch-cache\.js/);
+  assert.doesNotMatch(html, /<script type="module" src="\/admin\.js"/);
+  assert.match(html, /observer\.observe\(app, \{ attributes: true, attributeFilter: \['class'\] \}\)/);
+  assert.match(html, /observer\.observe\(loginRequired, \{ attributes: true, attributeFilter: \['class'\] \}\)/);
+
+  assert.match(entry, /__reactusAdminEnhancementModule === true/);
 });
 
 test('production image splits bootstrap-critical admin code from heavy UI enhancements', async () => {
