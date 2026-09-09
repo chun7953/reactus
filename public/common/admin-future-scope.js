@@ -12,6 +12,9 @@ import './admin-japanese-ui.js';
 import './admin-dashboard-usability.js';
 import './admin-monitor-labels.js';
 import './admin-reaction-pagination.js';
+import './admin-calendar-settings-usability.js';
+import './admin-manageable-targets.js';
+import './admin-navigation-polish.js';
 
 function setTextIfChanged(node, value) {
   if (node && node.textContent !== value) node.textContent = value;
