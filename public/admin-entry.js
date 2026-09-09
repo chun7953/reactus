@@ -1,3 +1,4 @@
+import './admin-polyfills.js';
 import './common/admin-event-fetch-cache.js';
 import './admin.js';
 import './common/admin-tools.js';

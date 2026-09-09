@@ -2,52 +2,54 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const compatPath = new URL('../public/admin-compat.js', import.meta.url);
 const entryPath = new URL('../public/admin-entry.js', import.meta.url);
+const polyfillPath = new URL('../public/admin-polyfills.js', import.meta.url);
 const fetchCachePath = new URL('../public/common/admin-event-fetch-cache.js', import.meta.url);
 const serverPath = new URL('../src/web/server.js', import.meta.url);
 const dockerPath = new URL('../Dockerfile', import.meta.url);
+const futureScopePath = new URL('../public/common/admin-future-scope.js', import.meta.url);
+const loginPolishPath = new URL('../public/common/admin-login-link-polish.js', import.meta.url);
 
-test('admin injects a classic compatibility loader before module-only UI code', async () => {
-  const [compat, server] = await Promise.all([
-    readFile(compatPath, 'utf8'),
-    readFile(serverPath, 'utf8'),
-  ]);
-
-  assert.match(server, /admin-compat\.js/);
-  assert.match(server, /admin\.bundle\.js/);
-  assert.match(server, /window\.__reactusAdminAssetQuery/);
+test('production admin uses one classic bundle and an inline ES5 startup guard', async () => {
+  const server = await readFile(serverPath, 'utf8');
+  assert.match(server, /fs\.existsSync\(path\.join\(adminRoot, 'admin\.bundle\.js'\)\)/);
+  assert.match(server, /<script src="\/admin\.bundle\.js/);
+  assert.match(server, /script type="module"/);
+  assert.match(server, /const startupGuard = `<script>\(function\(\)\{/);
+  assert.match(server, /window\.setTimeout\(function\(\)\{/);
+  assert.match(server, /12500/);
   assert.match(server, /<noscript>/);
-  assert.match(compat, /modernSyntaxSupported/);
-  assert.match(compat, /Function\('var x=\{a:\{b:1\}\}; return x\?\.a\?\.b \?\? 0;'\)/);
-  assert.match(compat, /この端末向けの互換表示を読み込んでいます。/);
-  assert.match(compat, /FALLBACK_MS = 12500/);
-  assert.doesNotMatch(compat, /=>/);
-  assert.doesNotMatch(compat, /\bconst\b/);
-  assert.doesNotMatch(compat, /\blet\b/);
 });
 
-test('production image builds the admin compatibility bundle for older Android Chrome', async () => {
+test('production image builds the bundled admin UI for older Android Chrome', async () => {
   const [entry, docker] = await Promise.all([
     readFile(entryPath, 'utf8'),
     readFile(dockerPath, 'utf8'),
   ]);
 
+  assert.match(entry, /admin-polyfills\.js/);
   assert.match(entry, /admin-event-fetch-cache\.js/);
   assert.match(entry, /\.\/admin\.js/);
   assert.match(entry, /admin-tools\.js/);
   assert.match(entry, /admin-calendar-polish\.js/);
   assert.match(entry, /admin-future-scope\.js/);
   assert.match(docker, /esbuild@0\.25\.9/);
-  assert.match(docker, /--target=chrome61/);
+  assert.match(docker, /--target=chrome55/);
   assert.match(docker, /--outfile=public\/admin\.bundle\.js/);
 });
 
-test('legacy compatibility path polyfills browser helpers used by admin modules', async () => {
-  const compat = await readFile(compatPath, 'utf8');
-  assert.match(compat, /Object\.fromEntries/);
-  assert.match(compat, /Array\.prototype\.flatMap/);
-  assert.match(compat, /String\.prototype\.replaceAll/);
+test('bundled compatibility path polyfills helpers used by admin modules', async () => {
+  const source = await readFile(polyfillPath, 'utf8');
+  assert.match(source, /Object\.fromEntries/);
+  assert.match(source, /Array\.prototype\.flatMap/);
+  assert.match(source, /String\.prototype\.replaceAll/);
+  assert.match(source, /String\.prototype\.padStart/);
+  assert.match(source, /Element\.prototype\.append/);
+  assert.match(source, /Element\.prototype\.prepend/);
+  assert.match(source, /Element\.prototype\.before/);
+  assert.match(source, /Element\.prototype\.after/);
+  assert.match(source, /Element\.prototype\.replaceWith/);
+  assert.match(source, /Element\.prototype\.replaceChildren/);
 });
 
 test('admin fetch wrapper degrades safely when AbortController is unavailable', async () => {
@@ -55,4 +57,17 @@ test('admin fetch wrapper degrades safely when AbortController is unavailable', 
   assert.match(source, /typeof AbortController === 'function'/);
   assert.match(source, /if \(controller\) requestOptions\.signal = controller\.signal/);
   assert.match(source, /if \(timer !== null\) window\.clearTimeout\(timer\)/);
+});
+
+test('an expired one-time login link does not keep warning on a browser with a valid session', async () => {
+  const [futureScope, polish] = await Promise.all([
+    readFile(futureScopePath, 'utf8'),
+    readFile(loginPolishPath, 'utf8'),
+  ]);
+  assert.match(futureScope, /admin-login-link-polish\.js/);
+  assert.match(polish, /login.*expired/);
+  assert.match(polish, /#app/);
+  assert.match(polish, /ログインリンクの有効期限が切れています/);
+  assert.match(polish, /classList\.add\('hidden'\)/);
+  assert.match(polish, /history\.replaceState/);
 });
