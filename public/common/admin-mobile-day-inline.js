@@ -16,9 +16,13 @@ function installMobileDayInlineStyles() {
       #reactusMobileDayInline[hidden]{display:none!important}
       .reactus-mobile-day-inline-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
       .reactus-mobile-day-inline-head strong{min-width:0}
-      .reactus-mobile-day-inline-list{display:grid;gap:7px}
-      .reactus-mobile-day-inline-event{display:block;min-height:44px;padding:10px;border:1px solid #293746;border-radius:9px;background:#172231;color:#eef3f8;text-decoration:none;white-space:normal;overflow-wrap:anywhere}
+      .reactus-mobile-day-inline-list{display:grid;gap:9px}
+      .reactus-mobile-day-inline-event{display:grid;gap:5px;min-height:44px;padding:11px;border:1px solid #293746;border-radius:9px;background:#172231;color:#eef3f8;text-decoration:none;white-space:normal;overflow-wrap:anywhere}
       .reactus-mobile-day-inline-event.giveaway{background:#251d35}
+      .reactus-mobile-day-inline-title{font-weight:800;line-height:1.35}
+      .reactus-mobile-day-inline-meta{font-size:.8rem;color:#aab5c2;line-height:1.4}
+      .reactus-mobile-day-inline-body{font-size:.88rem;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+      .reactus-mobile-day-inline-prize{font-size:.88rem;line-height:1.45}
       .reactus-mobile-day-inline-loading{margin:0;color:#8f9dae}
     }
   `;
@@ -81,6 +85,20 @@ function localDateKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
+function jstDayBounds(key) {
+  const start = Date.parse(`${key}T00:00:00+09:00`);
+  return [start, start + 24 * 60 * 60 * 1000];
+}
+
+function eventOverlapsJstDay(item, key) {
+  const start = Date.parse(item?.start || '');
+  if (!Number.isFinite(start)) return false;
+  const parsedEnd = Date.parse(item?.end || '');
+  const end = Number.isFinite(parsedEnd) && parsedEnd > start ? parsedEnd : start + 1;
+  const [dayStart, dayEnd] = jstDayBounds(key);
+  return start < dayEnd && end > dayStart;
+}
+
 function dayTitle(date) {
   return new Intl.DateTimeFormat('ja-JP', {
     year: 'numeric',
@@ -90,23 +108,84 @@ function dayTitle(date) {
   }).format(date);
 }
 
-function eventLabel(item) {
-  const time = item?.start
-    ? new Intl.DateTimeFormat('ja-JP', {
-      timeZone: 'Asia/Tokyo',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    }).format(new Date(item.start))
-    : '';
-  const title = String(item?.summary || '予定').replace(/^【[^】]+】/, '');
-  return `${time ? `${time} ` : ''}${title}`;
+function fullDateTime(value) {
+  if (!value) return '日時不明';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '日時不明';
+  return new Intl.DateTimeFormat('ja-JP', {
+    timeZone: 'Asia/Tokyo',
+    month: 'numeric',
+    day: 'numeric',
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date);
 }
 
-function appendPayloadEvent(list, item) {
+function cleanEventTitle(item) {
+  const raw = String(item?.summary || '').trim();
+  const cleaned = raw.replace(/^【[^】]+】\s*/, '').trim();
+  if (cleaned) return cleaned;
+  return item?.type === 'giveaway' ? '抽選' : '予定';
+}
+
+function parseGiveaway(description) {
+  const prizes = [];
+  const message = [];
+  for (const raw of String(description || '').split('\n')) {
+    const line = raw.trim();
+    if (!line) continue;
+    const match = line.match(/^【(.+)\/(\d+)】$/);
+    if (match) prizes.push(`${match[1]} × ${match[2]}名`);
+    else message.push(line);
+  }
+  return { prizes, message: message.join('\n') };
+}
+
+function appendPayloadEvent(list, item, selectedKey) {
   const node = document.createElement(item?.htmlLink ? 'a' : 'div');
   node.className = `reactus-mobile-day-inline-event${item?.type === 'giveaway' ? ' giveaway' : ''}`;
-  node.textContent = eventLabel(item);
+
+  const title = document.createElement('div');
+  title.className = 'reactus-mobile-day-inline-title';
+  title.textContent = cleanEventTitle(item);
+
+  const meta = document.createElement('div');
+  meta.className = 'reactus-mobile-day-inline-meta';
+  const spanning = dateKeyJst(item?.start) !== dateKeyJst(new Date(Math.max(Date.parse(item?.start || '') + 1, Date.parse(item?.end || '') - 1)));
+  const parts = [
+    item?.type === 'giveaway' ? '抽選' : '通常投稿',
+    `${fullDateTime(item?.start)} → ${fullDateTime(item?.end)}`,
+  ];
+  if (spanning && dateKeyJst(item?.start) !== selectedKey) parts.push('前日から継続');
+  if (item?.recurringEventId) parts.push('繰り返し');
+  if (item?.hasImage) parts.push('画像あり');
+  meta.textContent = parts.join(' · ');
+
+  node.append(title, meta);
+
+  if (item?.type === 'giveaway') {
+    const parsed = parseGiveaway(item?.description);
+    for (const prize of parsed.prizes) {
+      const line = document.createElement('div');
+      line.className = 'reactus-mobile-day-inline-prize';
+      line.textContent = `🎁 ${prize}`;
+      node.append(line);
+    }
+    if (parsed.message) {
+      const body = document.createElement('div');
+      body.className = 'reactus-mobile-day-inline-body';
+      body.textContent = parsed.message;
+      node.append(body);
+    }
+  } else if (String(item?.description || '').trim()) {
+    const body = document.createElement('div');
+    body.className = 'reactus-mobile-day-inline-body';
+    body.textContent = item.description;
+    node.append(body);
+  }
+
   if (item?.htmlLink) {
     node.href = item.htmlLink;
     node.target = '_blank';
@@ -118,7 +197,10 @@ function appendPayloadEvent(list, item) {
 function appendRenderedFallback(list, source) {
   const node = document.createElement(source.href ? 'a' : 'div');
   node.className = `reactus-mobile-day-inline-event${source.classList.contains('giveaway') ? ' giveaway' : ''}`;
-  node.textContent = source.textContent || '予定';
+  const title = document.createElement('div');
+  title.className = 'reactus-mobile-day-inline-title';
+  title.textContent = source.textContent?.trim() || '予定';
+  node.append(title);
   if (source.href) {
     node.href = source.href;
     node.target = '_blank';
@@ -157,7 +239,7 @@ async function openInlineDay(cell) {
     if (loadId !== mobileDayLoadId || panel.hidden) return;
 
     const key = localDateKey(selectedDate);
-    const events = (data.events || []).filter(item => dateKeyJst(item.start) === key);
+    const events = (data.events || []).filter(item => eventOverlapsJstDay(item, key));
     list.replaceChildren();
     if (!events.length) {
       const empty = document.createElement('p');
@@ -166,7 +248,7 @@ async function openInlineDay(cell) {
       list.append(empty);
       return;
     }
-    for (const item of events) appendPayloadEvent(list, item);
+    for (const item of events) appendPayloadEvent(list, item, key);
   } catch {
     if (loadId !== mobileDayLoadId || panel.hidden || rendered.length) return;
     list.replaceChildren();
@@ -186,9 +268,6 @@ function interceptMobileCalendarBadge(event) {
   const cell = target.closest('.month-day');
   if (!cell) return;
 
-  // admin-mobile.js historically opens a <dialog> from this badge. On some
-  // Android Chrome builds that modal path can lock up the admin view, so mobile
-  // day details now stay inline under the calendar instead.
   event.preventDefault();
   event.stopImmediatePropagation();
   void openInlineDay(cell);
