@@ -2,20 +2,22 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const layoutPath = new URL('../public/common/admin-panel-layout.js', import.meta.url);
+const announcementsPath = new URL('../public/common/admin-announcements.js', import.meta.url);
+const futureScopePath = new URL('../public/common/admin-future-scope.js', import.meta.url);
 
-test('announcement panel remains a top-level sibling after calendar settings are folded', async () => {
-  const source = await readFile(layoutPath, 'utf8');
-  assert.match(source, /const calendar = document\.querySelector\('#calendarOverview'\)/);
-  assert.match(source, /announcement\.parentElement !== app/);
-  assert.match(source, /announcement\.previousElementSibling !== calendar/);
-  assert.match(source, /calendar\.after\(announcement\)/);
-  assert.doesNotMatch(source, /calendarSettings\.after\(announcement\)/);
+test('announcement panel is mounted directly as a top-level calendar sibling', async () => {
+  const source = await readFile(announcementsPath, 'utf8');
+  assert.match(source, /const calendar = aq\('#calendarOverview'\)/);
+  assert.match(source, /calendar && calendar\.parentElement === app/);
+  assert.match(source, /calendar\.after\(panel\)/);
+  assert.doesNotMatch(source, /calendarSettings\.after\(panel\)/);
 });
 
-test('layout repair observer stops after announcement and reaction panels are placed', async () => {
-  const source = await readFile(layoutPath, 'utf8');
-  assert.match(source, /return Boolean\(announcement && reaction\)/);
-  assert.match(source, /observer\.disconnect\(\)/);
-  assert.match(source, /observer\.observe\(app, \{ childList: true, subtree: true \}\)/);
+test('announcement placement no longer depends on a post-hoc layout repair observer', async () => {
+  const [announcements, futureScope] = await Promise.all([
+    readFile(announcementsPath, 'utf8'),
+    readFile(futureScopePath, 'utf8'),
+  ]);
+  assert.doesNotMatch(announcements, /observe\(document\.documentElement/);
+  assert.doesNotMatch(futureScope, /admin-panel-layout\.js/);
 });
