@@ -2,8 +2,16 @@ function repairAdminPanelLayout() {
   const app = document.querySelector('#app');
   if (!app) return false;
 
+  const calendar = document.querySelector('#calendarOverview');
   const announcement = document.querySelector('#announcementPanel');
-  if (announcement && announcement.parentElement !== app) {
+  if (announcement && calendar) {
+    // Calendar integration settings are folded inside #calendarOverview.
+    // The announcement panel must be a sibling of the calendar card, never a
+    // child inserted after the folded <details> element.
+    if (announcement.parentElement !== app || announcement.previousElementSibling !== calendar) {
+      calendar.after(announcement);
+    }
+  } else if (announcement && announcement.parentElement !== app) {
     app.append(announcement);
   }
 
@@ -12,12 +20,13 @@ function repairAdminPanelLayout() {
     app.append(reaction);
   }
 
-  return Boolean(announcement || reaction);
+  return Boolean(announcement && reaction);
 }
 
-repairAdminPanelLayout();
-
-if (window.MutationObserver) {
-  const observer = new MutationObserver(() => repairAdminPanelLayout());
-  observer.observe(document.documentElement, { childList: true, subtree: true });
+if (!repairAdminPanelLayout() && window.MutationObserver) {
+  const app = document.querySelector('#app') || document.documentElement;
+  const observer = new MutationObserver(() => {
+    if (repairAdminPanelLayout()) observer.disconnect();
+  });
+  observer.observe(app, { childList: true, subtree: true });
 }
