@@ -1,0 +1,85 @@
+name: Apply mention role owner sync
+
+on:
+  push:
+    branches:
+      - refactor/mention-role-owner-sync
+    paths:
+      - .github/workflows/apply-mention-role-owner-sync.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: contains(github.event.head_commit.message, '[apply-mention-role-sync]')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: refactor/mention-role-owner-sync
+      - name: Move role sync to core owner
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          mentions = Path('public/common/admin-mentions.js')
+          source = mentions.read_text()
+          old_fn = 'function copyRoleOptions() {'
+          if source.count(old_fn) != 1:
+              raise SystemExit(f'expected one copyRoleOptions function, got {source.count(old_fn)}')
+          source = source.replace(old_fn, 'export function syncMentionRoleOptions() {', 1)
+          old_observer = "  const roleObserver = new MutationObserver(copyRoleOptions);\n  const roleSelect = q('#mentionRole');\n  if (roleSelect) roleObserver.observe(roleSelect, { childList:true });\n  copyRoleOptions();\n"
+          if source.count(old_observer) != 1:
+              raise SystemExit(f'expected one role observer block, got {source.count(old_observer)}')
+          source = source.replace(old_observer, '  syncMentionRoleOptions();\n', 1)
+          if 'copyRoleOptions' in source:
+              raise SystemExit('stale copyRoleOptions reference remains')
+          mentions.write_text(source)
+
+          admin = Path('public/admin.js')
+          source = admin.read_text()
+          old_import = "import { loadMentionConfig, mentionPayload } from './common/admin-mentions.js';"
+          new_import = "import { loadMentionConfig, mentionPayload, syncMentionRoleOptions } from './common/admin-mentions.js';"
+          if source.count(old_import) != 1:
+              raise SystemExit(f'expected one mention import, got {source.count(old_import)}')
+          source = source.replace(old_import, new_import, 1)
+          old_roles = """function populateRoles() {
+  const select = $('#mentionRole');
+  select.replaceChildren();
+  for (const role of state.bootstrap.roles) {
+    const option = document.createElement('option');
+    option.value = role.id;
+    option.textContent = `@${role.name}`;
+    select.append(option);
+  }
+}
+"""
+          new_roles = """function populateRoles() {
+  const select = $('#mentionRole');
+  select.replaceChildren();
+  for (const role of state.bootstrap.roles) {
+    const option = document.createElement('option');
+    option.value = role.id;
+    option.textContent = `@${role.name}`;
+    select.append(option);
+  }
+  syncMentionRoleOptions();
+}
+"""
+          if source.count(old_roles) != 1:
+              raise SystemExit(f'expected one populateRoles block, got {source.count(old_roles)}')
+          source = source.replace(old_roles, new_roles, 1)
+          admin.write_text(source)
+          PY
+          node --check public/admin.js
+          node --check public/common/admin-mentions.js
+          rm .github/workflows/apply-mention-role-owner-sync.yml
+      - name: Commit refactor
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Make mention role sync owner-driven'
+          git push origin HEAD:refactor/mention-role-owner-sync
