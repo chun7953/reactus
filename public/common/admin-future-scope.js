@@ -8,15 +8,12 @@ import './admin-announcements.js';
 import './admin-announcement-safety.js';
 import './admin-japanese-ui.js';
 import './admin-dashboard-usability.js';
-import './admin-monitor-labels.js';
 import './admin-reaction-pagination.js';
 import './admin-calendar-settings-usability.js';
-import './admin-manageable-targets.js';
 import './admin-navigation-polish.js';
 import './admin-mobile.js';
 import './admin-login-link-polish.js';
 import './admin-edit-feedback.js';
-import './admin-post-destinations.js';
 
 function setTextIfChanged(node, value) {
   if (node && node.textContent !== value) node.textContent = value;

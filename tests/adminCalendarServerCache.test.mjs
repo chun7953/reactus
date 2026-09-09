@@ -16,7 +16,7 @@ const duplicatePath = new URL('../src/lib/webCalendarDuplicateService.js', impor
 const monitorPath = new URL('../src/lib/webCalendarMonitorService.js', import.meta.url);
 const futureScopePath = new URL('../public/common/admin-future-scope.js', import.meta.url);
 const reactionPaginationPath = new URL('../public/common/admin-reaction-pagination.js', import.meta.url);
-const monitorLabelsPath = new URL('../public/common/admin-monitor-labels.js', import.meta.url);
+const adminUiPath = new URL('../public/admin.js', import.meta.url);
 
 test('admin calendar list cache shares the common dashboard window and persists snapshots', () => {
   assert.deepEqual(webCalendarListCacheConfig, {
@@ -76,19 +76,21 @@ test('all schedule mutations that can change list output invalidate the cache', 
   assert.ok((monitor.match(/invalidateWebScheduleCache\(guildId\)/g) || []).length >= 3);
 });
 
-test('dashboard hides routing keywords and paginates long reaction-rule lists', async () => {
-  const [entry, pagination, labels] = await Promise.all([
+test('dashboard core owns destination labels and reaction rules remain paginated', async () => {
+  const [entry, pagination, adminUi] = await Promise.all([
     readFile(futureScopePath, 'utf8'),
     readFile(reactionPaginationPath, 'utf8'),
-    readFile(monitorLabelsPath, 'utf8'),
+    readFile(adminUiPath, 'utf8'),
   ]);
-  assert.match(entry, /admin-monitor-labels\.js/);
+  assert.doesNotMatch(entry, /admin-monitor-labels\.js/);
+  assert.doesNotMatch(entry, /admin-post-destinations\.js/);
   assert.match(entry, /admin-reaction-pagination\.js/);
   assert.doesNotMatch(entry, /admin-panel-layout\.js/);
   assert.match(pagination, /REACTION_PAGE_SIZE = 8/);
   assert.match(pagination, /reactionRuleSearch/);
   assert.match(pagination, /← 前へ/);
   assert.match(pagination, /次へ →/);
-  assert.match(labels, /split\(' — '\)\[0\]/);
-  assert.match(labels, /抽選用の投稿先がありません/);
+  assert.match(adminUi, /function monitorLabel\(/);
+  assert.match(adminUi, /monitor\.canManage !== true/);
+  assert.match(adminUi, /抽選用の投稿先がありません/);
 });
