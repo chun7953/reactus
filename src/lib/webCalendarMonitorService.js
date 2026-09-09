@@ -1,6 +1,7 @@
 import { google } from 'googleapis';
 import { initializeSheetsAPI } from './sheetsAPI.js';
 import { get, getDBPool } from './settingsCache.js';
+import { invalidateWebScheduleCache } from './webCalendarAdmin.js';
 
 const MAX_MONITORS_PER_GUILD = 100;
 const MAX_TRIGGER_LENGTH = 100;
@@ -127,6 +128,7 @@ export async function createWebCalendarMonitor(guildId, payload, guild) {
              RETURNING *`,
             [guildId, monitor.channelId, monitor.calendarId, monitor.triggerKeyword, monitor.mentionRoleId],
         );
+        invalidateWebScheduleCache(guildId);
         return publicMonitor(result.rows[0]);
     } catch (error) {
         throw friendlyDatabaseError(error);
@@ -152,6 +154,7 @@ export async function updateWebCalendarMonitor(guildId, payload, guild) {
             [monitor.channelId, monitor.calendarId, monitor.triggerKeyword, monitor.mentionRoleId, monitorId, guildId],
         );
         if (result.rowCount === 0) throw new Error('編集するカレンダー設定が見つかりません。');
+        invalidateWebScheduleCache(guildId);
         return publicMonitor(result.rows[0]);
     } catch (error) {
         throw friendlyDatabaseError(error);
@@ -167,6 +170,7 @@ export async function deleteWebCalendarMonitor(guildId, payload) {
         [monitorId, guildId],
     );
     if (result.rowCount === 0) throw new Error('削除するカレンダー設定が見つかりません。');
+    invalidateWebScheduleCache(guildId);
     return { deleted: true, monitor: publicMonitor(result.rows[0]) };
 }
 
