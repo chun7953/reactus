@@ -10,6 +10,8 @@ import './admin-announcement-readability.js';
 import './admin-announcement-safety.js';
 import './admin-japanese-ui.js';
 import './admin-dashboard-usability.js';
+import './admin-monitor-labels.js';
+import './admin-reaction-pagination.js';
 
 function setTextIfChanged(node, value) {
   if (node && node.textContent !== value) node.textContent = value;
