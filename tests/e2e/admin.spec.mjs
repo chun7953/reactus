@@ -6,11 +6,13 @@ async function freezeClock(page) {
   await page.addInitScript(({ fixedNow }) => {
     const NativeDate = Date;
     const fixedTime = NativeDate.parse(fixedNow);
+    const startedAt = performance.now();
+    const advancingNow = () => fixedTime + (performance.now() - startedAt);
     class FixedDate extends NativeDate {
       constructor(...args) {
-        super(...(args.length ? args : [fixedTime]));
+        super(...(args.length ? args : [advancingNow()]));
       }
-      static now() { return fixedTime; }
+      static now() { return advancingNow(); }
     }
     window.Date = FixedDate;
   }, { fixedNow: FIXED_NOW });
@@ -69,11 +71,11 @@ test('admin boots, renders overlapping events, and stays interactive', async ({ 
   await page.locator('#monthPrev').click();
   await expect(page.locator('#monthLabel')).toHaveText('2026年9月');
 
-  await page.getByRole('button', { name: '抽選' }).click();
+  await page.getByRole('button', { name: '抽選', exact: true }).click();
   await expect(page.locator('#giveawayFields')).toBeVisible();
   await page.locator('#addPrize').click();
   await expect(page.locator('.prize-row')).toHaveCount(2);
-  await page.getByRole('button', { name: '通常投稿' }).click();
+  await page.getByRole('button', { name: '通常投稿', exact: true }).click();
   await expect(page.locator('#postFields')).toBeVisible();
 
   const calendar = await page.locator('#calendarOverview').boundingBox();
@@ -118,7 +120,7 @@ test('mobile day badges show complete inline details for 7+ and spanning events'
   const inline = page.locator('#reactusMobileDayInline');
   await expect(inline).toBeVisible();
   await expect(page.locator('#reactusMobileDayInlineList .reactus-mobile-day-inline-event')).toHaveCount(7);
-  await expect(page.locator('#reactusMobileDayInlineList .reactus-mobile-day-inline-title')).toContainText(['予定']);
+  await expect(page.locator('#reactusMobileDayInlineList').getByText('予定', { exact: true })).toHaveCount(1);
   await expect(inline).toContainText('内部キーワードだけのタイトルでも詳細は空になりません。');
   await expect(inline).toContainText('🎁 テスト景品 × 2名');
   await expect(inline).toContainText('抽選の案内本文です。');
