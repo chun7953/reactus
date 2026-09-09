@@ -38,10 +38,47 @@
     }
   }
 
+  function installLegacyPolyfills() {
+    if (!Object.fromEntries) {
+      Object.fromEntries = function (entries) {
+        var result = {};
+        var list = Array.from(entries);
+        for (var i = 0; i < list.length; i += 1) {
+          result[list[i][0]] = list[i][1];
+        }
+        return result;
+      };
+    }
+
+    if (!Array.prototype.flatMap) {
+      Array.prototype.flatMap = function (callback, thisArg) {
+        var mapped = [];
+        for (var i = 0; i < this.length; i += 1) {
+          if (!(i in this)) continue;
+          var value = callback.call(thisArg, this[i], i, this);
+          if (Array.isArray(value)) mapped.push.apply(mapped, value);
+          else mapped.push(value);
+        }
+        return mapped;
+      };
+    }
+
+    if (!String.prototype.replaceAll) {
+      String.prototype.replaceAll = function (search, replacement) {
+        if (search instanceof RegExp) {
+          if (!search.global) throw new TypeError('replaceAll RegExp must be global');
+          return this.replace(search, replacement);
+        }
+        return this.split(String(search)).join(String(replacement));
+      };
+    }
+  }
+
   function loadLegacyBundle() {
     if (legacyBundleStarted) return;
     legacyBundleStarted = true;
     window.__reactusLegacyAdmin = true;
+    installLegacyPolyfills();
 
     var modules = document.querySelectorAll('script[type="module"]');
     for (var i = 0; i < modules.length; i += 1) {
