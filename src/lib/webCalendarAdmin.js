@@ -13,6 +13,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 const calendarListCache = new Map();
 const calendarListInflight = new Map();
+const calendarListGeneration = new Map();
 
 function safeDays(value, fallback, min = 0) {
     const number = Number(value);
@@ -29,6 +30,10 @@ function canonicalWindow(days, pastDays) {
 
 function cacheKey(guildId, window) {
     return `${guildId}:${window.days}:${window.pastDays}`;
+}
+
+function generationFor(guildId) {
+    return calendarListGeneration.get(String(guildId)) || 0;
 }
 
 function eventBounds(event) {
@@ -57,16 +62,19 @@ async function loadSnapshot(guildId, window, forceRefresh = false) {
     }
     if (calendarListInflight.has(key)) return calendarListInflight.get(key);
 
+    const generation = generationFor(guildId);
     const loading = listWebSchedulesCore(guildId, window.days, window.pastDays)
         .then(events => {
-            calendarListCache.set(key, { loadedAt: Date.now(), events });
+            if (generationFor(guildId) === generation) {
+                calendarListCache.set(key, { loadedAt: Date.now(), events });
+            }
             return events;
         });
     calendarListInflight.set(key, loading);
     try {
         return await loading;
     } finally {
-        calendarListInflight.delete(key);
+        if (calendarListInflight.get(key) === loading) calendarListInflight.delete(key);
     }
 }
 
@@ -74,9 +82,12 @@ export function invalidateWebScheduleCache(guildId = null) {
     if (!guildId) {
         calendarListCache.clear();
         calendarListInflight.clear();
+        calendarListGeneration.clear();
         return;
     }
-    const prefix = `${guildId}:`;
+    const id = String(guildId);
+    calendarListGeneration.set(id, generationFor(id) + 1);
+    const prefix = `${id}:`;
     for (const key of calendarListCache.keys()) {
         if (key.startsWith(prefix)) calendarListCache.delete(key);
     }
