@@ -4,8 +4,6 @@ const fallbackCommonEmoji = ['✅','❌','⭕','🔴','🟠','🟡','🟢','🔵
 
 const toolsState = {
   bootstrap: null,
-  events: [],
-  calendarMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   draft: [],
   editing: null,
 };
@@ -32,21 +30,13 @@ function notice(message, error = false) {
 }
 
 function installStyles() {
+  if (q('#adminToolsStyles')) return;
   const style = document.createElement('style');
+  style.id = 'adminToolsStyles';
   style.textContent = `
     .tools-panel{margin-top:20px}
     .tools-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     .tools-row input,.tools-row select{width:auto;min-width:180px}
-    .month-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
-    .month-nav{display:flex;align-items:center;gap:8px}
-    .month-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border:1px solid #263240;border-radius:12px;overflow:hidden}
-    .month-weekday{padding:7px;text-align:center;font-size:12px;color:#8d9aaa;background:#111820;border-right:1px solid #263240}
-    .month-day{min-height:105px;padding:7px;border-top:1px solid #263240;border-right:1px solid #263240;background:#0b1016;overflow:hidden}
-    .month-day.outside{opacity:.35}
-    .month-day.today{box-shadow:inset 0 0 0 1px #7289ff}
-    .month-num{font-size:12px;color:#aab5c2;margin-bottom:5px}
-    .month-event{display:block;width:100%;border:0;border-radius:6px;padding:4px 5px;margin:3px 0;background:#172231;color:#eef3f8;text-align:left;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none}
-    .month-event.giveaway{background:#251d35}
     .reaction-editor{display:grid;gap:14px}
     .emoji-grid{display:flex;gap:7px;flex-wrap:wrap}
     .emoji-button{width:42px;height:42px;padding:0;display:grid;place-items:center;border-radius:8px;border:1px solid #354253;background:#101720;color:#eef3f8;font-size:22px}
@@ -61,7 +51,7 @@ function installStyles() {
     .rule-emojis{display:flex;gap:5px;align-items:center;flex-wrap:wrap;margin-top:5px}
     .invalid-rule{color:#ff9c9c;font-size:12px;margin-top:4px}
     .calendar-search{margin-right:auto}
-    @media(max-width:760px){.month-grid{grid-template-columns:1fr}.month-weekday{display:none}.month-day{min-height:auto;border-right:0}.month-day.outside{display:none}.reaction-rule{grid-template-columns:1fr}.tools-row input,.tools-row select{width:100%}}
+    @media(max-width:760px){.reaction-rule{grid-template-columns:1fr}.tools-row input,.tools-row select{width:100%}}
   `;
   document.head.append(style);
 }
@@ -82,97 +72,6 @@ function addSearchBox() {
     });
   });
   refresh.before(input);
-}
-
-function dateKey(value) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone:'Asia/Tokyo', year:'numeric', month:'2-digit', day:'2-digit' }).formatToParts(date);
-  const map = Object.fromEntries(parts.map(p => [p.type, p.value]));
-  return `${map.year}-${map.month}-${map.day}`;
-}
-
-function jstTime(value) {
-  return new Intl.DateTimeFormat('ja-JP', { timeZone:'Asia/Tokyo', hour:'2-digit', minute:'2-digit', hour12:false }).format(new Date(value));
-}
-
-function renderMonth() {
-  const grid = q('#monthGrid');
-  const label = q('#monthLabel');
-  if (!grid || !label) return;
-  const y = toolsState.calendarMonth.getFullYear();
-  const m = toolsState.calendarMonth.getMonth();
-  label.textContent = `${y}年${m + 1}月`;
-  grid.replaceChildren();
-
-  ['日','月','火','水','木','金','土'].forEach(day => {
-    const node = document.createElement('div');
-    node.className = 'month-weekday';
-    node.textContent = day;
-    grid.append(node);
-  });
-
-  const first = new Date(y, m, 1);
-  const start = new Date(y, m, 1 - first.getDay());
-  const todayKey = dateKey(new Date());
-  for (let i = 0; i < 42; i += 1) {
-    const day = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
-    const key = `${day.getFullYear()}-${String(day.getMonth()+1).padStart(2,'0')}-${String(day.getDate()).padStart(2,'0')}`;
-    const cell = document.createElement('div');
-    cell.className = 'month-day';
-    if (day.getMonth() !== m) cell.classList.add('outside');
-    if (key === todayKey) cell.classList.add('today');
-    const num = document.createElement('div');
-    num.className = 'month-num';
-    num.textContent = String(day.getDate());
-    cell.append(num);
-
-    const events = toolsState.events.filter(event => dateKey(event.start) === key);
-    for (const event of events.slice(0, 6)) {
-      const link = document.createElement(event.htmlLink ? 'a' : 'div');
-      link.className = `month-event ${event.type === 'giveaway' ? 'giveaway' : ''}`;
-      link.textContent = `${jstTime(event.start)} ${String(event.summary || '').replace(/^【[^】]+】/,'')}`;
-      link.title = event.summary || '';
-      if (event.htmlLink) {
-        link.href = event.htmlLink;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-      }
-      cell.append(link);
-    }
-    if (events.length > 6) {
-      const more = document.createElement('div');
-      more.className = 'muted';
-      more.textContent = `ほか${events.length - 6}件`;
-      cell.append(more);
-    }
-    grid.append(cell);
-  }
-}
-
-function installCalendarPanel() {
-  const app = q('#app');
-  if (!app || q('#calendarOverview')) return;
-  const section = document.createElement('section');
-  section.id = 'calendarOverview';
-  section.className = 'panel tools-panel';
-  section.innerHTML = `
-    <div class="month-head">
-      <div><p class="eyebrow">CALENDAR</p><h2>カレンダー表示</h2></div>
-      <div class="month-nav"><button id="monthPrev" class="small" type="button">←</button><strong id="monthLabel"></strong><button id="monthNext" class="small" type="button">→</button></div>
-    </div>
-    <div id="monthGrid" class="month-grid"><p class="muted">読み込み中…</p></div>`;
-  const schedule = q('#schedulePanel') || app.querySelector(':scope > .panel');
-  if (schedule) schedule.before(section);
-  else app.prepend(section);
-  q('#monthPrev').addEventListener('click', () => {
-    toolsState.calendarMonth = new Date(toolsState.calendarMonth.getFullYear(), toolsState.calendarMonth.getMonth() - 1, 1);
-    renderMonth();
-  });
-  q('#monthNext').addEventListener('click', () => {
-    toolsState.calendarMonth = new Date(toolsState.calendarMonth.getFullYear(), toolsState.calendarMonth.getMonth() + 1, 1);
-    renderMonth();
-  });
 }
 
 function emojiKey(item) { return item.type === 'custom' ? `c:${item.id}` : `u:${item.value}`; }
@@ -411,26 +310,19 @@ function installReactionPanel() {
   });
 }
 
-async function loadCalendarEvents() {
-  try {
-    const result = await api('/api/admin/events?days=365');
-    toolsState.events = result.events || [];
-    renderMonth();
-  } catch (error) {
-    const grid = q('#monthGrid'); if (grid) grid.textContent = error.message;
-  }
-}
-
 async function init() {
   installStyles();
   const app = q('#app');
   if (!app) return;
-  installCalendarPanel();
+
+  // The month calendar is owned exclusively by admin-calendar-month-view.js.
+  // Older code rendered a second 42-cell calendar here after another /events
+  // request, which caused the calendar owner and many MutationObservers to
+  // repeatedly react to the same large DOM replacement.
   installReactionPanel();
   addSearchBox();
   try {
     await reloadToolsBootstrap();
-    await loadCalendarEvents();
   } catch (error) {
     if (!String(error.message).includes('ログイン')) notice(error.message, true);
   }
