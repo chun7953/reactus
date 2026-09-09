@@ -3,7 +3,6 @@ import './admin.js';
 import './common/admin-calendar-shell.js';
 import './common/admin-calendar-month-view.js';
 import './common/admin-mobile-day-inline.js';
-import './common/admin-calendar-load-guard.js';
 
 let enhancementsStarted = false;
 let appObserver = null;
