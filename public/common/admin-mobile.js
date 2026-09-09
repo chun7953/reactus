@@ -241,13 +241,7 @@ function install() {
   installStyles();
   installMobileNav();
   prepareRecurrenceForMobile();
-  if (!watchCalendar()) {
-    const observer = new MutationObserver(() => {
-      if (watchCalendar()) observer.disconnect();
-      prepareRecurrenceForMobile();
-    });
-    observer.observe(document.documentElement, { childList: true, subtree: true });
-  }
+  watchCalendar();
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install, { once: true });
