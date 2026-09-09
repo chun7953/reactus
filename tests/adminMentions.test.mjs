@@ -2,14 +2,20 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
+const adminPath = new URL('../public/admin.js', import.meta.url);
 const mentionsPath = new URL('../public/common/admin-mentions.js', import.meta.url);
 const loaderPath = new URL('../public/common/admin-future-scope.js', import.meta.url);
 const handlerPath = new URL('../src/web/adminHandler.js', import.meta.url);
 const servicePath = new URL('../src/lib/webCalendarMentionService.js', import.meta.url);
 
-test('admin loads the rich mention editor before the Discord preview', async () => {
-    const loader = await readFile(loaderPath, 'utf8');
-    assert.match(loader, /import '\.\/admin-mentions\.js';\s*import '\.\/admin-preview\.js';/s);
+test('core admin owns the rich mention editor before the Discord preview enhancement', async () => {
+    const [admin, loader] = await Promise.all([
+        readFile(adminPath, 'utf8'),
+        readFile(loaderPath, 'utf8'),
+    ]);
+    assert.match(admin, /import \{ loadMentionConfig, mentionPayload \} from '\.\/common\/admin-mentions\.js';/);
+    assert.match(loader, /import '\.\/admin-preview\.js';/);
+    assert.doesNotMatch(loader, /import '\.\/admin-mentions\.js';/);
 });
 
 test('rich mention editor supports roles, users, everyone, here and multiple targets', async () => {

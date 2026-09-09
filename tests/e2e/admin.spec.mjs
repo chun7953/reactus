@@ -89,6 +89,38 @@ test('admin boots, renders overlapping events, and stays interactive', async ({ 
   expect(failures).toEqual([]);
 });
 
+test('rich mention selection is sent directly in the schedule payload', async ({ page }) => {
+  const failures = await openAdmin(page);
+
+  await expect(page.locator('#richMentionEditor')).toBeVisible();
+  await page.locator('#richMentionMode').selectOption('custom');
+  await page.locator('#addEveryoneMention').click();
+  await page.locator('#richMentionRole').selectOption('200000000000000001');
+  await page.locator('#addRoleMention').click();
+  await expect(page.locator('#richMentionTargets .rich-mention-chip')).toHaveCount(2);
+
+  await page.locator('#title').fill('メンション経路テスト');
+  await page.locator('#body').fill('構造化されたメンションが正規payloadへ入ることを確認します。');
+
+  const requestPromise = page.waitForRequest(request => (
+    request.method() === 'POST' && new URL(request.url()).pathname === '/api/admin/schedules'
+  ));
+  await page.locator('#submitButton').click();
+  const request = await requestPromise;
+  const payload = request.postDataJSON();
+
+  expect(payload.mention).toEqual({
+    mode: 'custom',
+    targets: [
+      { type: 'everyone' },
+      { type: 'role', id: '200000000000000001' },
+    ],
+  });
+  await expect(page.locator('#notice')).toContainText('Googleカレンダーへ登録しました');
+  await assertEventLoopResponsive(page);
+  expect(failures).toEqual([]);
+});
+
 test('desktop day overflow exposes all seven events without locking the page', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium');
   const failures = await openAdmin(page);
