@@ -80,7 +80,8 @@ test('bootstrap helpers rely on owned startup order instead of document-wide obs
   assert.match(settingsUsability, /calendarSettingsListObserver\.observe\(list,/);
   assert.match(reactionPagination, /reactionObserver\.observe\(list,/);
   assert.match(mobile, /calendarObserver\.observe\(grid,/);
-  assert.match(mobile, /appObserver\.observe\(app,/);
+  assert.doesNotMatch(mobile, /appObserver/);
+  assert.doesNotMatch(mobile, /observe\(app,/);
   assert.match(calendarSettings, /void initializeCalendarSettings\(\);/);
 });
 
