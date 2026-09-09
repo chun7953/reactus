@@ -10,10 +10,12 @@ const monthViewPath = new URL('../public/common/admin-calendar-month-view.js', i
 const mentionsPath = new URL('../public/common/admin-mentions.js', import.meta.url);
 const announcementsPath = new URL('../public/common/admin-announcements.js', import.meta.url);
 const futureScopePath = new URL('../public/common/admin-future-scope.js', import.meta.url);
+const calendarSettingsPath = new URL('../public/common/admin-calendar-settings.js', import.meta.url);
 const calendarSettingsFoldPath = new URL('../public/common/admin-calendar-settings-fold.js', import.meta.url);
 const calendarLoadGuardPath = new URL('../public/common/admin-calendar-load-guard.js', import.meta.url);
 const calendarSettingsUsabilityPath = new URL('../public/common/admin-calendar-settings-usability.js', import.meta.url);
 const reactionPaginationPath = new URL('../public/common/admin-reaction-pagination.js', import.meta.url);
+const mobilePath = new URL('../public/common/admin-mobile.js', import.meta.url);
 
 test('admin enhancements do not replace the browser MutationObserver implementation', async () => {
   const [entry, announcements, futureScope] = await Promise.all([
@@ -29,28 +31,56 @@ test('admin enhancements do not replace the browser MutationObserver implementat
 });
 
 test('bootstrap helpers rely on owned startup order instead of document-wide observers', async () => {
-  const [adminEntry, enhancementsEntry, futureScope, fold, loadGuard, settingsUsability, reactionPagination] = await Promise.all([
+  const [
+    adminEntry,
+    enhancementsEntry,
+    futureScope,
+    monthView,
+    calendarSettings,
+    fold,
+    loadGuard,
+    settingsUsability,
+    reactionPagination,
+    mobile,
+  ] = await Promise.all([
     readFile(adminEntryPath, 'utf8'),
     readFile(enhancementsEntryPath, 'utf8'),
     readFile(futureScopePath, 'utf8'),
+    readFile(monthViewPath, 'utf8'),
+    readFile(calendarSettingsPath, 'utf8'),
     readFile(calendarSettingsFoldPath, 'utf8'),
     readFile(calendarLoadGuardPath, 'utf8'),
     readFile(calendarSettingsUsabilityPath, 'utf8'),
     readFile(reactionPaginationPath, 'utf8'),
+    readFile(mobilePath, 'utf8'),
   ]);
 
-  for (const source of [fold, loadGuard, settingsUsability, reactionPagination]) {
+  for (const source of [
+    monthView,
+    calendarSettings,
+    fold,
+    loadGuard,
+    settingsUsability,
+    reactionPagination,
+    mobile,
+  ]) {
     assert.doesNotMatch(source, /observe\(document\.documentElement/);
   }
 
+  assert.ok(adminEntry.indexOf("./common/admin-calendar-shell.js") < adminEntry.indexOf("./common/admin-calendar-month-view.js"));
   assert.ok(adminEntry.indexOf("./common/admin-calendar-shell.js") < adminEntry.indexOf("./common/admin-calendar-load-guard.js"));
   assert.ok(enhancementsEntry.indexOf("./common/admin-tools.js") < enhancementsEntry.indexOf("./common/admin-future-scope.js"));
   assert.ok(futureScope.indexOf("./admin-calendar-settings.js") < futureScope.indexOf("./admin-calendar-settings-fold.js"));
   assert.ok(futureScope.indexOf("./admin-calendar-settings.js") < futureScope.indexOf("./admin-calendar-settings-usability.js"));
+  assert.ok(futureScope.indexOf("./admin-calendar-settings.js") < futureScope.indexOf("./admin-mobile.js"));
 
+  assert.match(monthView, /monthState\.gridObserver\.observe\(grid,/);
   assert.match(loadGuard, /observer\.observe\(grid,/);
   assert.match(settingsUsability, /calendarSettingsListObserver\.observe\(list,/);
   assert.match(reactionPagination, /reactionObserver\.observe\(list,/);
+  assert.match(mobile, /calendarObserver\.observe\(grid,/);
+  assert.match(mobile, /appObserver\.observe\(app,/);
+  assert.match(calendarSettings, /void initializeCalendarSettings\(\);/);
 });
 
 test('rich mentions are owned by the core schedule data flow without a fetch wrapper', async () => {
