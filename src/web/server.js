@@ -41,19 +41,27 @@ function staticCacheControl(filePath) {
 
 function versionAdminHtml(content, filePath) {
     if (path.basename(filePath || '') !== 'admin.html') return content;
+
     const assetQuery = `?v=${adminAssetVersion}`;
-    const compatBoot = [
-        `<script>window.__reactusAdminAssetQuery=${JSON.stringify(assetQuery)};</script>`,
-        `<script defer src="/admin-compat.js${assetQuery}"></script>`,
-        '<noscript><style>#startupShell{display:none!important}#loginRequired{display:block!important}</style><section class="panel"><h2>JavaScriptを有効にしてください</h2><p>Reactus管理画面の利用にはJavaScriptが必要です。</p></section></noscript>',
-    ].join('');
-    const html = content.toString('utf8')
-        .replace('</head>', `${compatBoot}</head>`)
-        .replace(/href="\/admin\.css"/g, `href="/admin.css${assetQuery}"`)
-        .replace(
+    const adminRoot = path.dirname(filePath);
+    const hasBundle = fs.existsSync(path.join(adminRoot, 'admin.bundle.js'));
+    const noScript = '<noscript><style>#startupShell{display:none!important}#loginRequired{display:block!important}</style><section class="panel"><h2>JavaScriptを有効にしてください</h2><p>Reactus管理画面の利用にはJavaScriptが必要です。</p></section></noscript>';
+
+    let html = content.toString('utf8')
+        .replace('</head>', `${noScript}</head>`)
+        .replace(/href="\/admin\.css"/g, `href="/admin.css${assetQuery}"`);
+
+    if (hasBundle) {
+        html = html
+            .replace(/\s*<script type="module" src="\/(?:admin\.js|common\/admin-[^"?]+\.js)"><\/script>/g, '')
+            .replace('</body>', `  <script src="/admin.bundle.js${assetQuery}"></script>\n</body>`);
+    } else {
+        html = html.replace(
             /src="\/(admin\.js|common\/admin-[^"?]+\.js)"/g,
             (_, assetPath) => `src="/${assetPath}${assetQuery}"`,
         );
+    }
+
     return Buffer.from(html, 'utf8');
 }
 
@@ -128,7 +136,7 @@ export function createWebServer({
                 serveFile(req, res, path.join(staticRoot, 'index.html'), 'text/html; charset=utf-8');
             } else if (pathname === '/admin' || pathname === '/admin/') {
                 serveFile(req, res, path.join(staticRoot, 'admin.html'), 'text/html; charset=utf-8');
-            } else if (['/admin.css', '/admin.js', '/admin-compat.js', '/admin.bundle.js'].includes(pathname)) {
+            } else if (['/admin.css', '/admin.js', '/admin-entry.js', '/admin-polyfills.js', '/admin.bundle.js'].includes(pathname)) {
                 const filePath = safeStaticPath(staticRoot, pathname);
                 serveFile(req, res, filePath, getContentType(filePath || ''));
             } else if (pathname.startsWith('/common/') || pathname.startsWith('/images/')) {
