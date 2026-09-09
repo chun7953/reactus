@@ -41,6 +41,7 @@ import {
 
 const SESSION_COOKIE = 'reactus_admin';
 const MAX_JSON_BYTES = 12 * 1024 * 1024;
+const ADMIN_AUTHORIZE_TIMEOUT_MS = 8000;
 const ADMIN_BOOTSTRAP_TIMEOUT_MS = 8000;
 
 function parseCookies(header) {
@@ -335,10 +336,14 @@ export function createAdminHandler({ client }) {
 
         let auth;
         try {
-            auth = await authorize(req, client);
+            auth = await withTimeout(
+                authorize(req, client),
+                ADMIN_AUTHORIZE_TIMEOUT_MS,
+                '管理画面への接続に時間がかかっています。再試行してください。',
+            );
         } catch (error) {
             console.error('[WebAdmin] authorization failed:', error);
-            sendJson(req, res, 503, { error: '管理画面への接続に時間がかかっています。少し待って再試行してください。' });
+            sendJson(req, res, 503, { error: error.message || '管理画面への接続に時間がかかっています。少し待って再試行してください。' });
             return true;
         }
         if (!auth) {
