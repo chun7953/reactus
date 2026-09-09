@@ -510,7 +510,7 @@ function eventCard(event) {
     open.target = '_blank';
     open.rel = 'noopener noreferrer';
     open.className = 'small';
-    open.textContent = 'Google';
+    open.textContent = 'Googleカレンダーで開く';
     actions.append(open);
   }
 
@@ -525,9 +525,14 @@ function eventCard(event) {
   return card;
 }
 
+function notifyEventListRendered() {
+  document.dispatchEvent(new CustomEvent('reactus:event-list-rendered'));
+}
+
 async function loadEvents({ forceRefresh = false } = {}) {
   const container = $('#eventList');
   container.innerHTML = '<p class="muted">読み込み中…</p>';
+  notifyEventListRendered();
   try {
     const refreshQuery = forceRefresh ? '&refresh=1' : '';
     const result = await api(`/api/admin/events?days=90${refreshQuery}`);
@@ -547,6 +552,8 @@ async function loadEvents({ forceRefresh = false } = {}) {
     p.className = 'muted';
     p.textContent = error.message;
     container.append(p);
+  } finally {
+    notifyEventListRendered();
   }
 }
 
