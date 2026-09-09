@@ -6,6 +6,7 @@ const legacyCachePath = new URL('../public/common/admin-event-fetch-cache.js', i
 const adminPath = new URL('../public/admin.js', import.meta.url);
 const editPath = new URL('../public/common/admin-calendar-edit.js', import.meta.url);
 const dragPath = new URL('../public/common/admin-calendar-drag.js', import.meta.url);
+const mobileDayPath = new URL('../public/common/admin-mobile-day-inline.js', import.meta.url);
 const monthPath = new URL('../public/common/admin-calendar-month-view.js', import.meta.url);
 const entryPath = new URL('../public/admin-entry.js', import.meta.url);
 const futureScopePath = new URL('../public/common/admin-future-scope.js', import.meta.url);
@@ -22,11 +23,12 @@ test('admin no longer installs a browser-wide fetch cache or legacy calendar URL
   await assert.rejects(readFile(legacyCachePath, 'utf8'), error => error?.code === 'ENOENT');
 });
 
-test('month view owns rendered event metadata and edit/drag do not refetch the same event list', async () => {
-  const [monthSource, editSource, dragSource] = await Promise.all([
+test('month view owns event-list data and edit, drag, and mobile day do not refetch it', async () => {
+  const [monthSource, editSource, dragSource, mobileDaySource] = await Promise.all([
     readFile(monthPath, 'utf8'),
     readFile(editPath, 'utf8'),
     readFile(dragPath, 'utf8'),
+    readFile(mobileDayPath, 'utf8'),
   ]);
 
   assert.match(monthSource, /dataset\.reactusEventId = String\(event\.id \|\| ''\)/);
@@ -34,14 +36,18 @@ test('month view owns rendered event metadata and edit/drag do not refetch the s
   assert.match(monthSource, /dataset\.reactusEventStart = String\(event\.start \|\| ''\)/);
   assert.match(monthSource, /dataset\.reactusRecurringEventId = String\(event\.recurringEventId \|\| ''\)/);
   assert.match(monthSource, /dataset\.reactusEventSummary = String\(event\.summary \|\| ''\)/);
+  assert.match(monthSource, /export function getMonthEventsForDay\(key\)/);
 
-  for (const source of [editSource, dragSource]) {
+  for (const source of [editSource, dragSource, mobileDaySource]) {
     assert.doesNotMatch(source, /\/api\/admin\/events/);
+  }
+  for (const source of [editSource, dragSource]) {
     assert.match(source, /dataset\.reactusEventId/);
     assert.match(source, /dataset\.reactusCalendarId/);
   }
   assert.match(dragSource, /dataset\.reactusEventStart/);
   assert.match(dragSource, /dataset\.reactusRecurringEventId/);
+  assert.match(mobileDaySource, /getMonthEventsForDay\(key\)/);
 });
 
 test('explicit update asks the server to bypass the calendar cache directly', async () => {
@@ -73,7 +79,7 @@ test('month calendar loads a focused window and exposes days with more than six 
   assert.match(source, /openDayDialog\(day, events\)/);
 });
 
-test('calendar shell and month loader are bootstrap-critical instead of deferred behind optional UI', async () => {
+test('calendar shell and month-owned consumers are bootstrap-critical instead of deferred behind optional UI', async () => {
   const [entrySource, futureSource, shellSource, guardSource, htmlSource] = await Promise.all([
     readFile(entryPath, 'utf8'),
     readFile(futureScopePath, 'utf8'),
@@ -83,9 +89,11 @@ test('calendar shell and month loader are bootstrap-critical instead of deferred
   ]);
   assert.match(entrySource, /admin-calendar-shell\.js/);
   assert.match(entrySource, /admin-calendar-month-view\.js/);
+  assert.match(entrySource, /admin-mobile-day-inline\.js/);
   assert.match(entrySource, /admin-calendar-load-guard\.js/);
   assert.doesNotMatch(entrySource, /admin-event-fetch-cache\.js/);
   assert.doesNotMatch(futureSource, /admin-calendar-month-view\.js/);
+  assert.doesNotMatch(futureSource, /admin-mobile-day-inline\.js/);
   assert.match(shellSource, /<h2>カレンダー<\/h2>/);
   assert.doesNotMatch(shellSource, /カレンダー表示/);
   assert.match(guardSource, /CALENDAR_STUCK_MS = 40000/);
