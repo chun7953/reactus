@@ -55,11 +55,6 @@ function updateHint() {
   setTextIfChanged(hint, '選んだ回より前はそのまま残し、この回以降を新しい定期予定として編集します。');
 }
 
-const observer = new MutationObserver(() => {
-  if (installFutureScope()) updateHint();
-});
-observer.observe(document.documentElement, { childList: true, subtree: true });
-
 installFutureScope();
 document.addEventListener('change', event => {
   if (event.target?.id === 'editScope') window.setTimeout(updateHint, 0);
