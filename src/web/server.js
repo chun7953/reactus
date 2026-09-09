@@ -46,10 +46,11 @@ function versionAdminHtml(content, filePath) {
     const adminRoot = path.dirname(filePath);
     const hasBundle = fs.existsSync(path.join(adminRoot, 'admin.bundle.js'));
     const noScript = '<noscript><style>#startupShell{display:none!important}#loginRequired{display:block!important}</style><section class="panel"><h2>JavaScriptを有効にしてください</h2><p>Reactus管理画面の利用にはJavaScriptが必要です。</p></section></noscript>';
+    const enhancementBoot = `<script>window.__reactusAdminEnhancementSrc=${JSON.stringify(`/admin-enhancements.bundle.js${assetQuery}`)};</script>`;
     const startupGuard = `<script>(function(){var started=false;function ready(){if(started)return;started=true;var app=document.getElementById('app');var login=document.getElementById('loginRequired');var shell=document.getElementById('startupShell');var retry=document.getElementById('startupShellRetry');var title=document.getElementById('startupShellTitle');var message=document.getElementById('startupShellMessage');var identity=document.getElementById('identity');function visible(node){return !!node&&!node.classList.contains('hidden');}function resolved(){return visible(app)||visible(login);}function sync(){if(resolved()&&shell)shell.classList.add('hidden');}if(retry)retry.onclick=function(){window.location.reload();};if(window.MutationObserver){var observer=new MutationObserver(sync);if(app)observer.observe(app,{attributes:true,attributeFilter:['class']});if(login)observer.observe(login,{attributes:true,attributeFilter:['class']});}window.setTimeout(function(){if(resolved())return;if(title)title.textContent='管理画面を読み込めませんでした';if(message)message.textContent='初期情報の取得が完了していません。待ち続けず、再試行してください。';if(retry)retry.classList.remove('hidden');if(identity)identity.textContent='読み込みに失敗しました';},12500);sync();}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ready);else ready();})();</script>`;
 
     let html = content.toString('utf8')
-        .replace('</head>', `${noScript}${startupGuard}</head>`)
+        .replace('</head>', `${noScript}${enhancementBoot}${startupGuard}</head>`)
         .replace(/href="\/admin\.css"/g, `href="/admin.css${assetQuery}"`);
 
     if (hasBundle) {
@@ -137,7 +138,7 @@ export function createWebServer({
                 serveFile(req, res, path.join(staticRoot, 'index.html'), 'text/html; charset=utf-8');
             } else if (pathname === '/admin' || pathname === '/admin/') {
                 serveFile(req, res, path.join(staticRoot, 'admin.html'), 'text/html; charset=utf-8');
-            } else if (['/admin.css', '/admin.js', '/admin-entry.js', '/admin-polyfills.js', '/admin.bundle.js'].includes(pathname)) {
+            } else if (['/admin.css', '/admin.js', '/admin-entry.js', '/admin-enhancements-entry.js', '/admin-polyfills.js', '/admin.bundle.js', '/admin-enhancements.bundle.js'].includes(pathname)) {
                 const filePath = safeStaticPath(staticRoot, pathname);
                 serveFile(req, res, filePath, getContentType(filePath || ''));
             } else if (pathname.startsWith('/common/') || pathname.startsWith('/images/')) {
