@@ -694,7 +694,7 @@ async function initialize() {
   await loadEvents();
 }
 
-$('.segment').forEach(button => button.addEventListener('click', () => {
+$$('.segment').forEach(button => button.addEventListener('click', () => {
   if (state.edit) return;
   destinationState.preferredMonitorId = null;
   updateType(button.dataset.type);
