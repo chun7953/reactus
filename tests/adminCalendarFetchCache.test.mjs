@@ -69,9 +69,12 @@ test('calendar shell and month loader are bootstrap-critical instead of deferred
   assert.doesNotMatch(shellSource, /カレンダー表示/);
   assert.match(guardSource, /CALENDAR_STUCK_MS = 40000/);
   assert.match(guardSource, /カレンダーを再読み込み/);
-  const cacheIndex = htmlSource.indexOf('/common/admin-event-fetch-cache.js');
-  const adminIndex = htmlSource.indexOf('/admin.js');
+  const cacheIndex = entrySource.indexOf("./common/admin-event-fetch-cache.js");
+  const adminIndex = entrySource.indexOf("./admin.js");
   assert.ok(cacheIndex >= 0 && adminIndex > cacheIndex);
+  assert.match(htmlSource, /<script type="module" src="\/admin-entry\.js"><\/script>/);
+  assert.doesNotMatch(htmlSource, /common\/admin-event-fetch-cache\.js/);
+  assert.doesNotMatch(htmlSource, /<script type="module" src="\/admin\.js"/);
   assert.doesNotMatch(htmlSource, /admin-history\.js/);
   assert.doesNotMatch(htmlSource, /予定履歴/);
 });
