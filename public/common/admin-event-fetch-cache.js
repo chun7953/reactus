@@ -1,3 +1,6 @@
+import './admin-bootstrap-fallback.js';
+import './admin-calendar-month-view.js';
+
 const originalFetch = window.fetch.bind(window);
 const EVENT_CACHE_TTL_MS = 2000;
 const BOOTSTRAP_CACHE_TTL_MS = 5000;
