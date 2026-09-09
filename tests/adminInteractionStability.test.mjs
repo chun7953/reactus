@@ -13,6 +13,7 @@ const futureScopePath = new URL('../public/common/admin-future-scope.js', import
 const calendarSettingsPath = new URL('../public/common/admin-calendar-settings.js', import.meta.url);
 const calendarSettingsFoldPath = new URL('../public/common/admin-calendar-settings-fold.js', import.meta.url);
 const calendarLoadGuardPath = new URL('../public/common/admin-calendar-load-guard.js', import.meta.url);
+const mobileLayoutHotfixPath = new URL('../public/common/admin-mobile-layout-hotfix.js', import.meta.url);
 const calendarSettingsUsabilityPath = new URL('../public/common/admin-calendar-settings-usability.js', import.meta.url);
 const reactionPaginationPath = new URL('../public/common/admin-reaction-pagination.js', import.meta.url);
 const mobilePath = new URL('../public/common/admin-mobile.js', import.meta.url);
@@ -30,7 +31,7 @@ test('admin enhancements do not replace the browser MutationObserver implementat
   assert.doesNotMatch(futureScope, /admin-panel-layout\.js/);
 });
 
-test('bootstrap helpers rely on owned startup order instead of document-wide observers or an external calendar guard', async () => {
+test('bootstrap helpers rely on owned startup order instead of document-wide observers or external layout guards', async () => {
   const [
     adminEntry,
     enhancementsEntry,
@@ -71,6 +72,8 @@ test('bootstrap helpers rely on owned startup order instead of document-wide obs
   assert.ok(futureScope.indexOf("./admin-calendar-settings.js") < futureScope.indexOf("./admin-calendar-settings-fold.js"));
   assert.ok(futureScope.indexOf("./admin-calendar-settings.js") < futureScope.indexOf("./admin-calendar-settings-usability.js"));
   assert.ok(futureScope.indexOf("./admin-calendar-settings.js") < futureScope.indexOf("./admin-mobile.js"));
+  assert.doesNotMatch(futureScope, /admin-mobile-layout-hotfix\.js/);
+  await assert.rejects(readFile(mobileLayoutHotfixPath, 'utf8'), error => error?.code === 'ENOENT');
 
   assert.match(monthView, /MONTH_REQUEST_TIMEOUT_MS = 40_000/);
   assert.match(monthView, /new AbortController\(\)/);
@@ -80,7 +83,10 @@ test('bootstrap helpers rely on owned startup order instead of document-wide obs
   assert.match(settingsUsability, /calendarSettingsListObserver\.observe\(list,/);
   assert.match(reactionPagination, /reactionObserver\.observe\(list,/);
   assert.match(mobile, /calendarObserver\.observe\(grid,/);
-  assert.match(mobile, /appObserver\.observe\(app,/);
+  assert.doesNotMatch(mobile, /appObserver/);
+  assert.doesNotMatch(mobile, /observe\(app,/);
+  assert.doesNotMatch(mobile, /reactusMobileNav/);
+  assert.match(mobile, /#calendarSettingsMount\{width:100%;min-width:0\}/);
   assert.match(calendarSettings, /void initializeCalendarSettings\(\);/);
 });
 

@@ -1,52 +1,8 @@
 const MOBILE_QUERY = window.matchMedia('(max-width: 760px)');
 let calendarObserver = null;
-let appObserver = null;
 
 function mobile(selector) {
   return document.querySelector(selector);
-}
-
-function jumpTo(targetId) {
-  if (targetId === 'top') {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    return;
-  }
-  const target = mobile(`#${targetId}`);
-  if (!target) return;
-  target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-function installMobileNav() {
-  if (mobile('#reactusMobileNav')) return;
-  const nav = document.createElement('nav');
-  nav.id = 'reactusMobileNav';
-  nav.setAttribute('aria-label', '管理画面の主要メニュー');
-  const items = [
-    ['calendarOverview', '予定'],
-    ['schedulePanel', '作成'],
-    ['announcementPanel', '案内'],
-    ['reactionPanel', '反応'],
-    ['top', '上へ'],
-  ];
-  for (const [target, label] of items) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.dataset.target = target;
-    button.textContent = label;
-    button.addEventListener('click', () => jumpTo(target));
-    nav.append(button);
-  }
-  document.body.append(nav);
-
-  const app = mobile('#app');
-  const update = () => {
-    nav.hidden = !app || app.classList.contains('hidden');
-  };
-  update();
-  if (app) {
-    appObserver = new MutationObserver(update);
-    appObserver.observe(app, { attributes: true, attributeFilter: ['class'] });
-  }
 }
 
 function installMobileDayDialog() {
@@ -159,12 +115,18 @@ function installStyles() {
   const style = document.createElement('style');
   style.id = 'reactusMobileStyles';
   style.textContent = `
-    #reactusMobileNav{display:none}
     @media(max-width:760px){
-      html{scroll-padding-top:8px;scroll-padding-bottom:84px}
-      body{padding-bottom:calc(72px + env(safe-area-inset-bottom))}
+      html{scroll-padding-top:8px}
+      body{padding-bottom:env(safe-area-inset-bottom)}
       .shell{width:calc(100% - 12px);padding:10px 0 28px}
       .panel{padding:14px;border-radius:14px;margin-bottom:12px}
+      #calendarOverview,.panel{position:relative;overflow:visible}
+      #calendarSettingsMount{width:100%;min-width:0}
+      .reactus-calendar-settings-fold{width:100%;min-width:0}
+      .reactus-calendar-settings-fold .calendar-settings-body{min-width:0}
+      .calendar-settings-block,.calendar-settings-row,.calendar-setting-card{max-width:100%;min-width:0}
+      .calendar-settings-row>label{min-width:0!important;width:100%}
+      .calendar-settings-row input,.calendar-settings-row select{width:100%;min-width:0}
       .topbar{margin-bottom:12px;gap:8px}
       .topbar h1{font-size:1.45rem}
       .topbar .eyebrow{margin-bottom:3px}
@@ -220,10 +182,6 @@ function installStyles() {
       #reactusMobileDayDialog{padding:0;border:1px solid #354253;background:#0d141c;color:#eef3f8}
       #reactusMobileDayDialog::backdrop{background:rgba(0,0,0,.62)}
       #reactusBackToTop{display:none!important}
-      #reactusMobileNav{position:fixed;left:6px;right:6px;bottom:calc(6px + env(safe-area-inset-bottom));z-index:10030;display:grid;grid-template-columns:repeat(5,1fr);gap:4px;padding:5px;border:1px solid #354253;border-radius:14px;background:rgba(13,20,28,.96);box-shadow:0 10px 32px rgba(0,0,0,.45);backdrop-filter:blur(12px)}
-      #reactusMobileNav[hidden]{display:none!important}
-      #reactusMobileNav button{min-width:0;min-height:46px;padding:5px 2px;border:0;border-radius:9px;background:transparent;color:#dce4ec;font-size:.78rem;font-weight:800}
-      #reactusMobileNav button:active,#reactusMobileNav button:focus-visible{background:#1d2946;color:#fff}
     }
     @media(max-width:390px){
       .admin-guide-grid{grid-template-columns:1fr!important}
@@ -239,7 +197,6 @@ function installStyles() {
 
 function install() {
   installStyles();
-  installMobileNav();
   prepareRecurrenceForMobile();
   watchCalendar();
 }

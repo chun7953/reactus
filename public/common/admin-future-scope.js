@@ -15,7 +15,6 @@ import './admin-calendar-settings-usability.js';
 import './admin-manageable-targets.js';
 import './admin-navigation-polish.js';
 import './admin-mobile.js';
-import './admin-mobile-layout-hotfix.js';
 import './admin-login-link-polish.js';
 import './admin-edit-feedback.js';
 import './admin-post-destinations.js';
