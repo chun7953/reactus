@@ -28,3 +28,11 @@ test('admin Discord preview mirrors production newline layout and treats datetim
     assert.match(source, /\+09:00/);
     assert.match(source, /function parseJstDateTimeInput/);
 });
+
+test('admin Discord preview follows explicit form events instead of observing DOM mutations', async () => {
+    const source = await readFile(previewPath, 'utf8');
+    assert.match(source, /form\.addEventListener\('input', render\)/);
+    assert.match(source, /form\.addEventListener\('change'/);
+    assert.match(source, /\.segment, #addPrize, \.prize-row \.danger, #clearImage/);
+    assert.doesNotMatch(source, /new MutationObserver\(/);
+});
