@@ -95,13 +95,12 @@ async function refreshDestinations({ force = false, preferredMonitorId = null, s
       return destinationState.monitors;
     })
     .catch(error => {
-      if (!silent) {
-        const notice = document.querySelector('#notice');
-        if (notice) {
-          notice.textContent = `投稿先を更新できませんでした。${error.message ? ` ${error.message}` : ''}`;
-          notice.classList.add('error');
-          notice.classList.remove('hidden');
-        }
+      if (silent) return destinationState.monitors;
+      const notice = document.querySelector('#notice');
+      if (notice) {
+        notice.textContent = `投稿先を更新できませんでした。${error.message ? ` ${error.message}` : ''}`;
+        notice.classList.add('error');
+        notice.classList.remove('hidden');
       }
       throw error;
     })
