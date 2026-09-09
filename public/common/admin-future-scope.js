@@ -1,10 +1,12 @@
+import './admin-startup-resilience.js';
+import './admin-bootstrap-fallback.js';
+import './admin-calendar-month-view.js';
 import './admin-calendar-settings.js';
 import './admin-mentions.js';
 import './admin-preview.js';
 import './admin-calendar-edit.js';
 import './admin-calendar-quick-create.js';
 import './admin-calendar-drag.js';
-import './admin-calendar-month-view.js';
 import './admin-announcements.js';
 import './admin-announcement-readability.js';
 import './admin-announcement-safety.js';
@@ -16,7 +18,6 @@ import './admin-calendar-settings-usability.js';
 import './admin-manageable-targets.js';
 import './admin-navigation-polish.js';
 import './admin-mobile.js';
-import './admin-startup-resilience.js';
 
 function setTextIfChanged(node, value) {
   if (node && node.textContent !== value) node.textContent = value;
