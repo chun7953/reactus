@@ -131,7 +131,7 @@ function announcementCard(item) {
   title.textContent = channelLabel(item.channelId);
   const text = document.createElement('div');
   text.className = 'announcement-card-text';
-  text.textContent = item.message;
+  appendPreviewText(text, item.message || '');
   main.append(title, text);
 
   const actions = document.createElement('div');
