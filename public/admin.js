@@ -525,11 +525,12 @@ function eventCard(event) {
   return card;
 }
 
-async function loadEvents() {
+async function loadEvents({ forceRefresh = false } = {}) {
   const container = $('#eventList');
   container.innerHTML = '<p class="muted">読み込み中…</p>';
   try {
-    const result = await api('/api/admin/events?days=90');
+    const refreshQuery = forceRefresh ? '&refresh=1' : '';
+    const result = await api(`/api/admin/events?days=90${refreshQuery}`);
     state.events = result.events || [];
     container.replaceChildren();
     if (state.events.length === 0) {
@@ -602,7 +603,7 @@ $('#mentionMode').addEventListener('change', updateMention);
 $('#repeatUnit').addEventListener('change', updateRecurrence);
 $('#repeatEndMode').addEventListener('change', updateRecurrence);
 $('#monthlyMode').addEventListener('change', updateMonthly);
-$('#refreshEvents').addEventListener('click', loadEvents);
+$('#refreshEvents').addEventListener('click', () => void loadEvents({ forceRefresh: true }));
 
 $('#image').addEventListener('change', async (event) => {
   const file = event.target.files?.[0] || null;

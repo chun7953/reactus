@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const handlerPath = new URL('../src/web/adminHandler.js', import.meta.url);
 const authPath = new URL('../src/lib/webAdminAuth.js', import.meta.url);
-const fetchCachePath = new URL('../public/common/admin-event-fetch-cache.js', import.meta.url);
+const calendarAdminPath = new URL('../src/lib/webCalendarAdmin.js', import.meta.url);
 const htmlPath = new URL('../public/admin.html', import.meta.url);
 const entryPath = new URL('../public/common/admin-future-scope.js', import.meta.url);
 
@@ -27,15 +27,14 @@ test('admin bootstrap has a bounded server-side wait', async () => {
   assert.match(source, /error\.statusCode = 503/);
 });
 
-test('admin GET cache keeps bootstrap bounded without aborting a normal cold calendar load too early', async () => {
-  const source = await readFile(fetchCachePath, 'utf8');
-  assert.match(source, /BOOTSTRAP_GET_TIMEOUT_MS = 12000/);
-  assert.match(source, /EVENT_GET_TIMEOUT_MS = 35000/);
-  assert.match(source, /fetchText\(url, timeoutMs, timeoutMessage\)/);
-  assert.match(source, /typeof AbortController === 'function'/);
-  assert.match(source, /controller\.abort\(\)/);
-  assert.match(source, /requestOptions\.signal = controller\.signal/);
-  assert.match(source, /カレンダーの読み込みに時間がかかっています。更新して再試行してください。/);
+test('calendar loading is bounded by the server-owned persistent cache layer', async () => {
+  const source = await readFile(calendarAdminPath, 'utf8');
+  assert.match(source, /CALENDAR_LOAD_TIMEOUT_MS = 28_000/);
+  assert.match(source, /withCalendarTimeout\(/);
+  assert.match(source, /calendarListInflight = new Map\(\)/);
+  assert.match(source, /readPersistedSnapshot/);
+  assert.match(source, /refresh failed; using stale memory cache/);
+  assert.match(source, /refresh failed; using persisted cache/);
 });
 
 test('admin has a static startup shell that remains visible even if module JavaScript fails', async () => {
