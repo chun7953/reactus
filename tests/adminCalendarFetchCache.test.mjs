@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const legacyCachePath = new URL('../public/common/admin-event-fetch-cache.js', import.meta.url);
+const legacyGuardPath = new URL('../public/common/admin-calendar-load-guard.js', import.meta.url);
 const adminPath = new URL('../public/admin.js', import.meta.url);
 const editPath = new URL('../public/common/admin-calendar-edit.js', import.meta.url);
 const dragPath = new URL('../public/common/admin-calendar-drag.js', import.meta.url);
@@ -11,16 +12,17 @@ const monthPath = new URL('../public/common/admin-calendar-month-view.js', impor
 const entryPath = new URL('../public/admin-entry.js', import.meta.url);
 const futureScopePath = new URL('../public/common/admin-future-scope.js', import.meta.url);
 const shellPath = new URL('../public/common/admin-calendar-shell.js', import.meta.url);
-const guardPath = new URL('../public/common/admin-calendar-load-guard.js', import.meta.url);
 const foldPath = new URL('../public/common/admin-calendar-settings-fold.js', import.meta.url);
 const htmlPath = new URL('../public/admin.html', import.meta.url);
 const handlerPath = new URL('../src/web/adminHandler.js', import.meta.url);
 const calendarAdminPath = new URL('../src/lib/webCalendarAdmin.js', import.meta.url);
 
-test('admin no longer installs a browser-wide fetch cache or legacy calendar URL rewrite', async () => {
+test('admin no longer installs browser-wide calendar request wrappers or external load guards', async () => {
   const entrySource = await readFile(entryPath, 'utf8');
   assert.doesNotMatch(entrySource, /admin-event-fetch-cache\.js/);
+  assert.doesNotMatch(entrySource, /admin-calendar-load-guard\.js/);
   await assert.rejects(readFile(legacyCachePath, 'utf8'), error => error?.code === 'ENOENT');
+  await assert.rejects(readFile(legacyGuardPath, 'utf8'), error => error?.code === 'ENOENT');
 });
 
 test('month view owns event-list data and edit, drag, and mobile day do not refetch it', async () => {
@@ -50,7 +52,7 @@ test('month view owns event-list data and edit, drag, and mobile day do not refe
   assert.match(mobileDaySource, /getMonthEventsForDay\(key\)/);
 });
 
-test('explicit update asks the server to bypass the calendar cache directly', async () => {
+test('month view owns request timeout, error rendering, retry, and explicit cache bypass', async () => {
   const [adminSource, monthSource, handlerSource, calendarSource] = await Promise.all([
     readFile(adminPath, 'utf8'),
     readFile(monthPath, 'utf8'),
@@ -60,6 +62,14 @@ test('explicit update asks the server to bypass the calendar cache directly', as
   assert.match(adminSource, /loadEvents\(\{ forceRefresh = false \} = \{\}\)/);
   assert.match(adminSource, /forceRefresh \? '&refresh=1' : ''/);
   assert.match(adminSource, /loadEvents\(\{ forceRefresh: true \}\)/);
+  assert.match(monthSource, /MONTH_REQUEST_TIMEOUT_MS = 40_000/);
+  assert.match(monthSource, /const controller = new AbortController\(\)/);
+  assert.match(monthSource, /controller\.abort\(\)/);
+  assert.match(monthSource, /signal: controller\.signal/);
+  assert.match(monthSource, /window\.clearTimeout\(timeoutId\)/);
+  assert.match(monthSource, /カレンダーの読み込みがタイムアウトしました/);
+  assert.match(monthSource, /function showMonthError\(error\)/);
+  assert.match(monthSource, /カレンダーを再読み込み/);
   assert.match(monthSource, /loadOwnedMonth\(\{ quiet = false, forceRefresh = false \} = \{\}\)/);
   assert.match(monthSource, /forceRefresh \? '&refresh=1' : ''/);
   assert.match(monthSource, /loadOwnedMonth\(\{ forceRefresh: true \}\)/);
@@ -80,24 +90,21 @@ test('month calendar loads a focused window and exposes days with more than six 
 });
 
 test('calendar shell and month-owned consumers are bootstrap-critical instead of deferred behind optional UI', async () => {
-  const [entrySource, futureSource, shellSource, guardSource, htmlSource] = await Promise.all([
+  const [entrySource, futureSource, shellSource, htmlSource] = await Promise.all([
     readFile(entryPath, 'utf8'),
     readFile(futureScopePath, 'utf8'),
     readFile(shellPath, 'utf8'),
-    readFile(guardPath, 'utf8'),
     readFile(htmlPath, 'utf8'),
   ]);
   assert.match(entrySource, /admin-calendar-shell\.js/);
   assert.match(entrySource, /admin-calendar-month-view\.js/);
   assert.match(entrySource, /admin-mobile-day-inline\.js/);
-  assert.match(entrySource, /admin-calendar-load-guard\.js/);
+  assert.doesNotMatch(entrySource, /admin-calendar-load-guard\.js/);
   assert.doesNotMatch(entrySource, /admin-event-fetch-cache\.js/);
   assert.doesNotMatch(futureSource, /admin-calendar-month-view\.js/);
   assert.doesNotMatch(futureSource, /admin-mobile-day-inline\.js/);
   assert.match(shellSource, /<h2>カレンダー<\/h2>/);
   assert.doesNotMatch(shellSource, /カレンダー表示/);
-  assert.match(guardSource, /CALENDAR_STUCK_MS = 40000/);
-  assert.match(guardSource, /カレンダーを再読み込み/);
   assert.match(htmlSource, /<script type="module" src="\/admin-entry\.js"><\/script>/);
   assert.doesNotMatch(htmlSource, /common\/admin-event-fetch-cache\.js/);
   assert.doesNotMatch(htmlSource, /<script type="module" src="\/admin\.js"/);
