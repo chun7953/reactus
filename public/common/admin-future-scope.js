@@ -18,6 +18,7 @@ import './admin-navigation-polish.js';
 import './admin-mobile.js';
 import './admin-mobile-layout-hotfix.js';
 import './admin-login-link-polish.js';
+import './admin-panel-layout.js';
 
 function setTextIfChanged(node, value) {
   if (node && node.textContent !== value) node.textContent = value;

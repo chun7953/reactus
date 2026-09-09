@@ -3,6 +3,12 @@ import {
     deleteWebSchedule as deleteWebScheduleCore,
     listWebSchedules as listWebSchedulesCore,
 } from './webCalendarAdminCore.js';
+import { get } from './settingsCache.js';
+import {
+    deleteCalendarAdminSnapshots,
+    readCalendarAdminSnapshot,
+    writeCalendarAdminSnapshot,
+} from './calendarAdminSnapshotStore.js';
 
 export * from './webCalendarAdminCore.js';
 
@@ -15,6 +21,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const calendarListCache = new Map();
 const calendarListInflight = new Map();
 const calendarListGeneration = new Map();
+const calendarPersistBypassGuilds = new Set();
 
 function safeDays(value, fallback, min = 0) {
     const number = Number(value);
@@ -73,12 +80,18 @@ function withCalendarTimeout(promise) {
     });
 }
 
-async function loadSnapshot(guildId, window, forceRefresh = false) {
-    const key = cacheKey(guildId, window);
-    const cached = calendarListCache.get(key);
-    if (!forceRefresh && cached && Date.now() - cached.loadedAt < CALENDAR_LIST_CACHE_TTL_MS) {
-        return cached.events;
+async function readPersistedSnapshot(guildId, window) {
+    if (calendarPersistBypassGuilds.has(String(guildId))) return null;
+    try {
+        return await readCalendarAdminSnapshot(guildId, window.days, window.pastDays);
+    } catch (error) {
+        console.warn('[WebAdminCalendar] persisted snapshot read failed:', error?.message || error);
+        return null;
     }
+}
+
+async function refreshSnapshot(guildId, window) {
+    const key = cacheKey(guildId, window);
     if (calendarListInflight.has(key)) return calendarListInflight.get(key);
 
     const generation = generationFor(guildId);
@@ -87,20 +100,32 @@ async function loadSnapshot(guildId, window, forceRefresh = false) {
         .then(events => {
             if (generationFor(guildId) === generation) {
                 calendarListCache.set(key, { loadedAt: Date.now(), events });
+                calendarPersistBypassGuilds.delete(String(guildId));
+                void writeCalendarAdminSnapshot(guildId, window.days, window.pastDays, events)
+                    .catch(error => console.warn('[WebAdminCalendar] persisted snapshot write failed:', error?.message || error));
             }
             console.log(
                 `[WebAdminCalendar] loaded guild=${guildId} days=${window.days} pastDays=${window.pastDays} events=${events.length} ms=${Date.now() - startedAt}`,
             );
             return events;
         })
-        .catch(error => {
+        .catch(async error => {
             const stale = calendarListCache.get(key);
             if (stale?.events) {
                 console.warn(
-                    `[WebAdminCalendar] refresh failed; using stale cache guild=${guildId} ms=${Date.now() - startedAt}:`,
+                    `[WebAdminCalendar] refresh failed; using stale memory cache guild=${guildId} ms=${Date.now() - startedAt}:`,
                     error?.message || error,
                 );
                 return stale.events;
+            }
+            const persisted = await readPersistedSnapshot(guildId, window);
+            if (persisted?.events) {
+                calendarListCache.set(key, persisted);
+                console.warn(
+                    `[WebAdminCalendar] refresh failed; using persisted cache guild=${guildId} ms=${Date.now() - startedAt}:`,
+                    error?.message || error,
+                );
+                return persisted.events;
             }
             console.error(
                 `[WebAdminCalendar] load failed guild=${guildId} days=${window.days} pastDays=${window.pastDays} ms=${Date.now() - startedAt}:`,
@@ -108,6 +133,7 @@ async function loadSnapshot(guildId, window, forceRefresh = false) {
             );
             throw error;
         });
+
     calendarListInflight.set(key, loading);
     try {
         return await loading;
@@ -116,15 +142,41 @@ async function loadSnapshot(guildId, window, forceRefresh = false) {
     }
 }
 
+async function loadSnapshot(guildId, window, forceRefresh = false) {
+    const key = cacheKey(guildId, window);
+    if (forceRefresh) return refreshSnapshot(guildId, window);
+
+    const cached = calendarListCache.get(key);
+    if (cached) {
+        if (Date.now() - cached.loadedAt >= CALENDAR_LIST_CACHE_TTL_MS) {
+            void refreshSnapshot(guildId, window).catch(() => {});
+        }
+        return cached.events;
+    }
+
+    const persisted = await readPersistedSnapshot(guildId, window);
+    if (persisted) {
+        calendarListCache.set(key, persisted);
+        if (Date.now() - persisted.loadedAt >= CALENDAR_LIST_CACHE_TTL_MS) {
+            void refreshSnapshot(guildId, window).catch(() => {});
+        }
+        return persisted.events;
+    }
+
+    return refreshSnapshot(guildId, window);
+}
+
 export function invalidateWebScheduleCache(guildId = null) {
     if (!guildId) {
         calendarListCache.clear();
         calendarListInflight.clear();
         calendarListGeneration.clear();
+        calendarPersistBypassGuilds.clear();
         return;
     }
     const id = String(guildId);
     calendarListGeneration.set(id, generationFor(id) + 1);
+    calendarPersistBypassGuilds.add(id);
     const prefix = `${id}:`;
     for (const key of calendarListCache.keys()) {
         if (key.startsWith(prefix)) calendarListCache.delete(key);
@@ -132,6 +184,8 @@ export function invalidateWebScheduleCache(guildId = null) {
     for (const key of calendarListInflight.keys()) {
         if (key.startsWith(prefix)) calendarListInflight.delete(key);
     }
+    void deleteCalendarAdminSnapshots(id)
+        .catch(error => console.warn('[WebAdminCalendar] persisted snapshot invalidation failed:', error?.message || error));
 }
 
 export async function listWebSchedules(guildId, days = 90, pastDays = 0, { forceRefresh = false } = {}) {
@@ -140,6 +194,16 @@ export async function listWebSchedules(guildId, days = 90, pastDays = 0, { force
     const window = canonicalWindow(requestedDays, requestedPastDays);
     const events = await loadSnapshot(guildId, window, forceRefresh);
     return filterWindow(events, requestedDays, requestedPastDays);
+}
+
+export async function warmAllWebScheduleCaches() {
+    const monitors = await get.allMonitors();
+    const guildIds = [...new Set(monitors.map(monitor => String(monitor.guild_id)).filter(Boolean))];
+    await Promise.allSettled(guildIds.map(guildId => loadSnapshot(
+        guildId,
+        { days: SHARED_FORWARD_DAYS, pastDays: SHARED_PAST_DAYS },
+        false,
+    )));
 }
 
 export async function createWebSchedule(guildId, payload) {
@@ -159,4 +223,6 @@ export const webCalendarListCacheConfig = Object.freeze({
     loadTimeoutMs: CALENDAR_LOAD_TIMEOUT_MS,
     sharedForwardDays: SHARED_FORWARD_DAYS,
     sharedPastDays: SHARED_PAST_DAYS,
+    persistent: true,
+    staleWhileRevalidate: true,
 });

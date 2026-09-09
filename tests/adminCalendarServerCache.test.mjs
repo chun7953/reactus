@@ -8,6 +8,8 @@ import {
 } from '../src/lib/webCalendarAdmin.js';
 
 const adminPath = new URL('../src/lib/webCalendarAdmin.js', import.meta.url);
+const snapshotPath = new URL('../src/lib/calendarAdminSnapshotStore.js', import.meta.url);
+const readyPath = new URL('../src/events/ready.js', import.meta.url);
 const handlerPath = new URL('../src/web/adminHandler.js', import.meta.url);
 const mentionPath = new URL('../src/lib/webCalendarMentionService.js', import.meta.url);
 const duplicatePath = new URL('../src/lib/webCalendarDuplicateService.js', import.meta.url);
@@ -16,29 +18,40 @@ const futureScopePath = new URL('../public/common/admin-future-scope.js', import
 const reactionPaginationPath = new URL('../public/common/admin-reaction-pagination.js', import.meta.url);
 const monitorLabelsPath = new URL('../public/common/admin-monitor-labels.js', import.meta.url);
 
-test('admin calendar list cache shares the common dashboard window for one minute', () => {
+test('admin calendar list cache shares the common dashboard window and persists snapshots', () => {
   assert.deepEqual(webCalendarListCacheConfig, {
     ttlMs: 60_000,
     loadTimeoutMs: 28_000,
     sharedForwardDays: 90,
     sharedPastDays: 45,
+    persistent: true,
+    staleWhileRevalidate: true,
   });
-  assert.doesNotThrow(() => invalidateWebScheduleCache('guild-test'));
   assert.doesNotThrow(() => invalidateWebScheduleCache());
 });
 
-test('calendar cache deduplicates inflight loads, bounds cold loads, and rejects stale writes after mutation', async () => {
-  const source = await readFile(adminPath, 'utf8');
+test('calendar cache uses stale-while-revalidate and survives Fly deploys through PostgreSQL', async () => {
+  const [source, snapshot, ready] = await Promise.all([
+    readFile(adminPath, 'utf8'),
+    readFile(snapshotPath, 'utf8'),
+    readFile(readyPath, 'utf8'),
+  ]);
   assert.match(source, /calendarListInflight = new Map\(\)/);
   assert.match(source, /calendarListGeneration = new Map\(\)/);
   assert.match(source, /calendarListInflight\.has\(key\)/);
   assert.match(source, /generationFor\(guildId\) === generation/);
   assert.match(source, /CALENDAR_LOAD_TIMEOUT_MS = 28_000/);
   assert.match(source, /withCalendarTimeout\(/);
-  assert.match(source, /using stale cache/);
-  assert.match(source, /\[WebAdminCalendar\] loaded/);
-  assert.match(source, /SHARED_FORWARD_DAYS = 90/);
-  assert.match(source, /SHARED_PAST_DAYS = 45/);
+  assert.match(source, /readPersistedSnapshot/);
+  assert.match(source, /void refreshSnapshot\(guildId, window\)\.catch/);
+  assert.match(source, /using stale memory cache/);
+  assert.match(source, /using persisted cache/);
+  assert.match(source, /writeCalendarAdminSnapshot/);
+  assert.match(source, /warmAllWebScheduleCaches/);
+  assert.match(snapshot, /CREATE TABLE IF NOT EXISTS web_calendar_snapshots/);
+  assert.match(snapshot, /events JSONB NOT NULL/);
+  assert.match(snapshot, /ON CONFLICT \(guild_id, forward_days, past_days\)/);
+  assert.match(ready, /warmAllWebScheduleCaches\(\)/);
 });
 
 test('normal event reads use cache while refresh=1 forces a Google Calendar reload', async () => {
@@ -46,8 +59,8 @@ test('normal event reads use cache while refresh=1 forces a Google Calendar relo
     readFile(adminPath, 'utf8'),
     readFile(handlerPath, 'utf8'),
   ]);
-  assert.match(adminSource, /\{ forceRefresh = false \} = \{\}/);
-  assert.match(adminSource, /if \(!forceRefresh && cached/);
+  assert.match(adminSource, /if \(forceRefresh\) return refreshSnapshot\(guildId, window\)/);
+  assert.match(adminSource, /if \(cached\)/);
   assert.match(handlerSource, /const forceRefresh = searchParams\.get\('refresh'\) === '1'/);
   assert.match(handlerSource, /listWebSchedules\(auth\.session\.guild_id, days, pastDays, \{ forceRefresh \}\)/);
 });
@@ -71,6 +84,7 @@ test('dashboard hides routing keywords and paginates long reaction-rule lists', 
   ]);
   assert.match(entry, /admin-monitor-labels\.js/);
   assert.match(entry, /admin-reaction-pagination\.js/);
+  assert.match(entry, /admin-panel-layout\.js/);
   assert.match(pagination, /REACTION_PAGE_SIZE = 8/);
   assert.match(pagination, /reactionRuleSearch/);
   assert.match(pagination, /← 前へ/);
