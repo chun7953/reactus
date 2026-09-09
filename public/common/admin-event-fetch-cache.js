@@ -1,10 +1,13 @@
 const originalFetch = window.fetch.bind(window);
 const EVENT_CACHE_TTL_MS = 2000;
+const BOOTSTRAP_CACHE_TTL_MS = 5000;
 const LEGACY_MONTH_DAYS = 45;
 const LEGACY_MONTH_PAST_DAYS = 40;
 
 const cachedRequests = new Map();
 const inflightRequests = new Map();
+let cachedBootstrap = null;
+let inflightBootstrap = null;
 
 function requestUrl(input) {
   try {
@@ -42,27 +45,46 @@ function invalidateEvents() {
   inflightRequests.clear();
 }
 
+function invalidateBootstrap() {
+  cachedBootstrap = null;
+  inflightBootstrap = null;
+}
+
+async function fetchText(url) {
+  const response = await originalFetch(`${url.pathname}${url.search}`, {
+    credentials: 'same-origin',
+  });
+  const text = await response.text();
+  return {
+    loadedAt: Date.now(),
+    ok: response.ok,
+    status: response.status,
+    statusText: response.statusText,
+    text,
+  };
+}
+
+function responseFromResult(result) {
+  return new Response(result.text, {
+    status: result.status,
+    statusText: result.statusText,
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
 async function cachedEventRequest(url) {
   const key = cacheKey(url);
   const cached = cachedRequests.get(key);
   if (cached && Date.now() - cached.loadedAt < EVENT_CACHE_TTL_MS) return cached;
   if (inflightRequests.has(key)) return inflightRequests.get(key);
 
-  const inflight = (async () => {
-    const response = await originalFetch(`${url.pathname}${url.search}`, {
-      credentials: 'same-origin',
-    });
-    const text = await response.text();
-    const result = {
-      loadedAt: Date.now(),
-      ok: response.ok,
-      status: response.status,
-      statusText: response.statusText,
-      text,
-    };
-    if (response.ok) cachedRequests.set(key, result);
+  const inflight = fetchText(url).then(result => {
+    if (result.ok) cachedRequests.set(key, result);
     return result;
-  })();
+  });
 
   inflightRequests.set(key, inflight);
   try {
@@ -72,35 +94,51 @@ async function cachedEventRequest(url) {
   }
 }
 
+async function cachedBootstrapRequest(url) {
+  if (cachedBootstrap && Date.now() - cachedBootstrap.loadedAt < BOOTSTRAP_CACHE_TTL_MS) {
+    return cachedBootstrap;
+  }
+  if (inflightBootstrap) return inflightBootstrap;
+
+  inflightBootstrap = fetchText(url).then(result => {
+    if (result.ok) cachedBootstrap = result;
+    return result;
+  });
+  try {
+    return await inflightBootstrap;
+  } finally {
+    inflightBootstrap = null;
+  }
+}
+
 window.fetch = async function reactusAdminFetch(input, init = {}) {
   const url = requestUrl(input);
   const method = requestMethod(input, init);
 
+  if (method === 'GET' && url?.origin === location.origin && url.pathname === '/api/admin/bootstrap') {
+    return responseFromResult(await cachedBootstrapRequest(url));
+  }
+
   if (method === 'GET' && url?.origin === location.origin && url.pathname === '/api/admin/events') {
     const normalized = normalizedEventUrl(url);
-    const result = await cachedEventRequest(normalized);
-    return new Response(result.text, {
-      status: result.status,
-      statusText: result.statusText,
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8',
-        'Cache-Control': 'no-store',
-      },
-    });
+    return responseFromResult(await cachedEventRequest(normalized));
   }
 
   const response = await originalFetch(input, init);
-  if (
-    method !== 'GET'
-    && url?.origin === location.origin
-    && ['/api/admin/schedules', '/api/admin/update', '/api/admin/delete', '/api/admin/move', '/api/admin/duplicate'].includes(url.pathname)
-    && response.ok
-  ) {
-    invalidateEvents();
+  if (method !== 'GET' && url?.origin === location.origin && url.pathname.startsWith('/api/admin/')) {
+    if (response.ok) invalidateBootstrap();
+    if (
+      response.ok
+      && ['/api/admin/schedules', '/api/admin/update', '/api/admin/delete', '/api/admin/move', '/api/admin/duplicate'].includes(url.pathname)
+    ) {
+      invalidateEvents();
+    }
   }
   return response;
 };
 
 window.addEventListener('pageshow', event => {
-  if (event.persisted) invalidateEvents();
+  if (!event.persisted) return;
+  invalidateEvents();
+  invalidateBootstrap();
 });
