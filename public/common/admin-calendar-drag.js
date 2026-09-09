@@ -1,6 +1,4 @@
 const dragState = {
-  events: [],
-  byLink: new Map(),
   source: null,
   suppressClickUntil: 0,
 };
@@ -45,8 +43,18 @@ function cleanTitle(summary) {
   return String(summary || '予定').replace(/^【[^】]+】/, '').trim() || '予定';
 }
 
-function eventForLink(link) {
-  return dragState.byLink.get(link.href) || dragState.byLink.get(link.getAttribute('href')) || null;
+function eventForNode(node) {
+  const calendarId = String(node.dataset.reactusCalendarId || '').trim();
+  const id = String(node.dataset.reactusEventId || '').trim();
+  const start = String(node.dataset.reactusEventStart || '').trim();
+  if (!calendarId || !id || !start) return null;
+  return {
+    calendarId,
+    id,
+    start,
+    recurringEventId: String(node.dataset.reactusRecurringEventId || '').trim() || null,
+    summary: String(node.dataset.reactusEventSummary || '').trim() || node.textContent?.trim() || '予定',
+  };
 }
 
 function clearTargets() {
@@ -89,38 +97,38 @@ async function moveEvent(event, newDate) {
   }
 }
 
-function bindEvent(link) {
-  if (link.dataset.reactusDragBound === '1') return;
-  const source = eventForLink(link);
+function bindEvent(node) {
+  if (node.dataset.reactusDragBound === '1') return;
+  const source = eventForNode(node);
   if (!source) return;
 
-  link.dataset.reactusDragBound = '1';
-  link.draggable = true;
-  link.classList.toggle('recurring', Boolean(source.recurringEventId));
+  node.dataset.reactusDragBound = '1';
+  node.draggable = true;
+  node.classList.toggle('recurring', Boolean(source.recurringEventId));
   if (source.recurringEventId) {
-    link.title = `${source.summary || '予定'} — 定期予定はクリックして編集範囲を選択`;
+    node.title = `${source.summary || '予定'} — 定期予定はクリックして編集範囲を選択`;
   } else {
-    link.title = `${source.summary || '予定'} — クリックで編集 / ドラッグで日付移動`;
+    node.title = `${source.summary || '予定'} — クリックで編集 / ドラッグで日付移動`;
   }
 
-  link.addEventListener('dragstart', event => {
+  node.addEventListener('dragstart', event => {
     dragState.source = source;
     dragState.suppressClickUntil = Date.now() + 800;
-    link.classList.add('dragging');
+    node.classList.add('dragging');
     if (event.dataTransfer) {
       event.dataTransfer.effectAllowed = source.recurringEventId ? 'none' : 'move';
       event.dataTransfer.setData('text/plain', source.id || 'reactus-event');
     }
   });
 
-  link.addEventListener('dragend', () => {
-    link.classList.remove('dragging');
+  node.addEventListener('dragend', () => {
+    node.classList.remove('dragging');
     dragState.source = null;
     dragState.suppressClickUntil = Date.now() + 500;
     clearTargets();
   });
 
-  link.addEventListener('click', event => {
+  node.addEventListener('click', event => {
     if (Date.now() < dragState.suppressClickUntil) {
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -170,26 +178,8 @@ function bindDay(cell) {
 }
 
 function bindMonth() {
-  qa('#monthGrid .month-event[href]').forEach(bindEvent);
+  qa('#monthGrid .month-event[data-reactus-event-id][data-reactus-calendar-id]').forEach(bindEvent);
   qa('#monthGrid .month-day[data-reactus-date]').forEach(bindDay);
-}
-
-async function loadEvents() {
-  try {
-    const response = await fetch('/api/admin/events?days=45&pastDays=40', { credentials: 'same-origin' });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) return;
-    dragState.events = data.events || [];
-    dragState.byLink = new Map(
-      dragState.events
-        .filter(event => event.htmlLink)
-        .flatMap(event => [
-          [event.htmlLink, event],
-          [new URL(event.htmlLink, location.href).href, event],
-        ]),
-    );
-    bindMonth();
-  } catch {}
 }
 
 function installStyles() {
@@ -217,7 +207,7 @@ function initialize() {
     const observer = new MutationObserver(bindMonth);
     observer.observe(grid, { childList: true, subtree: true });
   }
-  void loadEvents();
+  bindMonth();
 }
 
 initialize();
