@@ -1,7 +1,3 @@
-const quickCreate = {
-  observer: null,
-};
-
 const q = selector => document.querySelector(selector);
 const qa = selector => [...document.querySelectorAll(selector)];
 
@@ -192,11 +188,8 @@ function refreshBindings() {
 
 function initialize() {
   installStyles();
+  document.addEventListener('reactus:month-rendered', refreshBindings);
   refreshBindings();
-  const grid = q('#monthGrid');
-  if (!grid) return;
-  quickCreate.observer = new MutationObserver(() => refreshBindings());
-  quickCreate.observer.observe(grid, { childList: true });
 }
 
 initialize();
