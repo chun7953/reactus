@@ -85,6 +85,7 @@ test('calendar integration settings fold into the calendar instead of using a se
   assert.match(foldSource, /#calendarOverview/);
   assert.match(foldSource, /#calendarSettingsPanel/);
   assert.match(foldSource, /カレンダー連携設定/);
-  assert.match(foldSource, /mount\.append\(details\)/);
-  assert.match(foldSource, /panel\.remove\(\)/);
+  assert.match(foldSource, /panel\.classList\.remove\('panel'\)/);
+  assert.match(foldSource, /mount\.append\(panel\)/);
+  assert.doesNotMatch(foldSource, /panel\.remove\(\)/);
 });
