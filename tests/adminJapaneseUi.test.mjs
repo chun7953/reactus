@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
+const adminPath = new URL('../public/admin.js', import.meta.url);
 const uiPath = new URL('../public/common/admin-japanese-ui.js', import.meta.url);
 const htmlPath = new URL('../public/admin.html', import.meta.url);
 const cssPath = new URL('../public/admin.css', import.meta.url);
@@ -58,5 +59,14 @@ test('web admin offers purpose-based navigation for common tasks without duplica
   assert.match(source, /自動リアクションを設定する/);
   assert.doesNotMatch(source, /title: 'Googleカレンダー・投稿先を設定する'/);
   assert.match(source, /scrollIntoView\(\{ behavior: 'smooth', block: 'start' \}\)/);
-  assert.match(source, /Googleカレンダーで開く/);
+});
+
+test('event cards own the Japanese Google Calendar link text without a repair observer', async () => {
+  const [adminSource, uiSource] = await Promise.all([
+    readFile(adminPath, 'utf8'),
+    readFile(uiPath, 'utf8'),
+  ]);
+  assert.match(adminSource, /open\.textContent = 'Googleカレンダーで開く'/);
+  assert.doesNotMatch(uiSource, /makeGoogleLinksClearer/);
+  assert.doesNotMatch(uiSource, /new MutationObserver/);
 });
