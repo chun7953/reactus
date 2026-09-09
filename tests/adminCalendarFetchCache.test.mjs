@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const cachePath = new URL('../public/common/admin-event-fetch-cache.js', import.meta.url);
+const legacyCachePath = new URL('../public/common/admin-event-fetch-cache.js', import.meta.url);
+const adminPath = new URL('../public/admin.js', import.meta.url);
+const editPath = new URL('../public/common/admin-calendar-edit.js', import.meta.url);
+const dragPath = new URL('../public/common/admin-calendar-drag.js', import.meta.url);
 const monthPath = new URL('../public/common/admin-calendar-month-view.js', import.meta.url);
 const entryPath = new URL('../public/admin-entry.js', import.meta.url);
 const futureScopePath = new URL('../public/common/admin-future-scope.js', import.meta.url);
@@ -10,37 +13,39 @@ const shellPath = new URL('../public/common/admin-calendar-shell.js', import.met
 const guardPath = new URL('../public/common/admin-calendar-load-guard.js', import.meta.url);
 const foldPath = new URL('../public/common/admin-calendar-settings-fold.js', import.meta.url);
 const htmlPath = new URL('../public/admin.html', import.meta.url);
+const handlerPath = new URL('../src/web/adminHandler.js', import.meta.url);
+const calendarAdminPath = new URL('../src/lib/webCalendarAdmin.js', import.meta.url);
 
-test('admin calendar event cache deduplicates equal windows without forcing a year-wide load', async () => {
-  const source = await readFile(cachePath, 'utf8');
-  assert.match(source, /const cachedRequests = new Map\(\)/);
-  assert.match(source, /const inflightRequests = new Map\(\)/);
-  assert.match(source, /inflightRequests\.has\(key\)/);
-  assert.match(source, /LEGACY_MONTH_DAYS = 45/);
-  assert.match(source, /LEGACY_MONTH_PAST_DAYS = 40/);
-  assert.match(source, /days >= 365/);
-  assert.doesNotMatch(source, /CANONICAL_DAYS = 365/);
+test('admin no longer installs a browser-wide fetch cache or legacy calendar URL rewrite', async () => {
+  const entrySource = await readFile(entryPath, 'utf8');
+  assert.doesNotMatch(entrySource, /admin-event-fetch-cache\.js/);
+  await assert.rejects(readFile(legacyCachePath, 'utf8'), error => error?.code === 'ENOENT');
 });
 
-test('explicit update bypasses browser event cache while keeping concurrent refreshes single-flight', async () => {
-  const source = await readFile(cachePath, 'utf8');
-  assert.match(source, /EXPLICIT_REFRESH_WINDOW_MS = 2000/);
-  assert.match(source, /beginExplicitCalendarRefresh\(\)/);
-  assert.match(source, /closest\('#refreshEvents'\)/);
-  assert.match(source, /normalized\.searchParams\.set\('refresh', '1'\)/);
-  assert.match(source, /cachedEventRequest\(normalized, \{ forceRefresh \}\)/);
-  assert.match(source, /if \(!forceRefresh && cached/);
-  assert.match(source, /if \(inflightRequests\.has\(key\)\) return inflightRequests\.get\(key\)/);
+test('calendar edit and drag helpers request their focused window directly instead of days=365 compatibility requests', async () => {
+  const [editSource, dragSource] = await Promise.all([
+    readFile(editPath, 'utf8'),
+    readFile(dragPath, 'utf8'),
+  ]);
+  for (const source of [editSource, dragSource]) {
+    assert.match(source, /\/api\/admin\/events\?days=45&pastDays=40/);
+    assert.doesNotMatch(source, /days=365/);
+  }
 });
 
-test('initial admin bootstrap calls share one in-flight request', async () => {
-  const source = await readFile(cachePath, 'utf8');
-  assert.match(source, /BOOTSTRAP_CACHE_TTL_MS = 5000/);
-  assert.match(source, /let cachedBootstrap = null/);
-  assert.match(source, /let inflightBootstrap = null/);
-  assert.match(source, /if \(inflightBootstrap\) return inflightBootstrap/);
-  assert.match(source, /url\.pathname === '\/api\/admin\/bootstrap'/);
-  assert.match(source, /invalidateBootstrap\(\)/);
+test('explicit update asks the server to bypass the calendar cache directly', async () => {
+  const [adminSource, handlerSource, calendarSource] = await Promise.all([
+    readFile(adminPath, 'utf8'),
+    readFile(handlerPath, 'utf8'),
+    readFile(calendarAdminPath, 'utf8'),
+  ]);
+  assert.match(adminSource, /loadEvents\(\{ forceRefresh = false \} = \{\}\)/);
+  assert.match(adminSource, /forceRefresh \? '&refresh=1' : ''/);
+  assert.match(adminSource, /loadEvents\(\{ forceRefresh: true \}\)/);
+  assert.match(handlerSource, /const forceRefresh = searchParams\.get\('refresh'\) === '1'/);
+  assert.match(handlerSource, /listWebSchedules\(auth\.session\.guild_id, days, pastDays, \{ forceRefresh \}\)/);
+  assert.match(calendarSource, /if \(forceRefresh\) return refreshSnapshot\(guildId, window\)/);
+  assert.match(calendarSource, /calendarListInflight\.has\(key\)/);
 });
 
 test('month calendar loads a focused window and exposes days with more than six events', async () => {
@@ -64,14 +69,12 @@ test('calendar shell and month loader are bootstrap-critical instead of deferred
   assert.match(entrySource, /admin-calendar-shell\.js/);
   assert.match(entrySource, /admin-calendar-month-view\.js/);
   assert.match(entrySource, /admin-calendar-load-guard\.js/);
+  assert.doesNotMatch(entrySource, /admin-event-fetch-cache\.js/);
   assert.doesNotMatch(futureSource, /admin-calendar-month-view\.js/);
   assert.match(shellSource, /<h2>カレンダー<\/h2>/);
   assert.doesNotMatch(shellSource, /カレンダー表示/);
   assert.match(guardSource, /CALENDAR_STUCK_MS = 40000/);
   assert.match(guardSource, /カレンダーを再読み込み/);
-  const cacheIndex = entrySource.indexOf("./common/admin-event-fetch-cache.js");
-  const adminIndex = entrySource.indexOf("./admin.js");
-  assert.ok(cacheIndex >= 0 && adminIndex > cacheIndex);
   assert.match(htmlSource, /<script type="module" src="\/admin-entry\.js"><\/script>/);
   assert.doesNotMatch(htmlSource, /common\/admin-event-fetch-cache\.js/);
   assert.doesNotMatch(htmlSource, /<script type="module" src="\/admin\.js"/);
