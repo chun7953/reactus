@@ -7,14 +7,14 @@ const guidePath = new URL('../public/common/admin-japanese-ui.js', import.meta.u
 const permissionsPath = new URL('../public/common/admin-manageable-targets.js', import.meta.url);
 const settingsPath = new URL('../public/common/admin-calendar-settings-usability.js', import.meta.url);
 const navigationPath = new URL('../public/common/admin-navigation-polish.js', import.meta.url);
-const layoutPath = new URL('../public/common/admin-panel-layout.js', import.meta.url);
+const announcementsPath = new URL('../public/common/admin-announcements.js', import.meta.url);
 
 test('admin entry loads the second-round usability helpers', async () => {
   const source = await readFile(entryPath, 'utf8');
   assert.match(source, /admin-calendar-settings-usability\.js/);
   assert.match(source, /admin-manageable-targets\.js/);
   assert.match(source, /admin-navigation-polish\.js/);
-  assert.match(source, /admin-panel-layout\.js/);
+  assert.doesNotMatch(source, /admin-panel-layout\.js/);
 });
 
 test('beginner guide keeps calendar first and does not duplicate folded connection settings', async () => {
@@ -44,11 +44,11 @@ test('calendar connection settings hide routing jargon in the list and paginate 
   assert.match(source, /投稿先・カレンダーで検索/);
 });
 
-test('feature panels stay top-level when calendar settings are folded into the calendar', async () => {
-  const source = await readFile(layoutPath, 'utf8');
-  assert.match(source, /announcement\.parentElement !== app/);
-  assert.match(source, /app\.append\(announcement\)/);
-  assert.match(source, /reaction\.parentElement !== app/);
+test('announcement panel owns its top-level placement without a repair pass', async () => {
+  const source = await readFile(announcementsPath, 'utf8');
+  assert.match(source, /calendar && calendar\.parentElement === app/);
+  assert.match(source, /calendar\.after\(panel\)/);
+  assert.doesNotMatch(source, /observe\(document\.documentElement/);
 });
 
 test('long dashboards provide a back-to-top control', async () => {
