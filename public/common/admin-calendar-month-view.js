@@ -1,5 +1,6 @@
 const MONTH_DAY_MS = 24 * 60 * 60 * 1000;
 const MONTH_VISIBLE_EVENTS = 6;
+const MONTH_REQUEST_TIMEOUT_MS = 40_000;
 
 const monthState = {
   month: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
@@ -104,10 +105,24 @@ function requestWindowForMonth(month) {
 }
 
 async function monthApi(path) {
-  const response = await fetch(path, { credentials: 'same-origin' });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
-  return data;
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), MONTH_REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(path, {
+      credentials: 'same-origin',
+      signal: controller.signal,
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+    return data;
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error('カレンダーの読み込みがタイムアウトしました。');
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 }
 
 function monitorLabel(event) {
@@ -324,6 +339,30 @@ function showMonthLoading() {
   grid.append(loading);
 }
 
+function showMonthError(error) {
+  const grid = mq('#monthGrid');
+  if (!grid) return;
+  grid.replaceChildren();
+
+  const wrap = document.createElement('div');
+  wrap.className = 'reactus-month-error';
+
+  const message = document.createElement('p');
+  message.className = 'muted';
+  message.textContent = error?.message || 'カレンダーを読み込めませんでした。';
+
+  const retry = document.createElement('button');
+  retry.type = 'button';
+  retry.className = 'small reactus-month-retry';
+  retry.textContent = 'カレンダーを再読み込み';
+  retry.addEventListener('click', () => {
+    void loadOwnedMonth({ forceRefresh: true });
+  });
+
+  wrap.append(message, retry);
+  grid.append(wrap);
+}
+
 async function loadOwnedMonth({ quiet = false, forceRefresh = false } = {}) {
   const loadId = ++monthState.loadingId;
   if (!quiet) showMonthLoading();
@@ -336,13 +375,7 @@ async function loadOwnedMonth({ quiet = false, forceRefresh = false } = {}) {
     renderOwnedMonth();
   } catch (error) {
     if (loadId !== monthState.loadingId) return;
-    const grid = mq('#monthGrid');
-    if (!grid) return;
-    grid.replaceChildren();
-    const message = document.createElement('p');
-    message.className = 'muted reactus-month-loading';
-    message.textContent = error.message;
-    grid.append(message);
+    showMonthError(error);
   }
 }
 
@@ -370,7 +403,8 @@ function installMonthStyles() {
   style.textContent = `
     .month-more{display:block;width:100%;margin:3px 0 0;padding:4px 5px;border:0;border-radius:6px;background:transparent;color:#9fb3c8;text-align:left;font-size:11px;cursor:pointer}
     .month-more:hover,.month-more:focus-visible{background:#172231;color:#eef3f8}
-    .reactus-month-loading{grid-column:1/-1;padding:18px;margin:0}
+    .reactus-month-loading,.reactus-month-error{grid-column:1/-1;padding:18px;margin:0}
+    .reactus-month-error .reactus-month-retry{margin-top:8px}
     #reactusMonthTooltip{position:fixed;z-index:10020;max-width:min(390px,calc(100vw - 24px));padding:11px 12px;border:1px solid #354253;border-radius:10px;background:#0e151d;color:#eef3f8;box-shadow:0 12px 36px rgba(0,0,0,.38);font-size:13px;line-height:1.45;white-space:normal;pointer-events:none}
     #reactusMonthTooltip[hidden]{display:none}
     .reactus-month-tooltip-title{font-weight:700;font-size:14px;margin-bottom:5px}
