@@ -1,7 +1,8 @@
 const originalFetch = window.fetch.bind(window);
 const EVENT_CACHE_TTL_MS = 2000;
 const BOOTSTRAP_CACHE_TTL_MS = 5000;
-const ADMIN_GET_TIMEOUT_MS = 12000;
+const BOOTSTRAP_GET_TIMEOUT_MS = 12000;
+const EVENT_GET_TIMEOUT_MS = 35000;
 const LEGACY_MONTH_DAYS = 45;
 const LEGACY_MONTH_PAST_DAYS = 40;
 
@@ -51,9 +52,9 @@ function invalidateBootstrap() {
   inflightBootstrap = null;
 }
 
-async function fetchText(url) {
+async function fetchText(url, timeoutMs, timeoutMessage) {
   const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), ADMIN_GET_TIMEOUT_MS);
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await originalFetch(`${url.pathname}${url.search}`, {
       credentials: 'same-origin',
@@ -69,7 +70,7 @@ async function fetchText(url) {
     };
   } catch (error) {
     if (error?.name === 'AbortError') {
-      throw new Error('読み込みに時間がかかっています。再試行してください。');
+      throw new Error(timeoutMessage);
     }
     throw error;
   } finally {
@@ -94,7 +95,11 @@ async function cachedEventRequest(url) {
   if (cached && Date.now() - cached.loadedAt < EVENT_CACHE_TTL_MS) return cached;
   if (inflightRequests.has(key)) return inflightRequests.get(key);
 
-  const inflight = fetchText(url).then(result => {
+  const inflight = fetchText(
+    url,
+    EVENT_GET_TIMEOUT_MS,
+    'カレンダーの読み込みに時間がかかっています。更新して再試行してください。',
+  ).then(result => {
     if (result.ok) cachedRequests.set(key, result);
     return result;
   });
@@ -113,7 +118,11 @@ async function cachedBootstrapRequest(url) {
   }
   if (inflightBootstrap) return inflightBootstrap;
 
-  inflightBootstrap = fetchText(url).then(result => {
+  inflightBootstrap = fetchText(
+    url,
+    BOOTSTRAP_GET_TIMEOUT_MS,
+    '読み込みに時間がかかっています。再試行してください。',
+  ).then(result => {
     if (result.ok) cachedBootstrap = result;
     return result;
   });
