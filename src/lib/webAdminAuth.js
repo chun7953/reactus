@@ -3,6 +3,8 @@ import { getDBPool } from './settingsCache.js';
 
 const LOGIN_TTL_MINUTES = 10;
 const SESSION_TTL_DAYS = 30;
+const SESSION_CACHE_TTL_MS = 30 * 1000;
+const sessionCache = new Map();
 
 function randomToken() {
     return crypto.randomBytes(32).toString('base64url');
@@ -10,6 +12,33 @@ function randomToken() {
 
 function hashToken(token) {
     return crypto.createHash('sha256').update(String(token || '')).digest('hex');
+}
+
+function sessionExpiryMs(session) {
+    const value = session?.expires_at instanceof Date
+        ? session.expires_at.getTime()
+        : new Date(session?.expires_at || 0).getTime();
+    return Number.isFinite(value) ? value : 0;
+}
+
+function rememberSession(sessionHash, session) {
+    const now = Date.now();
+    const expiresAt = sessionExpiryMs(session);
+    if (!sessionHash || !session || expiresAt <= now) return;
+    sessionCache.set(sessionHash, {
+        session,
+        cacheUntil: Math.min(now + SESSION_CACHE_TTL_MS, expiresAt),
+    });
+}
+
+function readCachedSession(sessionHash) {
+    const cached = sessionCache.get(sessionHash);
+    if (!cached) return null;
+    if (cached.cacheUntil <= Date.now() || sessionExpiryMs(cached.session) <= Date.now()) {
+        sessionCache.delete(sessionHash);
+        return null;
+    }
+    return cached.session;
 }
 
 export async function issueWebAdminLogin(guildId, userId) {
@@ -47,14 +76,20 @@ export async function consumeWebAdminLogin(token) {
         }
 
         const sessionToken = randomToken();
+        const sessionHash = hashToken(sessionToken);
         const { guild_id: guildId, user_id: userId } = login.rows[0];
         await client.query(
             `INSERT INTO web_admin_sessions (session_hash, guild_id, user_id, expires_at)
              VALUES ($1, $2, $3, NOW() + ($4 || ' days')::interval)`,
-            [hashToken(sessionToken), guildId, userId, String(SESSION_TTL_DAYS)],
+            [sessionHash, guildId, userId, String(SESSION_TTL_DAYS)],
         );
         await client.query('COMMIT');
         transactionOpen = false;
+        rememberSession(sessionHash, {
+            guild_id: guildId,
+            user_id: userId,
+            expires_at: new Date(Date.now() + SESSION_TTL_DAYS * 24 * 60 * 60 * 1000),
+        });
         return { sessionToken, guildId, userId, maxAgeSeconds: SESSION_TTL_DAYS * 24 * 60 * 60 };
     } catch (error) {
         if (transactionOpen) await client.query('ROLLBACK').catch(() => {});
@@ -66,19 +101,27 @@ export async function consumeWebAdminLogin(token) {
 
 export async function getWebAdminSession(sessionToken) {
     if (!sessionToken) return null;
+    const sessionHash = hashToken(sessionToken);
+    const cached = readCachedSession(sessionHash);
+    if (cached) return cached;
+
     const pool = await getDBPool();
     const result = await pool.query(
         `SELECT guild_id, user_id, expires_at
            FROM web_admin_sessions
           WHERE session_hash = $1 AND expires_at > NOW()`,
-        [hashToken(sessionToken)],
+        [sessionHash],
     );
-    return result.rows[0] || null;
+    const session = result.rows[0] || null;
+    if (session) rememberSession(sessionHash, session);
+    return session;
 }
 
 export async function revokeWebAdminSession(sessionToken) {
     if (!sessionToken) return false;
+    const sessionHash = hashToken(sessionToken);
+    sessionCache.delete(sessionHash);
     const pool = await getDBPool();
-    const result = await pool.query('DELETE FROM web_admin_sessions WHERE session_hash = $1', [hashToken(sessionToken)]);
+    const result = await pool.query('DELETE FROM web_admin_sessions WHERE session_hash = $1', [sessionHash]);
     return result.rowCount > 0;
 }
