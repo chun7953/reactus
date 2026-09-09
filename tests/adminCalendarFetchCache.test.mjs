@@ -18,6 +18,16 @@ test('admin calendar event cache deduplicates equal windows without forcing a ye
   assert.doesNotMatch(source, /CANONICAL_DAYS = 365/);
 });
 
+test('initial admin bootstrap calls share one in-flight request', async () => {
+  const source = await readFile(cachePath, 'utf8');
+  assert.match(source, /BOOTSTRAP_CACHE_TTL_MS = 5000/);
+  assert.match(source, /let cachedBootstrap = null/);
+  assert.match(source, /let inflightBootstrap = null/);
+  assert.match(source, /if \(inflightBootstrap\) return inflightBootstrap/);
+  assert.match(source, /url\.pathname === '\/api\/admin\/bootstrap'/);
+  assert.match(source, /invalidateBootstrap\(\)/);
+});
+
 test('month calendar loads a focused window and exposes days with more than six events', async () => {
   const source = await readFile(monthPath, 'utf8');
   assert.match(source, /MONTH_VISIBLE_EVENTS = 6/);
