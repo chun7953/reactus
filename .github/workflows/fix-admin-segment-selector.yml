@@ -1,0 +1,42 @@
+name: Fix admin segment selector
+
+on:
+  push:
+    branches:
+      - refactor/schedule-monitor-owner-permissions
+    paths:
+      - .github/workflows/fix-admin-segment-selector.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: contains(github.event.head_commit.message, '[fix-admin-segment-selector]')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: refactor/schedule-monitor-owner-permissions
+      - name: Fix selector and remove one-shot workflow
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('public/admin.js')
+          source = path.read_text()
+          old = "$('.segment').forEach(button => button.addEventListener('click', () => {"
+          new = "$$('.segment').forEach(button => button.addEventListener('click', () => {"
+          if source.count(old) != 1:
+              raise SystemExit(f'expected exactly one selector occurrence, got {source.count(old)}')
+          path.write_text(source.replace(old, new, 1))
+          PY
+          node --check public/admin.js
+          rm .github/workflows/fix-admin-segment-selector.yml
+      - name: Commit fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Fix schedule segment listener selector'
+          git push origin HEAD:refactor/schedule-monitor-owner-permissions
