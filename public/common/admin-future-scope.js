@@ -15,6 +15,7 @@ import './admin-reaction-pagination.js';
 import './admin-calendar-settings-usability.js';
 import './admin-manageable-targets.js';
 import './admin-navigation-polish.js';
+import './admin-mobile.js';
 
 function setTextIfChanged(node, value) {
   if (node && node.textContent !== value) node.textContent = value;
