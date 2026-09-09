@@ -202,11 +202,7 @@ function initialize() {
     sessionStorage.removeItem('reactusCalendarMoveFlash');
     window.setTimeout(() => showNotice(flash), 50);
   }
-  const grid = q('#monthGrid');
-  if (grid) {
-    const observer = new MutationObserver(bindMonth);
-    observer.observe(grid, { childList: true, subtree: true });
-  }
+  document.addEventListener('reactus:month-rendered', bindMonth);
   bindMonth();
 }
 

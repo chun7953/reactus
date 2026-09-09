@@ -26,9 +26,5 @@ function bindMonthEvents() {
   });
 }
 
-const grid = document.querySelector('#monthGrid');
-if (grid) {
-  const observer = new MutationObserver(bindMonthEvents);
-  observer.observe(grid, { childList: true, subtree: true });
-}
+document.addEventListener('reactus:month-rendered', bindMonthEvents);
 bindMonthEvents();

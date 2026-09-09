@@ -6,7 +6,6 @@ const monthState = {
   month: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   events: [],
   loadingId: 0,
-  gridObserver: null,
 };
 
 function mq(selector) {
@@ -48,13 +47,6 @@ export function getMonthEventsForDay(key) {
   const normalized = String(key || '').trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return [];
   return monthState.events.filter(event => eventOverlapsDay(event, normalized));
-}
-
-function monthOwnedSentinel() {
-  const sentinel = document.createElement('span');
-  sentinel.hidden = true;
-  sentinel.dataset.reactusMonthOwned = '1';
-  return sentinel;
 }
 
 function cleanEventTitle(event) {
@@ -289,7 +281,6 @@ function renderOwnedMonth() {
   const m = monthState.month.getMonth();
   label.textContent = `${y}年${m + 1}月`;
   grid.replaceChildren();
-  grid.append(monthOwnedSentinel());
 
   ['日','月','火','水','木','金','土'].forEach(dayName => {
     const node = document.createElement('div');
@@ -328,6 +319,10 @@ function renderOwnedMonth() {
     }
     grid.append(cell);
   }
+
+  document.dispatchEvent(new CustomEvent('reactus:month-rendered', {
+    detail: { year: y, month: m + 1 },
+  }));
 }
 
 function showMonthLoading() {
@@ -336,7 +331,6 @@ function showMonthLoading() {
   if (label) label.textContent = `${monthState.month.getFullYear()}年${monthState.month.getMonth() + 1}月`;
   if (!grid) return;
   grid.replaceChildren();
-  grid.append(monthOwnedSentinel());
   const loading = document.createElement('p');
   loading.className = 'muted reactus-month-loading';
   loading.textContent = '読み込み中…';
@@ -347,7 +341,6 @@ function showMonthError(error) {
   const grid = mq('#monthGrid');
   if (!grid) return;
   grid.replaceChildren();
-  grid.append(monthOwnedSentinel());
 
   const wrap = document.createElement('div');
   wrap.className = 'reactus-month-error';
@@ -435,13 +428,6 @@ function installOwnedMonth() {
   installMonthStyles();
   replaceNavButton('#monthPrev', -1);
   replaceNavButton('#monthNext', 1);
-
-  monthState.gridObserver = new MutationObserver(() => {
-    if (!grid.querySelector('[data-reactus-month-owned="1"]') && monthState.events.length) {
-      queueMicrotask(renderOwnedMonth);
-    }
-  });
-  monthState.gridObserver.observe(grid, { childList: true });
 
   document.querySelector('#refreshEvents')?.addEventListener('click', () => void loadOwnedMonth({ forceRefresh: true }));
   document.querySelector('#scheduleForm')?.addEventListener('submit', () => {

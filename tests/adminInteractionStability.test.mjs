@@ -7,6 +7,9 @@ const adminPath = new URL('../public/admin.js', import.meta.url);
 const enhancementsEntryPath = new URL('../public/admin-enhancements-entry.js', import.meta.url);
 const toolsPath = new URL('../public/common/admin-tools.js', import.meta.url);
 const monthViewPath = new URL('../public/common/admin-calendar-month-view.js', import.meta.url);
+const calendarEditPath = new URL('../public/common/admin-calendar-edit.js', import.meta.url);
+const calendarQuickCreatePath = new URL('../public/common/admin-calendar-quick-create.js', import.meta.url);
+const calendarDragPath = new URL('../public/common/admin-calendar-drag.js', import.meta.url);
 const mentionsPath = new URL('../public/common/admin-mentions.js', import.meta.url);
 const announcementsPath = new URL('../public/common/admin-announcements.js', import.meta.url);
 const futureScopePath = new URL('../public/common/admin-future-scope.js', import.meta.url);
@@ -37,6 +40,9 @@ test('bootstrap helpers rely on owned startup order instead of document-wide obs
     enhancementsEntry,
     futureScope,
     monthView,
+    calendarEdit,
+    calendarQuickCreate,
+    calendarDrag,
     calendarSettings,
     fold,
     settingsUsability,
@@ -47,6 +53,9 @@ test('bootstrap helpers rely on owned startup order instead of document-wide obs
     readFile(enhancementsEntryPath, 'utf8'),
     readFile(futureScopePath, 'utf8'),
     readFile(monthViewPath, 'utf8'),
+    readFile(calendarEditPath, 'utf8'),
+    readFile(calendarQuickCreatePath, 'utf8'),
+    readFile(calendarDragPath, 'utf8'),
     readFile(calendarSettingsPath, 'utf8'),
     readFile(calendarSettingsFoldPath, 'utf8'),
     readFile(calendarSettingsUsabilityPath, 'utf8'),
@@ -79,10 +88,15 @@ test('bootstrap helpers rely on owned startup order instead of document-wide obs
   assert.match(monthView, /new AbortController\(\)/);
   assert.match(monthView, /signal: controller\.signal/);
   assert.match(monthView, /reactus-month-retry/);
-  assert.match(monthView, /monthState\.gridObserver\.observe\(grid,/);
+  assert.match(monthView, /new CustomEvent\('reactus:month-rendered'/);
+  for (const source of [monthView, calendarEdit, calendarQuickCreate, calendarDrag, mobile]) {
+    assert.doesNotMatch(source, /new MutationObserver\(/);
+  }
+  for (const source of [calendarEdit, calendarQuickCreate, calendarDrag, mobile]) {
+    assert.match(source, /addEventListener\('reactus:month-rendered'/);
+  }
   assert.match(settingsUsability, /calendarSettingsListObserver\.observe\(list,/);
   assert.match(reactionPagination, /reactionObserver\.observe\(list,/);
-  assert.match(mobile, /calendarObserver\.observe\(grid,/);
   assert.doesNotMatch(mobile, /appObserver/);
   assert.doesNotMatch(mobile, /observe\(app,/);
   assert.doesNotMatch(mobile, /reactusMobileNav/);
