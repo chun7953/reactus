@@ -5,7 +5,7 @@ import test from 'node:test';
 const handlerPath = new URL('../src/web/adminHandler.js', import.meta.url);
 const authPath = new URL('../src/lib/webAdminAuth.js', import.meta.url);
 const fetchCachePath = new URL('../public/common/admin-event-fetch-cache.js', import.meta.url);
-const startupPath = new URL('../public/common/admin-startup-resilience.js', import.meta.url);
+const htmlPath = new URL('../public/admin.html', import.meta.url);
 const entryPath = new URL('../public/common/admin-future-scope.js', import.meta.url);
 
 test('admin bootstrap uses Discord gateway caches instead of refetching whole guild collections', async () => {
@@ -38,16 +38,18 @@ test('admin GET cache keeps bootstrap bounded without aborting a normal cold cal
   assert.match(source, /カレンダーの読み込みに時間がかかっています。更新して再試行してください。/);
 });
 
-test('admin startup offers an explicit retry instead of an endless loading state', async () => {
-  const [startup, entry] = await Promise.all([
-    readFile(startupPath, 'utf8'),
+test('admin has a static startup shell that remains visible even if module JavaScript fails', async () => {
+  const [html, entry] = await Promise.all([
+    readFile(htmlPath, 'utf8'),
     readFile(entryPath, 'utf8'),
   ]);
-  assert.match(entry, /admin-startup-resilience\.js/);
-  assert.match(startup, /STARTUP_GRACE_MS = 10500/);
-  assert.match(startup, /reactusStartupRetry/);
-  assert.match(startup, /再試行/);
-  assert.match(startup, /window\.location\.reload\(\)/);
+  assert.match(html, /id="startupShell"/);
+  assert.match(html, /管理画面を読み込んでいます/);
+  assert.match(html, /id="startupShellRetry"/);
+  assert.match(html, /12500/);
+  assert.match(html, /window\.location\.reload\(\)/);
+  assert.doesNotMatch(entry, /admin-startup-resilience\.js/);
+  assert.doesNotMatch(entry, /admin-bootstrap-fallback\.js/);
 });
 
 test('fresh web admin sessions are cached briefly to avoid an immediate extra DB round trip', async () => {
