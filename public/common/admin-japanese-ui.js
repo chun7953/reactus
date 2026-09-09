@@ -151,6 +151,9 @@ function applyJapaneseAdminUi() {
   if (heading && heading.textContent !== 'Reactus 管理画面') heading.textContent = 'Reactus 管理画面';
 }
 
-const japaneseUiObserver = new MutationObserver(() => applyJapaneseAdminUi());
-japaneseUiObserver.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
 applyJapaneseAdminUi();
+const eventList = document.querySelector('#eventList');
+if (eventList) {
+  const eventListObserver = new MutationObserver(makeGoogleLinksClearer);
+  eventListObserver.observe(eventList, { childList: true, subtree: true });
+}
