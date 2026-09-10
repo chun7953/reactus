@@ -20,6 +20,7 @@ test('core admin editor owns recurring edit scopes and immediate feedback', asyn
 
     assert.match(source, /addEventListener\('reactus:edit-event'/);
     assert.match(source, /void editEvent\(source\)/);
+    assert.match(source, /editButton\.addEventListener\('click', \(\) => editEvent\(event\)\)/);
     assert.match(source, /future\.value = 'future'/);
     assert.match(source, /future\.textContent = 'これ以降の予定'/);
     assert.match(source, /scope\.append\(instance, future, series\)/);
