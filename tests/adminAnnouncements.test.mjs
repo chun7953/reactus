@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const uiPath = new URL('../public/common/admin-announcements.js', import.meta.url);
 const handlerPath = new URL('../src/web/adminHandler.js', import.meta.url);
-const futureScopePath = new URL('../public/common/admin-enhancement-modules.js', import.meta.url);
+const enhancementModulesPath = new URL('../public/common/admin-enhancement-modules.js', import.meta.url);
 const startCommandPath = new URL('../src/commands/announce/startannounce.js', import.meta.url);
 const stopCommandPath = new URL('../src/commands/announce/stopannounce.js', import.meta.url);
 
@@ -51,7 +51,7 @@ test('announcement slash commands use the same shared service as the web admin',
 });
 
 test('announcement and Japanese UI helpers are loaded by the admin entry chain', async () => {
-  const source = await readFile(futureScopePath, 'utf8');
+  const source = await readFile(enhancementModulesPath, 'utf8');
   assert.match(source, /admin-announcements\.js/);
   assert.match(source, /admin-japanese-ui\.js/);
 });
