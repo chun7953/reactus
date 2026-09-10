@@ -228,7 +228,7 @@ test('calendar integration settings remain folded inside the calendar panel', as
   await fold.locator('summary').click();
   await assertEventLoopResponsive(page);
   expect(failures).toEqual([]);
-});\
+});
 
 test('core editor owns recurring future scope and immediate loading feedback', async ({ page }) => {
   const failures = await openAdmin(page);
