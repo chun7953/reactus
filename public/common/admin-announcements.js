@@ -1,3 +1,9 @@
+import {
+  analyzeAnnouncementMentions,
+  hasAnnouncementMentions,
+  mentionSummary,
+} from './admin-announcement-mention-utils.js';
+
 const ANNOUNCEMENTS_PER_PAGE = 8;
 
 const announcementState = {
@@ -95,6 +101,30 @@ function renderAnnouncementPreview() {
   appendPreviewText(preview, textarea.value);
 }
 
+function renderMentionWarning() {
+  const textarea = aq('#announcementMessage');
+  const warning = aq('#announcementMentionWarning');
+  if (!textarea || !warning) return;
+  const info = analyzeAnnouncementMentions(textarea.value);
+  if (!hasAnnouncementMentions(info)) {
+    warning.textContent = '';
+    warning.classList.add('hidden');
+    return;
+  }
+  warning.textContent = `⚠ メンションが含まれています（${mentionSummary(info)}）。この案内は新しい発言のたびに一番下へ再投稿されるため、そのたびに通知される可能性があります。`;
+  warning.classList.remove('hidden');
+}
+
+function confirmMentionedAnnouncement(message) {
+  const info = analyzeAnnouncementMentions(message);
+  if (!hasAnnouncementMentions(info)) return true;
+  return window.confirm(
+    `この案内にはメンションが含まれています（${mentionSummary(info)}）。\n\n` +
+    'チャンネルに新しい発言があるたび案内が再投稿されるため、メンションも繰り返し通知される可能性があります。\n\n' +
+    'このまま保存しますか？',
+  );
+}
+
 function resetAnnouncementForm() {
   announcementState.editingChannelId = null;
   aq('#announcementForm')?.reset();
@@ -105,6 +135,7 @@ function resetAnnouncementForm() {
   aq('#announcementCancel')?.classList.add('hidden');
   updateAnnouncementCount();
   renderAnnouncementPreview();
+  renderMentionWarning();
 }
 
 function startAnnouncementEdit(item) {
@@ -117,6 +148,7 @@ function startAnnouncementEdit(item) {
   aq('#announcementCancel').classList.remove('hidden');
   updateAnnouncementCount();
   renderAnnouncementPreview();
+  renderMentionWarning();
   aq('#announcementForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
   aq('#announcementMessage').focus();
 }
@@ -242,6 +274,7 @@ function insertChannelLink() {
   textarea.setSelectionRange(next, next);
   updateAnnouncementCount();
   renderAnnouncementPreview();
+  renderMentionWarning();
 }
 
 function installAnnouncementStyles() {
@@ -257,6 +290,8 @@ function installAnnouncementStyles() {
     .announcement-link-row label{flex:1;min-width:230px}
     .announcement-count-row{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-top:6px}
     .announcement-count-warning{color:#ffbf69}
+    .announcement-mention-warning{margin-top:8px;padding:10px 12px;border:1px solid #76572a;border-radius:9px;background:#21190e;color:#f3d49a;line-height:1.5}
+    .announcement-channel-link-note{margin-top:6px;color:#91a0af;font-size:.82rem}
     .announcement-preview{min-height:110px;padding:14px;border:1px solid #2a3746;border-radius:10px;background:#111820;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55}
     .announcement-channel-preview{color:#c9cdfb;background:#3b3f66;border-radius:4px;padding:0 3px}
     .announcement-list{display:grid;gap:9px}
@@ -298,6 +333,7 @@ function installAnnouncementPanel() {
           <span>案内文</span>
           <textarea id="announcementMessage" rows="10" maxlength="2000" required placeholder="例：\n質問はこちらのチャンネルへお願いします。\n<#チャンネル> も下のボタンから簡単に入れられます。"></textarea>
           <div class="announcement-count-row"><span class="hint">改行・URL・Discordのチャンネルリンクをそのまま使えます。</span><span id="announcementCount" class="muted">0 / 2000文字</span></div>
+          <div id="announcementMentionWarning" class="announcement-mention-warning hidden" role="alert"></div>
         </label>
         <div class="announcement-link-row">
           <label>
@@ -306,6 +342,7 @@ function installAnnouncementPanel() {
           </label>
           <button id="announcementInsertChannel" type="button" class="small">選んだチャンネルを挿入</button>
         </div>
+        <div id="announcementChannelLinkNote" class="announcement-channel-link-note">チャンネルへのリンクは通知を送りません。案内先を示したいだけなら、メンションではなくこちらを使うのがおすすめです。</div>
         <div>
           <span class="field-title">Discordでの見え方</span>
           <div id="announcementPreview" class="announcement-preview muted">ここにDiscordでの見え方を確認できます。</div>
@@ -361,6 +398,7 @@ async function initializeAnnouncements() {
   aq('#announcementMessage').addEventListener('input', () => {
     updateAnnouncementCount();
     renderAnnouncementPreview();
+    renderMentionWarning();
   });
   aq('#announcementInsertChannel').addEventListener('click', insertChannelLink);
   aq('#announcementCancel').addEventListener('click', resetAnnouncementForm);
@@ -368,6 +406,7 @@ async function initializeAnnouncements() {
     event.preventDefault();
     const channelId = announcementState.editingChannelId || aq('#announcementChannel').value;
     const message = aq('#announcementMessage').value;
+    if (!confirmMentionedAnnouncement(message)) return;
     const save = aq('#announcementSave');
     save.disabled = true;
     const oldText = save.textContent;
@@ -391,6 +430,7 @@ async function initializeAnnouncements() {
   });
   updateAnnouncementCount();
   renderAnnouncementPreview();
+  renderMentionWarning();
   return true;
 }
 
