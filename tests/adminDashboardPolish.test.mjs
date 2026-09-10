@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const entryPath = new URL('../public/common/admin-future-scope.js', import.meta.url);
+const entryPath = new URL('../public/common/admin-enhancement-modules.js', import.meta.url);
 const guidePath = new URL('../public/common/admin-japanese-ui.js', import.meta.url);
 const adminPath = new URL('../public/admin.js', import.meta.url);
 const toolsPath = new URL('../public/common/admin-tools.js', import.meta.url);

@@ -4,21 +4,21 @@ import test from 'node:test';
 
 const inlinePath = new URL('../public/common/admin-mobile-day-inline.js', import.meta.url);
 const entryPath = new URL('../public/admin-entry.js', import.meta.url);
-const futureScopePath = new URL('../public/common/admin-future-scope.js', import.meta.url);
+const enhancementModulesPath = new URL('../public/common/admin-enhancement-modules.js', import.meta.url);
 const monthPath = new URL('../public/common/admin-calendar-month-view.js', import.meta.url);
 
 test('mobile calendar day badge uses inline details owned by the core calendar runtime', async () => {
-  const [source, entry, futureScope] = await Promise.all([
+  const [source, entry, enhancementModules] = await Promise.all([
     readFile(inlinePath, 'utf8'),
     readFile(entryPath, 'utf8'),
-    readFile(futureScopePath, 'utf8'),
+    readFile(enhancementModulesPath, 'utf8'),
   ]);
 
   assert.match(
     entry,
     /admin-calendar-month-view\.js';\s*import '\.\/common\/admin-mobile-day-inline\.js';/s,
   );
-  assert.doesNotMatch(futureScope, /admin-mobile-day-inline\.js/);
+  assert.doesNotMatch(enhancementModules, /admin-mobile-day-inline\.js/);
   assert.match(source, /reactusMobileDayInline/);
   assert.match(source, /event\.stopImmediatePropagation\(\)/);
   assert.match(source, /openInlineDay\(cell\)/);

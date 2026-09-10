@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const quickPath = new URL('../public/common/admin-calendar-quick-create.js', import.meta.url);
-const loaderPath = new URL('../public/common/admin-future-scope.js', import.meta.url);
+const loaderPath = new URL('../public/common/admin-enhancement-modules.js', import.meta.url);
 
 test('month calendar loads quick-create controls', async () => {
     const loader = await readFile(loaderPath, 'utf8');

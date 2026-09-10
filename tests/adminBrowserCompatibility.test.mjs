@@ -8,7 +8,8 @@ const enhancementsEntryPath = new URL('../public/admin-enhancements-entry.js', i
 const polyfillPath = new URL('../public/admin-polyfills.js', import.meta.url);
 const serverPath = new URL('../src/web/server.js', import.meta.url);
 const dockerPath = new URL('../Dockerfile', import.meta.url);
-const futureScopePath = new URL('../public/common/admin-future-scope.js', import.meta.url);
+const enhancementModulesPath = new URL('../public/common/admin-enhancement-modules.js', import.meta.url);
+const retiredFutureScopePath = new URL('../public/common/admin-future-scope.js', import.meta.url);
 const loginPolishPath = new URL('../public/common/admin-login-link-polish.js', import.meta.url);
 
 test('bundled and unbundled admin use the same canonical entry graph', async () => {
@@ -56,8 +57,10 @@ test('production image splits bootstrap-critical admin code from heavy UI enhanc
 
   assert.doesNotMatch(enhancements, /admin-observer-guard\.js/);
   assert.match(enhancements, /admin-tools\.js/);
-  assert.match(enhancements, /admin-future-scope\.js/);
+  assert.match(enhancements, /admin-enhancement-modules\.js/);
+  assert.doesNotMatch(enhancements, /admin-future-scope\.js/);
   assert.doesNotMatch(enhancements, /admin-calendar-polish\.js/);
+  await assert.rejects(readFile(retiredFutureScopePath, 'utf8'), error => error?.code === 'ENOENT');
 
   assert.match(docker, /esbuild@0\.25\.9/);
   assert.match(docker, /--target=chrome55/);
@@ -87,11 +90,11 @@ test('admin bootstrap leaves browser fetch ownership untouched', async () => {
 });
 
 test('an expired one-time login link does not keep warning on a browser with a valid session', async () => {
-  const [futureScope, polish] = await Promise.all([
-    readFile(futureScopePath, 'utf8'),
+  const [enhancementModules, polish] = await Promise.all([
+    readFile(enhancementModulesPath, 'utf8'),
     readFile(loginPolishPath, 'utf8'),
   ]);
-  assert.match(futureScope, /admin-login-link-polish\.js/);
+  assert.match(enhancementModules, /admin-login-link-polish\.js/);
   assert.match(polish, /login.*expired/);
   assert.match(polish, /#app/);
   assert.match(polish, /ログインリンクの有効期限が切れています/);

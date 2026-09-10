@@ -12,7 +12,7 @@ const calendarQuickCreatePath = new URL('../public/common/admin-calendar-quick-c
 const calendarDragPath = new URL('../public/common/admin-calendar-drag.js', import.meta.url);
 const mentionsPath = new URL('../public/common/admin-mentions.js', import.meta.url);
 const announcementsPath = new URL('../public/common/admin-announcements.js', import.meta.url);
-const futureScopePath = new URL('../public/common/admin-future-scope.js', import.meta.url);
+const enhancementModulesPath = new URL('../public/common/admin-enhancement-modules.js', import.meta.url);
 const calendarSettingsPath = new URL('../public/common/admin-calendar-settings.js', import.meta.url);
 const calendarSettingsFoldPath = new URL('../public/common/admin-calendar-settings-fold.js', import.meta.url);
 const calendarLoadGuardPath = new URL('../public/common/admin-calendar-load-guard.js', import.meta.url);
@@ -22,23 +22,23 @@ const reactionPaginationPath = new URL('../public/common/admin-reaction-paginati
 const mobilePath = new URL('../public/common/admin-mobile.js', import.meta.url);
 
 test('admin enhancements do not replace the browser MutationObserver implementation', async () => {
-  const [entry, announcements, futureScope] = await Promise.all([
+  const [entry, announcements, enhancementModules] = await Promise.all([
     readFile(enhancementsEntryPath, 'utf8'),
     readFile(announcementsPath, 'utf8'),
-    readFile(futureScopePath, 'utf8'),
+    readFile(enhancementModulesPath, 'utf8'),
   ]);
 
   assert.doesNotMatch(entry, /admin-observer-guard\.js/);
   assert.doesNotMatch(entry, /window\.MutationObserver\s*=/);
   assert.doesNotMatch(announcements, /observe\(document\.documentElement/);
-  assert.doesNotMatch(futureScope, /admin-panel-layout\.js/);
+  assert.doesNotMatch(enhancementModules, /admin-panel-layout\.js/);
 });
 
 test('bootstrap helpers rely on owned startup order instead of document-wide observers or external layout guards', async () => {
   const [
     adminEntry,
     enhancementsEntry,
-    futureScope,
+    enhancementModules,
     monthView,
     calendarEdit,
     calendarQuickCreate,
@@ -51,7 +51,7 @@ test('bootstrap helpers rely on owned startup order instead of document-wide obs
   ] = await Promise.all([
     readFile(adminEntryPath, 'utf8'),
     readFile(enhancementsEntryPath, 'utf8'),
-    readFile(futureScopePath, 'utf8'),
+    readFile(enhancementModulesPath, 'utf8'),
     readFile(monthViewPath, 'utf8'),
     readFile(calendarEditPath, 'utf8'),
     readFile(calendarQuickCreatePath, 'utf8'),
@@ -77,11 +77,11 @@ test('bootstrap helpers rely on owned startup order instead of document-wide obs
   assert.ok(adminEntry.indexOf("./common/admin-calendar-shell.js") < adminEntry.indexOf("./common/admin-calendar-month-view.js"));
   assert.doesNotMatch(adminEntry, /admin-calendar-load-guard\.js/);
   await assert.rejects(readFile(calendarLoadGuardPath, 'utf8'), error => error?.code === 'ENOENT');
-  assert.ok(enhancementsEntry.indexOf("./common/admin-tools.js") < enhancementsEntry.indexOf("./common/admin-future-scope.js"));
-  assert.ok(futureScope.indexOf("./admin-calendar-settings.js") < futureScope.indexOf("./admin-calendar-settings-fold.js"));
-  assert.ok(futureScope.indexOf("./admin-calendar-settings.js") < futureScope.indexOf("./admin-calendar-settings-usability.js"));
-  assert.ok(futureScope.indexOf("./admin-calendar-settings.js") < futureScope.indexOf("./admin-mobile.js"));
-  assert.doesNotMatch(futureScope, /admin-mobile-layout-hotfix\.js/);
+  assert.ok(enhancementsEntry.indexOf("./common/admin-tools.js") < enhancementsEntry.indexOf("./common/admin-enhancement-modules.js"));
+  assert.ok(enhancementModules.indexOf("./admin-calendar-settings.js") < enhancementModules.indexOf("./admin-calendar-settings-fold.js"));
+  assert.ok(enhancementModules.indexOf("./admin-calendar-settings.js") < enhancementModules.indexOf("./admin-calendar-settings-usability.js"));
+  assert.ok(enhancementModules.indexOf("./admin-calendar-settings.js") < enhancementModules.indexOf("./admin-mobile.js"));
+  assert.doesNotMatch(enhancementModules, /admin-mobile-layout-hotfix\.js/);
   await assert.rejects(readFile(mobileLayoutHotfixPath, 'utf8'), error => error?.code === 'ENOENT');
 
   assert.match(monthView, /MONTH_REQUEST_TIMEOUT_MS = 40_000/);
@@ -107,10 +107,10 @@ test('bootstrap helpers rely on owned startup order instead of document-wide obs
 });
 
 test('rich mentions are owned by the core schedule data flow without a fetch wrapper', async () => {
-  const [admin, mentions, futureScope] = await Promise.all([
+  const [admin, mentions, enhancementModules] = await Promise.all([
     readFile(adminPath, 'utf8'),
     readFile(mentionsPath, 'utf8'),
-    readFile(futureScopePath, 'utf8'),
+    readFile(enhancementModulesPath, 'utf8'),
   ]);
 
   assert.match(admin, /import \{ loadMentionConfig, mentionPayload, syncMentionRoleOptions \} from '\.\/common\/admin-mentions\.js';/);
@@ -122,7 +122,7 @@ test('rich mentions are owned by the core schedule data flow without a fetch wra
   assert.doesNotMatch(mentions, /new MutationObserver\(/);
   assert.doesNotMatch(mentions, /observe\(document\.documentElement/);
   assert.doesNotMatch(mentions, /window\.ReactusMentions/);
-  assert.doesNotMatch(futureScope, /admin-mentions\.js/);
+  assert.doesNotMatch(enhancementModules, /admin-mentions\.js/);
 });
 
 test('the month calendar has one renderer and admin tools no longer replace its DOM', async () => {
