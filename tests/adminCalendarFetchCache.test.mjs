@@ -10,7 +10,7 @@ const dragPath = new URL('../public/common/admin-calendar-drag.js', import.meta.
 const mobileDayPath = new URL('../public/common/admin-mobile-day-inline.js', import.meta.url);
 const monthPath = new URL('../public/common/admin-calendar-month-view.js', import.meta.url);
 const entryPath = new URL('../public/admin-entry.js', import.meta.url);
-const futureScopePath = new URL('../public/common/admin-enhancement-modules.js', import.meta.url);
+const enhancementModulesPath = new URL('../public/common/admin-enhancement-modules.js', import.meta.url);
 const shellPath = new URL('../public/common/admin-calendar-shell.js', import.meta.url);
 const foldPath = new URL('../public/common/admin-calendar-settings-fold.js', import.meta.url);
 const htmlPath = new URL('../public/admin.html', import.meta.url);
@@ -90,9 +90,9 @@ test('month calendar loads a focused window and exposes days with more than six 
 });
 
 test('calendar shell and month-owned consumers are bootstrap-critical instead of deferred behind optional UI', async () => {
-  const [entrySource, futureSource, shellSource, htmlSource] = await Promise.all([
+  const [entrySource, enhancementModulesSource, shellSource, htmlSource] = await Promise.all([
     readFile(entryPath, 'utf8'),
-    readFile(futureScopePath, 'utf8'),
+    readFile(enhancementModulesPath, 'utf8'),
     readFile(shellPath, 'utf8'),
     readFile(htmlPath, 'utf8'),
   ]);
@@ -101,8 +101,8 @@ test('calendar shell and month-owned consumers are bootstrap-critical instead of
   assert.match(entrySource, /admin-mobile-day-inline\.js/);
   assert.doesNotMatch(entrySource, /admin-calendar-load-guard\.js/);
   assert.doesNotMatch(entrySource, /admin-event-fetch-cache\.js/);
-  assert.doesNotMatch(futureSource, /admin-calendar-month-view\.js/);
-  assert.doesNotMatch(futureSource, /admin-mobile-day-inline\.js/);
+  assert.doesNotMatch(enhancementModulesSource, /admin-calendar-month-view\.js/);
+  assert.doesNotMatch(enhancementModulesSource, /admin-mobile-day-inline\.js/);
   assert.match(shellSource, /<h2>カレンダー<\/h2>/);
   assert.doesNotMatch(shellSource, /カレンダー表示/);
   assert.match(htmlSource, /<script type="module" src="\/admin-entry\.js"><\/script>/);
@@ -113,11 +113,11 @@ test('calendar shell and month-owned consumers are bootstrap-critical instead of
 });
 
 test('calendar integration settings fold into the calendar instead of using a separate full panel', async () => {
-  const [futureSource, foldSource] = await Promise.all([
-    readFile(futureScopePath, 'utf8'),
+  const [enhancementModulesSource, foldSource] = await Promise.all([
+    readFile(enhancementModulesPath, 'utf8'),
     readFile(foldPath, 'utf8'),
   ]);
-  assert.match(futureSource, /admin-calendar-settings-fold\.js/);
+  assert.match(enhancementModulesSource, /admin-calendar-settings-fold\.js/);
   assert.match(foldSource, /#calendarOverview/);
   assert.match(foldSource, /#calendarSettingsPanel/);
   assert.match(foldSource, /カレンダー連携設定/);
