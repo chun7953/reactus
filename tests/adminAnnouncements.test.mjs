@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const uiPath = new URL('../public/common/admin-announcements.js', import.meta.url);
 const handlerPath = new URL('../src/web/adminHandler.js', import.meta.url);
-const futureScopePath = new URL('../public/common/admin-future-scope.js', import.meta.url);
+const futureScopePath = new URL('../public/common/admin-enhancement-modules.js', import.meta.url);
 const startCommandPath = new URL('../src/commands/announce/startannounce.js', import.meta.url);
 const stopCommandPath = new URL('../src/commands/announce/stopannounce.js', import.meta.url);
 

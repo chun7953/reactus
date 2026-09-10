@@ -8,7 +8,7 @@ const enhancementsEntryPath = new URL('../public/admin-enhancements-entry.js', i
 const polyfillPath = new URL('../public/admin-polyfills.js', import.meta.url);
 const serverPath = new URL('../src/web/server.js', import.meta.url);
 const dockerPath = new URL('../Dockerfile', import.meta.url);
-const futureScopePath = new URL('../public/common/admin-future-scope.js', import.meta.url);
+const futureScopePath = new URL('../public/common/admin-enhancement-modules.js', import.meta.url);
 const loginPolishPath = new URL('../public/common/admin-login-link-polish.js', import.meta.url);
 
 test('bundled and unbundled admin use the same canonical entry graph', async () => {

@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const adminPath = new URL('../public/admin.js', import.meta.url);
 const mentionsPath = new URL('../public/common/admin-mentions.js', import.meta.url);
-const loaderPath = new URL('../public/common/admin-future-scope.js', import.meta.url);
+const loaderPath = new URL('../public/common/admin-enhancement-modules.js', import.meta.url);
 const handlerPath = new URL('../src/web/adminHandler.js', import.meta.url);
 const servicePath = new URL('../src/lib/webCalendarMentionService.js', import.meta.url);
 

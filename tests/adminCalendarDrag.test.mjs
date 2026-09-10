@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const dragPath = new URL('../public/common/admin-calendar-drag.js', import.meta.url);
-const loaderPath = new URL('../public/common/admin-future-scope.js', import.meta.url);
+const loaderPath = new URL('../public/common/admin-enhancement-modules.js', import.meta.url);
 const handlerPath = new URL('../src/web/adminHandler.js', import.meta.url);
 
 test('dashboard loads drag controls after quick-create date bindings', async () => {

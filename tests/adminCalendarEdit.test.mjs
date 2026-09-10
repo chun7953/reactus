@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const adminPath = new URL('../public/admin.js', import.meta.url);
 const calendarEditPath = new URL('../public/common/admin-calendar-edit.js', import.meta.url);
-const loaderPath = new URL('../public/common/admin-future-scope.js', import.meta.url);
+const loaderPath = new URL('../public/common/admin-enhancement-modules.js', import.meta.url);
 const retiredFeedbackPath = new URL('../public/common/admin-edit-feedback.js', import.meta.url);
 
 test('month calendar integration loads with the dashboard', async () => {

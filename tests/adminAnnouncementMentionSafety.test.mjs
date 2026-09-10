@@ -8,7 +8,7 @@ import {
 } from '../public/common/admin-announcement-mention-utils.js';
 
 const safetyPath = new URL('../public/common/admin-announcement-safety.js', import.meta.url);
-const entryPath = new URL('../public/common/admin-future-scope.js', import.meta.url);
+const entryPath = new URL('../public/common/admin-enhancement-modules.js', import.meta.url);
 
 test('channel links are not treated as notification mentions', () => {
   const info = analyzeAnnouncementMentions('詳しくは <#123456789012345678> を見てください');

@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const mobilePath = new URL('../public/common/admin-mobile.js', import.meta.url);
-const entryPath = new URL('../public/common/admin-future-scope.js', import.meta.url);
+const entryPath = new URL('../public/common/admin-enhancement-modules.js', import.meta.url);
 const legacyHotfixPath = new URL('../public/common/admin-mobile-layout-hotfix.js', import.meta.url);
 
 test('mobile admin module is loaded from the dashboard entry chain without a post-hoc layout hotfix', async () => {

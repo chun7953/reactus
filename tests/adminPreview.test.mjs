@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const previewPath = new URL('../public/common/admin-preview.js', import.meta.url);
-const loaderPath = new URL('../public/common/admin-future-scope.js', import.meta.url);
+const loaderPath = new URL('../public/common/admin-enhancement-modules.js', import.meta.url);
 
 test('admin Discord preview is loaded by the dashboard', async () => {
     const loader = await readFile(loaderPath, 'utf8');

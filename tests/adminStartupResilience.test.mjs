@@ -6,7 +6,7 @@ const handlerPath = new URL('../src/web/adminHandler.js', import.meta.url);
 const authPath = new URL('../src/lib/webAdminAuth.js', import.meta.url);
 const calendarAdminPath = new URL('../src/lib/webCalendarAdmin.js', import.meta.url);
 const htmlPath = new URL('../public/admin.html', import.meta.url);
-const entryPath = new URL('../public/common/admin-future-scope.js', import.meta.url);
+const entryPath = new URL('../public/common/admin-enhancement-modules.js', import.meta.url);
 
 test('admin bootstrap uses Discord gateway caches instead of refetching whole guild collections', async () => {
   const source = await readFile(handlerPath, 'utf8');

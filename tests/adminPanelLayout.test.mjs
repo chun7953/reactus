@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const announcementsPath = new URL('../public/common/admin-announcements.js', import.meta.url);
-const futureScopePath = new URL('../public/common/admin-future-scope.js', import.meta.url);
+const futureScopePath = new URL('../public/common/admin-enhancement-modules.js', import.meta.url);
 
 test('announcement panel is mounted directly as a top-level calendar sibling', async () => {
   const source = await readFile(announcementsPath, 'utf8');

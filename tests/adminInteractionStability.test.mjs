@@ -12,7 +12,7 @@ const calendarQuickCreatePath = new URL('../public/common/admin-calendar-quick-c
 const calendarDragPath = new URL('../public/common/admin-calendar-drag.js', import.meta.url);
 const mentionsPath = new URL('../public/common/admin-mentions.js', import.meta.url);
 const announcementsPath = new URL('../public/common/admin-announcements.js', import.meta.url);
-const futureScopePath = new URL('../public/common/admin-future-scope.js', import.meta.url);
+const futureScopePath = new URL('../public/common/admin-enhancement-modules.js', import.meta.url);
 const calendarSettingsPath = new URL('../public/common/admin-calendar-settings.js', import.meta.url);
 const calendarSettingsFoldPath = new URL('../public/common/admin-calendar-settings-fold.js', import.meta.url);
 const calendarLoadGuardPath = new URL('../public/common/admin-calendar-load-guard.js', import.meta.url);
@@ -77,7 +77,7 @@ test('bootstrap helpers rely on owned startup order instead of document-wide obs
   assert.ok(adminEntry.indexOf("./common/admin-calendar-shell.js") < adminEntry.indexOf("./common/admin-calendar-month-view.js"));
   assert.doesNotMatch(adminEntry, /admin-calendar-load-guard\.js/);
   await assert.rejects(readFile(calendarLoadGuardPath, 'utf8'), error => error?.code === 'ENOENT');
-  assert.ok(enhancementsEntry.indexOf("./common/admin-tools.js") < enhancementsEntry.indexOf("./common/admin-future-scope.js"));
+  assert.ok(enhancementsEntry.indexOf("./common/admin-tools.js") < enhancementsEntry.indexOf("./common/admin-enhancement-modules.js"));
   assert.ok(futureScope.indexOf("./admin-calendar-settings.js") < futureScope.indexOf("./admin-calendar-settings-fold.js"));
   assert.ok(futureScope.indexOf("./admin-calendar-settings.js") < futureScope.indexOf("./admin-calendar-settings-usability.js"));
   assert.ok(futureScope.indexOf("./admin-calendar-settings.js") < futureScope.indexOf("./admin-mobile.js"));

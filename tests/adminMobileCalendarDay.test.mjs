@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const inlinePath = new URL('../public/common/admin-mobile-day-inline.js', import.meta.url);
 const entryPath = new URL('../public/admin-entry.js', import.meta.url);
-const futureScopePath = new URL('../public/common/admin-future-scope.js', import.meta.url);
+const futureScopePath = new URL('../public/common/admin-enhancement-modules.js', import.meta.url);
 const monthPath = new URL('../public/common/admin-calendar-month-view.js', import.meta.url);
 
 test('mobile calendar day badge uses inline details owned by the core calendar runtime', async () => {

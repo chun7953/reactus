@@ -14,7 +14,7 @@ const handlerPath = new URL('../src/web/adminHandler.js', import.meta.url);
 const mentionPath = new URL('../src/lib/webCalendarMentionService.js', import.meta.url);
 const duplicatePath = new URL('../src/lib/webCalendarDuplicateService.js', import.meta.url);
 const monitorPath = new URL('../src/lib/webCalendarMonitorService.js', import.meta.url);
-const futureScopePath = new URL('../public/common/admin-future-scope.js', import.meta.url);
+const futureScopePath = new URL('../public/common/admin-enhancement-modules.js', import.meta.url);
 const reactionPaginationPath = new URL('../public/common/admin-reaction-pagination.js', import.meta.url);
 const adminUiPath = new URL('../public/admin.js', import.meta.url);
 

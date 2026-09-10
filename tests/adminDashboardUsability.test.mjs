@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const adminPath = new URL('../public/admin.js', import.meta.url);
 const dashboardPath = new URL('../public/common/admin-dashboard-usability.js', import.meta.url);
-const futureScopePath = new URL('../public/common/admin-future-scope.js', import.meta.url);
+const futureScopePath = new URL('../public/common/admin-enhancement-modules.js', import.meta.url);
 
 test('dashboard pagination does not start a second calendar data request', async () => {
   const source = await readFile(dashboardPath, 'utf8');
