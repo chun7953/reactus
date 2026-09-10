@@ -3,13 +3,15 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const inlinePath = new URL('../public/common/admin-mobile-day-inline.js', import.meta.url);
+const mobilePath = new URL('../public/common/admin-mobile.js', import.meta.url);
 const entryPath = new URL('../public/admin-entry.js', import.meta.url);
 const enhancementModulesPath = new URL('../public/common/admin-enhancement-modules.js', import.meta.url);
 const monthPath = new URL('../public/common/admin-calendar-month-view.js', import.meta.url);
 
-test('mobile calendar day badge uses inline details owned by the core calendar runtime', async () => {
-  const [source, entry, enhancementModules] = await Promise.all([
+test('mobile calendar day badge and inline details have one core owner', async () => {
+  const [source, mobileSource, entry, enhancementModules] = await Promise.all([
     readFile(inlinePath, 'utf8'),
+    readFile(mobilePath, 'utf8'),
     readFile(entryPath, 'utf8'),
     readFile(enhancementModulesPath, 'utf8'),
   ]);
@@ -20,11 +22,21 @@ test('mobile calendar day badge uses inline details owned by the core calendar r
   );
   assert.doesNotMatch(enhancementModules, /admin-mobile-day-inline\.js/);
   assert.match(source, /reactusMobileDayInline/);
-  assert.match(source, /event\.stopImmediatePropagation\(\)/);
+  assert.match(source, /document\.addEventListener\('reactus:month-rendered', handleMonthRendered\)/);
+  assert.match(source, /badge\.addEventListener\('click'/);
   assert.match(source, /openInlineDay\(cell\)/);
+  assert.match(source, /const count = key \? getMonthEventsForDay\(key\)\.length : 0/);
   assert.match(source, /grid\.after\(panel\)/);
+  assert.doesNotMatch(source, /document\.addEventListener\('click'/);
+  assert.doesNotMatch(source, /stopImmediatePropagation/);
   assert.doesNotMatch(source, /showModal\(/);
   assert.doesNotMatch(source, /document\.createElement\(['"]dialog['"]\)/);
+
+  assert.doesNotMatch(mobileSource, /installMobileDayDialog/);
+  assert.doesNotMatch(mobileSource, /openCompactDay/);
+  assert.doesNotMatch(mobileSource, /reactusMobileDayDialog/);
+  assert.doesNotMatch(mobileSource, /reactus-mobile-event-count/);
+  assert.doesNotMatch(mobileSource, /reactus:month-rendered/);
 });
 
 test('inline day details reuse the complete month-owned event collection without another list request', async () => {

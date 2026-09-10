@@ -4,92 +4,6 @@ function mobile(selector) {
   return document.querySelector(selector);
 }
 
-function installMobileDayDialog() {
-  let dialog = mobile('#reactusMobileDayDialog');
-  if (dialog) return dialog;
-  dialog = document.createElement('dialog');
-  dialog.id = 'reactusMobileDayDialog';
-  dialog.innerHTML = `
-    <div class="reactus-mobile-day-head">
-      <strong>この日の予定</strong>
-      <button type="button" class="small" data-close-mobile-day>閉じる</button>
-    </div>
-    <div class="reactus-mobile-day-list"></div>`;
-  document.body.append(dialog);
-  dialog.querySelector('[data-close-mobile-day]')?.addEventListener('click', () => dialog.close());
-  dialog.addEventListener('click', event => {
-    if (event.target === dialog) dialog.close();
-  });
-  return dialog;
-}
-
-function openCompactDay(cell, eventNodes) {
-  const dialog = installMobileDayDialog();
-  const list = dialog.querySelector('.reactus-mobile-day-list');
-  if (!list) return;
-  list.replaceChildren();
-  for (const source of eventNodes) {
-    const item = document.createElement(source.href ? 'a' : 'div');
-    item.className = `reactus-mobile-day-event${source.classList.contains('giveaway') ? ' giveaway' : ''}`;
-    item.textContent = source.textContent || '予定';
-    if (source.href) {
-      item.href = source.href;
-      item.target = '_blank';
-      item.rel = 'noopener noreferrer';
-    }
-    list.append(item);
-  }
-  if (!dialog.open) dialog.showModal();
-}
-
-function enhanceCalendarForMobile() {
-  const grid = mobile('#monthGrid');
-  if (!grid) return false;
-  const cells = [...grid.querySelectorAll('.month-day')];
-  if (!cells.length) return true;
-
-  for (const cell of cells) {
-    const eventNodes = [...cell.querySelectorAll('.month-event')];
-    const more = cell.querySelector('.month-more');
-    const extra = Number(String(more?.textContent || '').match(/(\d+)/)?.[1] || 0);
-    const count = eventNodes.length + extra;
-    let badge = cell.querySelector('.reactus-mobile-event-count');
-
-    if (!count) {
-      badge?.remove();
-      cell.classList.remove('reactus-mobile-has-events');
-      continue;
-    }
-
-    if (!badge) {
-      badge = document.createElement('button');
-      badge.type = 'button';
-      badge.className = 'reactus-mobile-event-count';
-      cell.append(badge);
-    }
-    if (badge.textContent !== String(count)) badge.textContent = String(count);
-    badge.setAttribute('aria-label', `${count}件の予定を表示`);
-    cell.classList.add('reactus-mobile-has-events');
-
-    if (badge.dataset.mobileBound !== '1') {
-      badge.dataset.mobileBound = '1';
-      badge.addEventListener('click', event => {
-        event.preventDefault();
-        event.stopPropagation();
-        if (!MOBILE_QUERY.matches) return;
-        const currentEvents = [...cell.querySelectorAll('.month-event')];
-        const currentMore = cell.querySelector('.month-more');
-        if (currentMore) {
-          currentMore.click();
-          return;
-        }
-        openCompactDay(cell, currentEvents);
-      });
-    }
-  }
-  return true;
-}
-
 function prepareRecurrenceForMobile() {
   const details = mobile('details.recurrence');
   if (!details || details.dataset.mobilePrepared === '1') return;
@@ -160,17 +74,10 @@ function installStyles() {
       .month-day.outside{display:block!important;opacity:.25}
       .month-num{text-align:center;margin-bottom:2px!important;font-size:11px!important}
       .month-day>.month-event,.month-day>.month-more{display:none!important}
-      .reactus-mobile-event-count{display:grid;place-items:center;width:24px;height:24px;min-height:24px;margin:3px auto 0;padding:0;border:1px solid #43536a;border-radius:999px;background:#172231;color:#eef3f8;font-size:11px;font-weight:800}
-      .month-day.today .reactus-mobile-event-count{background:#5865f2;border-color:#7289ff}
-      #reactusCalendarDayDialog,#reactusMobileDayDialog{width:calc(100vw - 12px)!important;max-height:86dvh!important;margin:auto 6px!important;border-radius:14px!important}
-      .reactus-day-dialog-head,.reactus-mobile-day-head{padding:12px!important}
-      .reactus-day-dialog-list,.reactus-mobile-day-list{padding:9px 10px 16px!important}
-      .reactus-day-dialog-event,.reactus-mobile-day-event{display:block;min-height:44px;padding:11px 10px;border:1px solid #293746;border-radius:9px;background:#172231;color:#eef3f8;text-decoration:none;white-space:normal}
-      .reactus-mobile-day-event.giveaway{background:#251d35}
-      .reactus-mobile-day-list{display:grid;gap:7px;overflow:auto}
-      .reactus-mobile-day-head{position:sticky;top:0;display:flex;align-items:center;justify-content:space-between;gap:8px;border-bottom:1px solid #293746;background:#0d141c}
-      #reactusMobileDayDialog{padding:0;border:1px solid #354253;background:#0d141c;color:#eef3f8}
-      #reactusMobileDayDialog::backdrop{background:rgba(0,0,0,.62)}
+      #reactusCalendarDayDialog{width:calc(100vw - 12px)!important;max-height:86dvh!important;margin:auto 6px!important;border-radius:14px!important}
+      .reactus-day-dialog-head{padding:12px!important}
+      .reactus-day-dialog-list{padding:9px 10px 16px!important}
+      .reactus-day-dialog-event{display:block;min-height:44px;padding:11px 10px;border:1px solid #293746;border-radius:9px;background:#172231;color:#eef3f8;text-decoration:none;white-space:normal}
       #reactusBackToTop{display:none!important}
     }
     @media(max-width:390px){
@@ -188,8 +95,6 @@ function installStyles() {
 function install() {
   installStyles();
   prepareRecurrenceForMobile();
-  document.addEventListener('reactus:month-rendered', enhanceCalendarForMobile);
-  enhanceCalendarForMobile();
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install, { once: true });
