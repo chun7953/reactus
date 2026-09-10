@@ -11,8 +11,10 @@ function installMobileDayInlineStyles() {
   const style = document.createElement('style');
   style.id = 'reactusMobileDayInlineStyles';
   style.textContent = `
-    #reactusMobileDayInline{display:none}
+    #reactusMobileDayInline,.reactus-mobile-event-count{display:none}
     @media(max-width:760px){
+      .reactus-mobile-event-count{display:grid;place-items:center;width:24px;height:24px;min-height:24px;margin:3px auto 0;padding:0;border:1px solid #43536a;border-radius:999px;background:#172231;color:#eef3f8;font-size:11px;font-weight:800}
+      .month-day.today .reactus-mobile-event-count{background:#5865f2;border-color:#7289ff}
       #reactusMobileDayInline{display:block;margin:12px 0 2px;padding:12px;border:1px solid #314153;border-radius:12px;background:#0d151e}
       #reactusMobileDayInline[hidden]{display:none!important}
       .reactus-mobile-day-inline-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
@@ -197,19 +199,46 @@ function openInlineDay(cell) {
   panel.scrollIntoView({ block: 'nearest' });
 }
 
-function interceptMobileCalendarBadge(event) {
-  if (!MOBILE_DAY_QUERY.matches) return;
-  const target = event.target instanceof Element
-    ? event.target.closest('.reactus-mobile-event-count')
-    : null;
-  if (!target) return;
-  const cell = target.closest('.month-day');
-  if (!cell) return;
+function bindMobileDayBadge(cell) {
+  const key = String(cell.dataset.reactusDate || '').trim();
+  const count = key ? getMonthEventsForDay(key).length : 0;
+  let badge = cell.querySelector('.reactus-mobile-event-count');
 
-  event.preventDefault();
-  event.stopImmediatePropagation();
-  openInlineDay(cell);
+  if (!count) {
+    badge?.remove();
+    cell.classList.remove('reactus-mobile-has-events');
+    return;
+  }
+
+  if (!badge) {
+    badge = document.createElement('button');
+    badge.type = 'button';
+    badge.className = 'reactus-mobile-event-count';
+    badge.addEventListener('click', event => {
+      if (!MOBILE_DAY_QUERY.matches) return;
+      event.preventDefault();
+      openInlineDay(cell);
+    });
+    cell.append(badge);
+  }
+
+  badge.textContent = String(count);
+  badge.setAttribute('aria-label', `${count}件の予定を表示`);
+  cell.classList.add('reactus-mobile-has-events');
+}
+
+function refreshMobileDayBadges() {
+  const grid = dayInline('#monthGrid');
+  if (!grid) return;
+  for (const cell of grid.querySelectorAll('.month-day[data-reactus-date]')) bindMobileDayBadge(cell);
+}
+
+function handleMonthRendered() {
+  const panel = dayInline('#reactusMobileDayInline');
+  if (panel) panel.hidden = true;
+  refreshMobileDayBadges();
 }
 
 installMobileDayInlineStyles();
-document.addEventListener('click', interceptMobileCalendarBadge, true);
+document.addEventListener('reactus:month-rendered', handleMonthRendered);
+refreshMobileDayBadges();

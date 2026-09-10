@@ -20,6 +20,7 @@ const mobileLayoutHotfixPath = new URL('../public/common/admin-mobile-layout-hot
 const calendarSettingsUsabilityPath = new URL('../public/common/admin-calendar-settings-usability.js', import.meta.url);
 const reactionPaginationPath = new URL('../public/common/admin-reaction-pagination.js', import.meta.url);
 const mobilePath = new URL('../public/common/admin-mobile.js', import.meta.url);
+const mobileDayInlinePath = new URL('../public/common/admin-mobile-day-inline.js', import.meta.url);
 
 test('admin enhancements do not replace the browser MutationObserver implementation', async () => {
   const [entry, announcements, enhancementModules] = await Promise.all([
@@ -48,6 +49,7 @@ test('bootstrap helpers rely on owned startup order instead of document-wide obs
     settingsUsability,
     reactionPagination,
     mobile,
+    mobileDayInline,
   ] = await Promise.all([
     readFile(adminEntryPath, 'utf8'),
     readFile(enhancementsEntryPath, 'utf8'),
@@ -61,6 +63,7 @@ test('bootstrap helpers rely on owned startup order instead of document-wide obs
     readFile(calendarSettingsUsabilityPath, 'utf8'),
     readFile(reactionPaginationPath, 'utf8'),
     readFile(mobilePath, 'utf8'),
+    readFile(mobileDayInlinePath, 'utf8'),
   ]);
 
   for (const source of [
@@ -70,6 +73,7 @@ test('bootstrap helpers rely on owned startup order instead of document-wide obs
     settingsUsability,
     reactionPagination,
     mobile,
+    mobileDayInline,
   ]) {
     assert.doesNotMatch(source, /observe\(document\.documentElement/);
   }
@@ -89,12 +93,13 @@ test('bootstrap helpers rely on owned startup order instead of document-wide obs
   assert.match(monthView, /signal: controller\.signal/);
   assert.match(monthView, /reactus-month-retry/);
   assert.match(monthView, /new CustomEvent\('reactus:month-rendered'/);
-  for (const source of [monthView, calendarEdit, calendarQuickCreate, calendarDrag, mobile]) {
+  for (const source of [monthView, calendarEdit, calendarQuickCreate, calendarDrag, mobile, mobileDayInline]) {
     assert.doesNotMatch(source, /new MutationObserver\(/);
   }
-  for (const source of [calendarEdit, calendarQuickCreate, calendarDrag, mobile]) {
+  for (const source of [calendarEdit, calendarQuickCreate, calendarDrag, mobileDayInline]) {
     assert.match(source, /addEventListener\('reactus:month-rendered'/);
   }
+  assert.doesNotMatch(mobile, /addEventListener\('reactus:month-rendered'/);
   assert.doesNotMatch(settingsUsability, /new MutationObserver\(/);
   assert.match(settingsUsability, /addEventListener\('reactus:calendar-settings-rendered'/);
   assert.doesNotMatch(reactionPagination, /new MutationObserver\(/);

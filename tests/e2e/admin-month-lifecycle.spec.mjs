@@ -48,6 +48,10 @@ test('month consumers reconnect from the explicit render lifecycle after month n
   if (testInfo.project.name === 'mobile-chromium') {
     const badge = day9.locator('.reactus-mobile-event-count');
     await expect(badge).toHaveText('2');
-    await expect(badge).toHaveAttribute('data-mobile-bound', '1');
+    await badge.click();
+    await expect(page.locator('#reactusMobileDayInline')).toBeVisible();
+    await expect(page.locator('#reactusMobileDayInlineList .reactus-mobile-day-inline-event')).toHaveCount(2);
+    await page.locator('[data-close-mobile-day-inline]').click();
+    await expect(page.locator('#reactusMobileDayInline')).not.toBeVisible();
   }
 });
