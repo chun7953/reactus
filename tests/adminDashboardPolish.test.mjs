@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const entryPath = new URL('../public/common/admin-enhancement-modules.js', import.meta.url);
-const guidePath = new URL('../public/common/admin-japanese-ui.js', import.meta.url);
+const guidePath = new URL('../public/common/admin-beginner-guide.js', import.meta.url);
 const adminPath = new URL('../public/admin.js', import.meta.url);
 const toolsPath = new URL('../public/common/admin-tools.js', import.meta.url);
 const calendarSettingsPath = new URL('../public/common/admin-calendar-settings.js', import.meta.url);
