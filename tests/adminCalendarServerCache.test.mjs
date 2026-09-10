@@ -14,7 +14,7 @@ const handlerPath = new URL('../src/web/adminHandler.js', import.meta.url);
 const mentionPath = new URL('../src/lib/webCalendarMentionService.js', import.meta.url);
 const duplicatePath = new URL('../src/lib/webCalendarDuplicateService.js', import.meta.url);
 const monitorPath = new URL('../src/lib/webCalendarMonitorService.js', import.meta.url);
-const futureScopePath = new URL('../public/common/admin-enhancement-modules.js', import.meta.url);
+const enhancementModulesPath = new URL('../public/common/admin-enhancement-modules.js', import.meta.url);
 const reactionPaginationPath = new URL('../public/common/admin-reaction-pagination.js', import.meta.url);
 const adminUiPath = new URL('../public/admin.js', import.meta.url);
 
@@ -77,15 +77,15 @@ test('all schedule mutations that can change list output invalidate the cache', 
 });
 
 test('dashboard core owns destination labels and reaction rules remain paginated', async () => {
-  const [entry, pagination, adminUi] = await Promise.all([
-    readFile(futureScopePath, 'utf8'),
+  const [enhancementModules, pagination, adminUi] = await Promise.all([
+    readFile(enhancementModulesPath, 'utf8'),
     readFile(reactionPaginationPath, 'utf8'),
     readFile(adminUiPath, 'utf8'),
   ]);
-  assert.doesNotMatch(entry, /admin-monitor-labels\.js/);
-  assert.doesNotMatch(entry, /admin-post-destinations\.js/);
-  assert.match(entry, /admin-reaction-pagination\.js/);
-  assert.doesNotMatch(entry, /admin-panel-layout\.js/);
+  assert.doesNotMatch(enhancementModules, /admin-monitor-labels\.js/);
+  assert.doesNotMatch(enhancementModules, /admin-post-destinations\.js/);
+  assert.match(enhancementModules, /admin-reaction-pagination\.js/);
+  assert.doesNotMatch(enhancementModules, /admin-panel-layout\.js/);
   assert.match(pagination, /REACTION_PAGE_SIZE = 8/);
   assert.match(pagination, /reactionRuleSearch/);
   assert.match(pagination, /← 前へ/);
