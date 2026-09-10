@@ -435,7 +435,7 @@ function applyEditRestrictions() {
   if (state.edit) {
     const hint = $('#editBannerHint');
     hint.textContent = recurringInstance
-      ? 'この回だけでは繰り返し条件と画像は変更できません。全体を選ぶと変更できます。'
+      ? 'この予定のみでは繰り返し条件と画像は変更できません。「これ以降」または「すべての予定」を選ぶと変更できます。'
       : state.edit.scope === 'future'
         ? '選んだ回より前はそのまま残し、この回以降を新しい定期予定として編集します。'
         : '保存するまでGoogleカレンダーは変更されません。';
