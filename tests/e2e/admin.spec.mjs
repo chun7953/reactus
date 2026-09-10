@@ -229,3 +229,45 @@ test('calendar integration settings remain folded inside the calendar panel', as
   await assertEventLoopResponsive(page);
   expect(failures).toEqual([]);
 });
+
+test('core editor owns recurring future scope and immediate loading feedback', async ({ page }) => {
+  const failures = await openAdmin(page);
+  let releaseInitialDetail;
+  const initialDetailGate = new Promise(resolve => { releaseInitialDetail = resolve; });
+  await page.route('**/api/admin/event?*', async route => {
+    const scope = new URL(route.request().url()).searchParams.get('scope');
+    if (scope === 'instance') await initialDetailGate;
+    await route.continue();
+  });
+
+  const recurringCard = page.locator('#eventList .event-card')
+    .filter({ hasText: '24日の予定5' });
+  await recurringCard.getByRole('button', { name: '編集', exact: true }).click();
+
+  await expect(page.locator('#editBanner')).toBeVisible();
+  await expect(page.locator('#editBannerTitle')).toHaveText('「24日の予定5」を編集中');
+  await expect(page.locator('#editBannerHint')).toHaveText('予定の内容を読み込んでいます…');
+
+  releaseInitialDetail();
+  await expect(page.locator('#editScopeWrap')).toBeVisible();
+  await expect(page.locator('#editScope option')).toHaveCount(3);
+  await expect(page.locator('#editScope option').nth(0)).toHaveText('この予定のみ');
+  await expect(page.locator('#editScope option').nth(1)).toHaveText('これ以降の予定');
+  await expect(page.locator('#editScope option').nth(2)).toHaveText('すべての予定');
+
+  const futureRequest = page.waitForRequest(request => {
+    const url = new URL(request.url());
+    return url.pathname === '/api/admin/event' && url.searchParams.get('scope') === 'future';
+  });
+  await page.locator('#editScope').selectOption('future');
+  await futureRequest;
+  await expect(page.locator('#editBannerTitle')).toHaveText('これ以降の予定を編集中');
+  await expect(page.locator('#editBannerHint')).toHaveText(
+    '選んだ回より前はそのまま残し、この回以降を新しい定期予定として編集します。',
+  );
+  await expect(page.locator('#repeatUnit')).toBeEnabled();
+  await expect(page.locator('#image')).toBeEnabled();
+
+  await assertEventLoopResponsive(page);
+  expect(failures).toEqual([]);
+});

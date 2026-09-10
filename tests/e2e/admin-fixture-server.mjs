@@ -163,6 +163,31 @@ async function adminFixtureHtml() {
   );
 }
 
+function editDetailFor(url) {
+  const eventId = url.searchParams.get('eventId');
+  const source = events.find(event => event.id === eventId) || events[0];
+  const recurring = Boolean(source.recurringEventId);
+  return {
+    calendarId: source.calendarId,
+    requestedEventId: source.id,
+    monitorId: source.monitorId,
+    type: source.type,
+    startTime: String(source.start || '').slice(0, 16),
+    endTime: String(source.end || '').slice(0, 16),
+    title: source.summary || '',
+    body: source.description || '',
+    durationMinutes: 30,
+    message: source.description || '',
+    prizes: source.type === 'giveaway' ? [{ name: 'テスト景品', winners: 2 }] : [],
+    mention: { mode: 'none' },
+    recurrence: recurring
+      ? { unit: 'week', interval: 1, weekdays: ['TH'] }
+      : { unit: 'once', interval: 1 },
+    originalWasRecurring: recurring,
+    hasImage: Boolean(source.hasImage),
+  };
+}
+
 function apiResponse(req, res, url) {
   if (url.pathname === '/api/admin/bootstrap') return json(res, bootstrap);
   if (url.pathname === '/api/admin/events') return json(res, { events });
@@ -171,7 +196,7 @@ function apiResponse(req, res, url) {
   }
   if (url.pathname === '/api/admin/members') return json(res, { members: [] });
   if (url.pathname === '/api/admin/logout') return json(res, { ok: true });
-  if (url.pathname === '/api/admin/event') return json(res, { event: events[0] });
+  if (url.pathname === '/api/admin/event') return json(res, { event: editDetailFor(url) });
   if (url.pathname === '/api/admin/schedules') return json(res, { event: events[0] });
   if (url.pathname === '/api/admin/update') return json(res, { event: events[0] });
   if (url.pathname === '/api/admin/announcements') {

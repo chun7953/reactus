@@ -400,11 +400,14 @@ function editControls() {
   scope.id = 'editScope';
   const instance = document.createElement('option');
   instance.value = 'instance';
-  instance.textContent = 'この回だけ';
+  instance.textContent = 'この予定のみ';
+  const future = document.createElement('option');
+  future.value = 'future';
+  future.textContent = 'これ以降の予定';
   const series = document.createElement('option');
   series.value = 'series';
-  series.textContent = '繰り返し全体';
-  scope.append(instance, series);
+  series.textContent = 'すべての予定';
+  scope.append(instance, future, series);
   scope.addEventListener('change', () => reloadEditDetail(scope.value));
   scopeWrap.append(scopeTitle, scope);
 
@@ -432,8 +435,10 @@ function applyEditRestrictions() {
   if (state.edit) {
     const hint = $('#editBannerHint');
     hint.textContent = recurringInstance
-      ? 'この回だけでは繰り返し条件と画像は変更できません。全体を選ぶと変更できます。'
-      : '保存するまでGoogleカレンダーは変更されません。';
+      ? 'この予定のみでは繰り返し条件と画像は変更できません。「これ以降」または「すべての予定」を選ぶと変更できます。'
+      : state.edit.scope === 'future'
+        ? '選んだ回より前はそのまま残し、この回以降を新しい定期予定として編集します。'
+        : '保存するまでGoogleカレンダーは変更されません。';
   }
 }
 
@@ -507,7 +512,11 @@ async function reloadEditDetail(scope) {
     state.edit.imageMode = 'keep';
     $('#editScope').value = scope;
     $('#editScopeWrap').classList.toggle('hidden', !result.event.originalWasRecurring);
-    $('#editBannerTitle').textContent = scope === 'series' ? '繰り返し予定全体を編集中' : '予定を編集中';
+    $('#editBannerTitle').textContent = scope === 'series'
+      ? '繰り返し予定全体を編集中'
+      : scope === 'future'
+        ? 'これ以降の予定を編集中'
+        : '予定を編集中';
     populateEditForm(result.event);
     $('#scheduleForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch (error) {
@@ -516,6 +525,15 @@ async function reloadEditDetail(scope) {
     $('#submitButton').disabled = false;
     $('#submitButton').textContent = '変更を保存';
   }
+}
+
+function beginEditFeedback(event) {
+  const banner = editControls();
+  banner.classList.remove('hidden');
+  const label = event?.summary || event?.title || '';
+  $('#editBannerTitle').textContent = label ? `「${label}」を編集中` : '予定を編集中';
+  $('#editBannerHint').textContent = '予定の内容を読み込んでいます…';
+  $('#scheduleForm').closest('.panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 async function editEvent(event) {
@@ -527,7 +545,7 @@ async function editEvent(event) {
     imageMode: 'keep',
   };
   setEditorHeading(true);
-  editControls().classList.remove('hidden');
+  beginEditFeedback(event);
   await reloadEditDetail('instance');
 }
 
