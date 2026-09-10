@@ -240,9 +240,9 @@ test('core editor owns recurring future scope and immediate loading feedback', a
     await route.continue();
   });
 
-  const recurringEvent = page.locator('[data-reactus-date="2026-09-24"] .month-event')
+  const recurringCard = page.locator('#eventList .event-card')
     .filter({ hasText: '24日の予定5' });
-  await recurringEvent.click();
+  await recurringCard.getByRole('button', { name: '編集', exact: true }).click();
 
   await expect(page.locator('#editBanner')).toBeVisible();
   await expect(page.locator('#editBannerTitle')).toHaveText('「24日の予定5」を編集中');
