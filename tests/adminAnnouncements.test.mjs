@@ -50,8 +50,9 @@ test('announcement slash commands use the same shared service as the web admin',
   assert.match(stopSource, /表示中の案内も削除/);
 });
 
-test('announcement and Japanese UI helpers are loaded by the admin entry chain', async () => {
+test('announcement and beginner guide enhancements are loaded by the admin entry chain', async () => {
   const source = await readFile(enhancementModulesPath, 'utf8');
   assert.match(source, /admin-announcements\.js/);
-  assert.match(source, /admin-japanese-ui\.js/);
+  assert.match(source, /admin-beginner-guide\.js/);
+  assert.doesNotMatch(source, /admin-japanese-ui\.js/);
 });
