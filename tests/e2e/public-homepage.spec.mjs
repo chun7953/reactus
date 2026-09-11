@@ -86,15 +86,25 @@ test('crawler discovery files advertise only public content', async ({ request }
   expect(await llmsResponse.text()).toContain('# Reactus');
 });
 
-test('privacy page shares the rebuilt public layout, canonical metadata, and remains readable', async ({ page }) => {
+test('privacy page matches current Reactus storage and external-service disclosures', async ({ page }) => {
   await page.goto('/privacy.html');
 
   await expect(page).toHaveTitle('プライバシーポリシー | Reactus');
   await expect(page.getByRole('heading', { level: 1, name: 'プライバシーポリシー' })).toBeVisible();
-  await expect(page.getByRole('heading', { level: 2, name: '収集する情報' })).toBeVisible();
+  await expect(page.getByText('最終更新日: 2026年9月11日')).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: '取り扱う情報' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: '保存先と外部サービス' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: 'Web管理画面の認証' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: '保存期間と削除' })).toBeVisible();
+  await expect(page.getByText(/Google Sheets.*バックアップ／復元先/)).toBeVisible();
+  await expect(page.getByText(/ワンタイムログインリンクは10分間有効/)).toBeVisible();
+  await expect(page.getByText(/セッションは30日間有効/)).toBeVisible();
+  await expect(page.getByText(/Google Analytics等のアクセス解析タグは導入していません/)).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Reactus開発室Discord' })).toHaveAttribute('href', 'https://discord.gg/m6mFzzEQhr');
   await expect(page.getByRole('link', { name: 'Reactus トップ' })).toHaveAttribute('href', '/');
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'https://reactus.fly.dev/privacy.html');
   await expect(page.locator('meta[property="og:url"]')).toHaveAttribute('content', 'https://reactus.fly.dev/privacy.html');
+  await expect(page.locator('body')).not.toContainText('第三者と共有、または販売することは一切ありません');
 
   await expectNoHorizontalOverflow(page);
 });
