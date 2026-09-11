@@ -1,3 +1,5 @@
+import { showAdminNotice } from './admin-notice.js';
+
 const q = selector => document.querySelector(selector);
 const qa = selector => [...document.querySelectorAll(selector)];
 
@@ -25,11 +27,7 @@ function formatNaiveDateTime(ms) {
 }
 
 function notify(message) {
-  const node = q('#notice');
-  if (!node) return;
-  node.textContent = message;
-  node.classList.remove('error', 'hidden');
-  window.setTimeout(() => node.classList.add('hidden'), 5000);
+  showAdminNotice(message, { duration: 5000 });
 }
 
 function dispatchInput(node) {
