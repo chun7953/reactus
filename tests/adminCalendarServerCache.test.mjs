@@ -15,7 +15,8 @@ const mentionPath = new URL('../src/lib/webCalendarMentionService.js', import.me
 const duplicatePath = new URL('../src/lib/webCalendarDuplicateService.js', import.meta.url);
 const monitorPath = new URL('../src/lib/webCalendarMonitorService.js', import.meta.url);
 const enhancementModulesPath = new URL('../public/common/admin-enhancement-modules.js', import.meta.url);
-const reactionPaginationPath = new URL('../public/common/admin-reaction-pagination.js', import.meta.url);
+const retiredReactionPaginationPath = new URL('../public/common/admin-reaction-pagination.js', import.meta.url);
+const toolsPath = new URL('../public/common/admin-tools.js', import.meta.url);
 const adminUiPath = new URL('../public/admin.js', import.meta.url);
 
 test('admin calendar list cache shares the common dashboard window and persists snapshots', () => {
@@ -76,20 +77,22 @@ test('all schedule mutations that can change list output invalidate the cache', 
   assert.ok((monitor.match(/invalidateWebScheduleCache\(guildId\)/g) || []).length >= 3);
 });
 
-test('dashboard core owns destination labels and reaction rules remain paginated', async () => {
-  const [enhancementModules, pagination, adminUi] = await Promise.all([
+test('dashboard core owns destination labels and reaction tools own pagination', async () => {
+  const [enhancementModules, tools, adminUi] = await Promise.all([
     readFile(enhancementModulesPath, 'utf8'),
-    readFile(reactionPaginationPath, 'utf8'),
+    readFile(toolsPath, 'utf8'),
     readFile(adminUiPath, 'utf8'),
   ]);
   assert.doesNotMatch(enhancementModules, /admin-monitor-labels\.js/);
   assert.doesNotMatch(enhancementModules, /admin-post-destinations\.js/);
-  assert.match(enhancementModules, /admin-reaction-pagination\.js/);
+  assert.doesNotMatch(enhancementModules, /admin-reaction-pagination\.js/);
+  await assert.rejects(readFile(retiredReactionPaginationPath, 'utf8'), error => error?.code === 'ENOENT');
   assert.doesNotMatch(enhancementModules, /admin-panel-layout\.js/);
-  assert.match(pagination, /REACTION_PAGE_SIZE = 8/);
-  assert.match(pagination, /reactionRuleSearch/);
-  assert.match(pagination, /← 前へ/);
-  assert.match(pagination, /次へ →/);
+  assert.match(tools, /REACTION_PAGE_SIZE = 8/);
+  assert.match(tools, /reactionRuleSearch/);
+  assert.match(tools, /← 前へ/);
+  assert.match(tools, /次へ →/);
+  assert.match(tools, /function applyReactionPage\(/);
   assert.match(adminUi, /function monitorLabel\(/);
   assert.match(adminUi, /monitor\.canManage !== true/);
   assert.match(adminUi, /抽選用の投稿先がありません/);
