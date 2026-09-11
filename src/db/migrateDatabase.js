@@ -8,6 +8,19 @@ const TABLES = [
     { name: 'scheduled_giveaways', columns: ['id', 'guild_id', 'prize', 'winner_count', 'giveaway_channel_id', 'start_time', 'duration_hours', 'end_time', 'schedule_cron', 'confirmation_channel_id', 'confirmation_role_id'] },
 ];
 
+const CALENDAR_POST_ASSETS_TABLE = {
+    name: 'calendar_post_assets',
+    columns: [
+        'id',
+        'guild_id',
+        'filename',
+        'content_type',
+        'size_bytes',
+        'data',
+        'created_at',
+    ],
+};
+
 const CALENDAR_CLAIMS_TABLE = {
     name: 'calendar_claims',
     columns: [
@@ -94,7 +107,12 @@ export async function migrateDatabase(sourcePool, targetPool) {
     try {
         await ensureMigrationStateTable(target);
         if (await migrationAlreadyCompleted(target)) {
-            return { migrated: false, counts: null, copiedCalendarClaims: null };
+            return {
+                migrated: false,
+                counts: null,
+                copiedCalendarClaims: null,
+                copiedCalendarPostAssets: null,
+            };
         }
 
         source = await sourcePool.connect();
@@ -103,9 +121,14 @@ export async function migrateDatabase(sourcePool, targetPool) {
         await target.query('BEGIN');
         targetTransaction = true;
 
+        const copiedCalendarPostAssets = await sourceTableExists(source, CALENDAR_POST_ASSETS_TABLE.name);
         const copiedCalendarClaims = await sourceTableExists(source, CALENDAR_CLAIMS_TABLE.name);
-        const tables = copiedCalendarClaims ? [...TABLES, CALENDAR_CLAIMS_TABLE] : TABLES;
-        const truncateTables = [...TABLES, CALENDAR_CLAIMS_TABLE];
+        const tables = [
+            ...TABLES,
+            ...(copiedCalendarPostAssets ? [CALENDAR_POST_ASSETS_TABLE] : []),
+            ...(copiedCalendarClaims ? [CALENDAR_CLAIMS_TABLE] : []),
+        ];
+        const truncateTables = [...TABLES, CALENDAR_POST_ASSETS_TABLE, CALENDAR_CLAIMS_TABLE];
         const truncateList = truncateTables.map(({ name }) => `public.${quoteIdentifier(name)}`).join(', ');
         await target.query(`TRUNCATE ${truncateList} RESTART IDENTITY`);
 
@@ -143,7 +166,12 @@ export async function migrateDatabase(sourcePool, targetPool) {
         await source.query('COMMIT');
         sourceTransaction = false;
 
-        return { migrated: true, counts, copiedCalendarClaims };
+        return {
+            migrated: true,
+            counts,
+            copiedCalendarClaims,
+            copiedCalendarPostAssets,
+        };
     } catch (error) {
         if (targetTransaction) await target.query('ROLLBACK').catch(() => {});
         if (sourceTransaction && source) await source.query('ROLLBACK').catch(() => {});
