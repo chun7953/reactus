@@ -120,9 +120,6 @@ export async function issueWebAdminLogin(guildId, userId, { db: suppliedDb } = {
         [tokenHash, id, userId, String(LOGIN_TTL_MINUTES)],
     );
 
-    // A guild departure can overlap the INSERT and miss the not-yet-committed
-    // token. If that boundary moved, remove the new credential before it can be
-    // returned to the caller.
     if (observedRevision !== guildAuthRevision(id) || isGuildAuthRevoking(id)) {
         await db.query('DELETE FROM web_admin_login_tokens WHERE token_hash = $1', [tokenHash]);
         throw new Error('Web admin auth was revoked while issuing a login link');
@@ -159,8 +156,6 @@ export async function consumeWebAdminLogin(token, { db: suppliedDb } = {}) {
         guildId = scopedGuildId(rawGuildId);
         const observedRevision = guildAuthRevision(guildId);
 
-        // Keep the one-time token consumed, but do not mint a session while a
-        // guild-wide credential revocation is already active.
         if (isGuildAuthRevoking(guildId)) {
             await client.query('COMMIT');
             transactionOpen = false;
@@ -177,9 +172,6 @@ export async function consumeWebAdminLogin(token, { db: suppliedDb } = {}) {
         await client.query('COMMIT');
         transactionOpen = false;
 
-        // A single guild-delete statement can observe the consumed login token
-        // yet miss a session inserted later in this transaction. Detect that
-        // crossed boundary after commit and remove the newly-created session.
         if (observedRevision !== guildAuthRevision(guildId) || isGuildAuthRevoking(guildId)) {
             await pool.query('DELETE FROM web_admin_sessions WHERE session_hash = $1', [sessionHash]);
             sessionCache.delete(sessionHash);
@@ -211,10 +203,6 @@ export async function getWebAdminSession(sessionToken, { db: suppliedDb } = {}) 
     let observedRevision = authRevocationRevision;
     let session = await selectWebAdminSession(db, sessionHash);
 
-    // A guild-wide revocation can overlap this SELECT. If any revocation
-    // boundary moved while the query was in flight, never cache or return that
-    // snapshot. Re-read once from the post-revocation database state. If the
-    // boundary moves again during the retry, fail closed.
     if (observedRevision !== authRevocationRevision) {
         observedRevision = authRevocationRevision;
         session = await selectWebAdminSession(db, sessionHash);
@@ -241,9 +229,9 @@ export async function revokeWebAdminAuthForGuild(guildId, { db: suppliedDb } = {
 
     beginGuildAuthRevocation(id);
     clearGuildSessionCache(id);
-    const db = suppliedDb || await getDBPool();
 
     try {
+        const db = suppliedDb || await getDBPool();
         const result = await db.query(
             `WITH deleted_login_tokens AS (
                 DELETE FROM web_admin_login_tokens
