@@ -34,9 +34,11 @@ test('buildInsertBatches splits large copies into bounded batches', () => {
     assert.deepEqual(statements[1].values, ['3']);
 });
 
-function migrationHarness({ sourceHasAssets, sourceHasAssetOwnerColumns = false }) {
+function migrationHarness({ sourceHasAssets, sourceAssetOptionalColumns = [] }) {
     const imageData = Buffer.from([0, 1, 2, 250, 255]);
     const ownerVerifiedAt = new Date('2026-09-12T00:00:00.000Z');
+    const lastCheckedAt = new Date('2026-09-12T01:00:00.000Z');
+    const missingSince = new Date('2026-09-11T01:00:00.000Z');
     const sourceRows = {
         reactions: [],
         announcements: [],
@@ -56,6 +58,8 @@ function migrationHarness({ sourceHasAssets, sourceHasAssetOwnerColumns = false 
             calendar_id: 'calendar@example.com',
             event_id: 'event-1',
             last_verified_at: ownerVerifiedAt,
+            last_checked_at: lastCheckedAt,
+            missing_since: missingSince,
         }] : [],
     };
     const sourceSelects = [];
@@ -78,9 +82,9 @@ function migrationHarness({ sourceHasAssets, sourceHasAssetOwnerColumns = false 
             }
             if (normalized.startsWith('SELECT column_name') && normalized.includes('information_schema.columns')) {
                 const candidateColumns = values[1] || [];
-                const rows = sourceHasAssetOwnerColumns
-                    ? candidateColumns.map(column_name => ({ column_name }))
-                    : [];
+                const rows = candidateColumns
+                    .filter(column_name => sourceAssetOptionalColumns.includes(column_name))
+                    .map(column_name => ({ column_name }));
                 return { rows, rowCount: rows.length };
             }
             const match = normalized.match(/FROM public\."([^"]+)"/);
@@ -134,11 +138,22 @@ function migrationHarness({ sourceHasAssets, sourceHasAssetOwnerColumns = false 
         getAssetInsertValues: () => assetInsertValues,
         imageData,
         ownerVerifiedAt,
+        lastCheckedAt,
+        missingSince,
     };
 }
 
-test('database migration copies durable calendar post assets including ownership and binary data', async () => {
-    const harness = migrationHarness({ sourceHasAssets: true, sourceHasAssetOwnerColumns: true });
+test('database migration copies durable calendar post assets including reconciliation state and binary data', async () => {
+    const harness = migrationHarness({
+        sourceHasAssets: true,
+        sourceAssetOptionalColumns: [
+            'calendar_id',
+            'event_id',
+            'last_verified_at',
+            'last_checked_at',
+            'missing_since',
+        ],
+    });
     const result = await migrateDatabase(harness.sourcePool, harness.targetPool);
 
     assert.equal(result.migrated, true);
@@ -159,10 +174,29 @@ test('database migration copies durable calendar post assets including ownership
     assert.equal(values[7], 'calendar@example.com');
     assert.equal(values[8], 'event-1');
     assert.deepEqual(values[9], harness.ownerVerifiedAt);
+    assert.deepEqual(values[10], harness.lastCheckedAt);
+    assert.deepEqual(values[11], harness.missingSince);
 });
 
-test('pre-ownership asset tables migrate base data without reading missing owner columns', async () => {
-    const harness = migrationHarness({ sourceHasAssets: true, sourceHasAssetOwnerColumns: false });
+test('pre-reconciliation owner tables preserve ownership without reading newer state columns', async () => {
+    const harness = migrationHarness({
+        sourceHasAssets: true,
+        sourceAssetOptionalColumns: ['calendar_id', 'event_id', 'last_verified_at'],
+    });
+    const result = await migrateDatabase(harness.sourcePool, harness.targetPool);
+
+    assert.equal(result.migrated, true);
+    assert.equal(result.copiedCalendarPostAssets, true);
+    const values = harness.getAssetInsertValues();
+    assert.ok(values);
+    assert.equal(values.length, 10);
+    assert.equal(values[7], 'calendar@example.com');
+    assert.equal(values[8], 'event-1');
+    assert.deepEqual(values[9], harness.ownerVerifiedAt);
+});
+
+test('pre-ownership asset tables migrate base data without reading missing optional columns', async () => {
+    const harness = migrationHarness({ sourceHasAssets: true });
     const result = await migrateDatabase(harness.sourcePool, harness.targetPool);
 
     assert.equal(result.migrated, true);
