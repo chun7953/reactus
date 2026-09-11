@@ -350,11 +350,8 @@ export default {
                 const updated = await patchEvent({
                     calendar, auth, calendarId: target.calendarId, eventId: target.event.id, requestBody,
                 });
-                const activeAssetId = image.mode === 'replace'
-                    ? image.assetId
-                    : (image.mode === 'keep' ? image.oldAssetId : null);
-                if (activeAssetId) {
-                    await bindCalendarPostImageOwner(activeAssetId, interaction.guildId, {
+                if (image.mode === 'replace' && image.assetId) {
+                    await bindCalendarPostImageOwner(image.assetId, interaction.guildId, {
                         calendarId: target.calendarId,
                         eventId: target.event.id,
                     });
@@ -407,11 +404,8 @@ export default {
                 const updated = await patchEvent({
                     calendar, auth, calendarId: target.calendarId, eventId: target.event.id, requestBody,
                 });
-                const activeAssetId = image.mode === 'replace'
-                    ? image.assetId
-                    : (image.mode === 'keep' ? image.oldAssetId : null);
-                if (activeAssetId) {
-                    await bindCalendarPostImageOwner(activeAssetId, interaction.guildId, {
+                if (image.mode === 'replace' && image.assetId) {
+                    await bindCalendarPostImageOwner(image.assetId, interaction.guildId, {
                         calendarId: target.calendarId,
                         eventId: target.event.id,
                     });
