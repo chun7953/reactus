@@ -1,6 +1,9 @@
 import { loadEnhancementBootstrap } from './admin-enhancement-bootstrap.js';
 import { showAdminNotice } from './admin-notice.js';
 
+const CALENDAR_SETTINGS_PAGE_SIZE = 8;
+let calendarSettingsPage = 0;
+
 const calendarSettingsState = {
   bootstrap: null,
   editingId: null,
@@ -138,8 +141,93 @@ function monitorCard(monitor) {
   return card;
 }
 
-function notifyCalendarSettingsRendered(count) {
-  document.dispatchEvent(new CustomEvent('reactus:calendar-settings-rendered', { detail: { count } }));
+function setPaginationText(node, value) {
+  if (node && node.textContent !== value) node.textContent = value;
+}
+
+function ensureCalendarSettingsControls() {
+  const list = q('#calendarSettingList');
+  if (!list) return null;
+  let controls = q('#calendarSettingControls');
+  if (controls) return controls;
+
+  controls = document.createElement('div');
+  controls.id = 'calendarSettingControls';
+  controls.className = 'calendar-setting-controls';
+
+  const search = document.createElement('input');
+  search.id = 'calendarSettingSearch';
+  search.type = 'search';
+  search.placeholder = '投稿先・カレンダーで検索';
+  search.autocomplete = 'off';
+
+  const nav = document.createElement('div');
+  nav.className = 'tools-row';
+  const prev = document.createElement('button');
+  prev.id = 'calendarSettingPrev';
+  prev.type = 'button';
+  prev.className = 'small';
+  prev.textContent = '← 前へ';
+  const status = document.createElement('span');
+  status.id = 'calendarSettingStatus';
+  status.className = 'muted';
+  const next = document.createElement('button');
+  next.id = 'calendarSettingNext';
+  next.type = 'button';
+  next.className = 'small';
+  next.textContent = '次へ →';
+
+  prev.addEventListener('click', () => {
+    calendarSettingsPage = Math.max(0, calendarSettingsPage - 1);
+    applyCalendarSettingsPage();
+  });
+  next.addEventListener('click', () => {
+    calendarSettingsPage += 1;
+    applyCalendarSettingsPage();
+  });
+  search.addEventListener('input', () => {
+    calendarSettingsPage = 0;
+    applyCalendarSettingsPage();
+  });
+
+  nav.append(prev, status, next);
+  controls.append(search, nav);
+  list.before(controls);
+  return controls;
+}
+
+function applyCalendarSettingsPage() {
+  const list = q('#calendarSettingList');
+  const controls = ensureCalendarSettingsControls();
+  if (!list || !controls) return;
+  const cards = [...list.querySelectorAll(':scope > .calendar-setting-card')];
+  if (!cards.length) {
+    controls.hidden = true;
+    return;
+  }
+  controls.hidden = false;
+
+  const query = String(q('#calendarSettingSearch')?.value || '')
+    .trim()
+    .toLocaleLowerCase('ja');
+  const matched = cards.filter(card => !query || card.textContent.toLocaleLowerCase('ja').includes(query));
+  const totalPages = Math.max(1, Math.ceil(matched.length / CALENDAR_SETTINGS_PAGE_SIZE));
+  calendarSettingsPage = Math.min(calendarSettingsPage, totalPages - 1);
+  const visible = new Set(matched.slice(
+    calendarSettingsPage * CALENDAR_SETTINGS_PAGE_SIZE,
+    (calendarSettingsPage + 1) * CALENDAR_SETTINGS_PAGE_SIZE,
+  ));
+  const matchedSet = new Set(matched);
+  for (const card of cards) card.style.display = matchedSet.has(card) && visible.has(card) ? '' : 'none';
+
+  const prev = q('#calendarSettingPrev');
+  const next = q('#calendarSettingNext');
+  const status = q('#calendarSettingStatus');
+  if (prev) prev.disabled = calendarSettingsPage === 0;
+  if (next) next.disabled = calendarSettingsPage >= totalPages - 1;
+  setPaginationText(status, query
+    ? `${matched.length}件一致 · ${calendarSettingsPage + 1} / ${totalPages}ページ`
+    : `${cards.length}件 · ${calendarSettingsPage + 1} / ${totalPages}ページ`);
 }
 
 function renderMonitors() {
@@ -147,16 +235,17 @@ function renderMonitors() {
   if (!list) return;
   list.replaceChildren();
   const monitors = calendarSettingsState.bootstrap?.monitors || [];
+  calendarSettingsPage = 0;
   if (!monitors.length) {
     const empty = document.createElement('p');
     empty.className = 'muted';
     empty.textContent = 'カレンダー監視設定はまだありません。';
     list.append(empty);
-    notifyCalendarSettingsRendered(0);
+    applyCalendarSettingsPage();
     return;
   }
   for (const monitor of monitors) list.append(monitorCard(monitor));
-  notifyCalendarSettingsRendered(monitors.length);
+  applyCalendarSettingsPage();
 }
 
 function installStyles() {
@@ -174,6 +263,7 @@ function installStyles() {
     .calendar-settings-block{display:grid;gap:10px;padding:14px;border:1px solid #293746;border-radius:12px;background:#0d141c}
     .calendar-settings-row{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
     .calendar-settings-row>label{flex:1;min-width:220px}
+    .calendar-setting-controls{display:grid;gap:8px;margin-bottom:10px}
     .calendar-setting-list{display:grid;gap:8px}
     .calendar-setting-card{display:flex;gap:12px;justify-content:space-between;align-items:center;padding:12px;border:1px solid #293746;border-radius:10px;background:#101821}
     .calendar-setting-id{overflow-wrap:anywhere;margin-top:4px}
@@ -236,6 +326,7 @@ function installPanel() {
 function wirePanel() {
   const bootstrap = calendarSettingsState.bootstrap;
   buildSelectOptions();
+  ensureCalendarSettingsControls();
   q('#mainCalendarIdInput').value = bootstrap.mainCalendarId || '';
   q('#calendarSettingCalendarId').value = bootstrap.mainCalendarId || '';
 

@@ -7,7 +7,7 @@ const guidePath = new URL('../public/common/admin-beginner-guide.js', import.met
 const adminPath = new URL('../public/admin.js', import.meta.url);
 const toolsPath = new URL('../public/common/admin-tools.js', import.meta.url);
 const calendarSettingsPath = new URL('../public/common/admin-calendar-settings.js', import.meta.url);
-const settingsPath = new URL('../public/common/admin-calendar-settings-usability.js', import.meta.url);
+const retiredSettingsUsabilityPath = new URL('../public/common/admin-calendar-settings-usability.js', import.meta.url);
 const navigationPath = new URL('../public/common/admin-navigation-polish.js', import.meta.url);
 const announcementsPath = new URL('../public/common/admin-announcements.js', import.meta.url);
 const retiredPermissionsPath = new URL('../public/common/admin-manageable-targets.js', import.meta.url);
@@ -16,13 +16,13 @@ const retiredDestinationsPath = new URL('../public/common/admin-post-destination
 
 test('admin entry loads only active second-round usability helpers', async () => {
   const source = await readFile(entryPath, 'utf8');
-  assert.match(source, /admin-calendar-settings-usability\.js/);
+  assert.doesNotMatch(source, /admin-calendar-settings-usability\.js/);
   assert.match(source, /admin-navigation-polish\.js/);
   assert.doesNotMatch(source, /admin-manageable-targets\.js/);
   assert.doesNotMatch(source, /admin-monitor-labels\.js/);
   assert.doesNotMatch(source, /admin-post-destinations\.js/);
   assert.doesNotMatch(source, /admin-panel-layout\.js/);
-  for (const path of [retiredPermissionsPath, retiredLabelsPath, retiredDestinationsPath]) {
+  for (const path of [retiredSettingsUsabilityPath, retiredPermissionsPath, retiredLabelsPath, retiredDestinationsPath]) {
     await assert.rejects(readFile(path, 'utf8'), error => error?.code === 'ENOENT');
   }
 });
@@ -58,23 +58,20 @@ test('schedule editor owns destination permissions, labels, hydration and refres
   assert.match(source, /通常投稿用の投稿先がありません/);
 });
 
-test('calendar settings owner renders permissions and final wording while pagination follows its lifecycle', async () => {
-  const [owner, usability] = await Promise.all([
-    readFile(calendarSettingsPath, 'utf8'),
-    readFile(settingsPath, 'utf8'),
-  ]);
+test('calendar settings owner renders permissions, final wording, search and pagination itself', async () => {
+  const owner = await readFile(calendarSettingsPath, 'utf8');
   assert.match(owner, /filter\(item => item\.canManage === true\)/);
   assert.match(owner, /monitor\.canManage !== true/);
   assert.match(owner, /reactus-readonly-badge/);
   assert.match(owner, /friendlyMonitorType/);
   assert.match(owner, /'抽選' : '通常投稿'/);
   assert.match(owner, /Googleカレンダーから直接作る予定の合図/);
-  assert.match(owner, /new CustomEvent\('reactus:calendar-settings-rendered'/);
-  assert.match(usability, /CALENDAR_SETTINGS_PAGE_SIZE = 8/);
-  assert.match(usability, /投稿先・カレンダーで検索/);
-  assert.match(usability, /addEventListener\('reactus:calendar-settings-rendered'/);
-  assert.doesNotMatch(usability, /new MutationObserver\(/);
-  assert.doesNotMatch(usability, /\/api\/admin\/bootstrap/);
+  assert.match(owner, /CALENDAR_SETTINGS_PAGE_SIZE = 8/);
+  assert.match(owner, /投稿先・カレンダーで検索/);
+  assert.match(owner, /function applyCalendarSettingsPage\(/);
+  assert.match(owner, /renderMonitors\(\)[\s\S]*applyCalendarSettingsPage\(\)/);
+  assert.doesNotMatch(owner, /reactus:calendar-settings-rendered/);
+  assert.doesNotMatch(owner, /new MutationObserver\(/);
 });
 
 test('announcement panel owns its top-level placement without a repair pass', async () => {
