@@ -18,6 +18,7 @@ const publicRootFiles = new Set([
     '/sitemap.xml',
     '/llms.txt',
     '/llms-full.txt',
+    '/5d09339110e16b9e2adf4cdb54aad9c1.txt',
 ]);
 const adminAssetVersion = encodeURIComponent(
     process.env.FLY_IMAGE_REF || process.env.GITHUB_SHA || `boot-${Date.now()}`,

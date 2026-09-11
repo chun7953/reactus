@@ -48,6 +48,7 @@ test('production web server serves public search discovery routes with correct c
         ['/sitemap.xml', 'application/xml; charset=utf-8', '<urlset'],
         ['/llms.txt', 'text/plain; charset=utf-8', '# Reactus'],
         ['/llms-full.txt', 'text/plain; charset=utf-8', '# Reactus official machine-readable reference'],
+        ['/5d09339110e16b9e2adf4cdb54aad9c1.txt', 'text/plain; charset=utf-8', '5d09339110e16b9e2adf4cdb54aad9c1'],
     ];
 
     for (const [pathname, contentType, expectedText] of cases) {
