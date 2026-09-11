@@ -14,7 +14,7 @@ const mentionsPath = new URL('../public/common/admin-mentions.js', import.meta.u
 const announcementsPath = new URL('../public/common/admin-announcements.js', import.meta.url);
 const enhancementModulesPath = new URL('../public/common/admin-enhancement-modules.js', import.meta.url);
 const calendarSettingsPath = new URL('../public/common/admin-calendar-settings.js', import.meta.url);
-const calendarSettingsFoldPath = new URL('../public/common/admin-calendar-settings-fold.js', import.meta.url);
+const retiredCalendarSettingsFoldPath = new URL('../public/common/admin-calendar-settings-fold.js', import.meta.url);
 const calendarLoadGuardPath = new URL('../public/common/admin-calendar-load-guard.js', import.meta.url);
 const mobileLayoutHotfixPath = new URL('../public/common/admin-mobile-layout-hotfix.js', import.meta.url);
 const calendarSettingsUsabilityPath = new URL('../public/common/admin-calendar-settings-usability.js', import.meta.url);
@@ -45,7 +45,6 @@ test('bootstrap helpers rely on owned startup order instead of document-wide obs
     calendarQuickCreate,
     calendarDrag,
     calendarSettings,
-    fold,
     settingsUsability,
     reactionPagination,
     mobile,
@@ -59,7 +58,6 @@ test('bootstrap helpers rely on owned startup order instead of document-wide obs
     readFile(calendarQuickCreatePath, 'utf8'),
     readFile(calendarDragPath, 'utf8'),
     readFile(calendarSettingsPath, 'utf8'),
-    readFile(calendarSettingsFoldPath, 'utf8'),
     readFile(calendarSettingsUsabilityPath, 'utf8'),
     readFile(reactionPaginationPath, 'utf8'),
     readFile(mobilePath, 'utf8'),
@@ -69,7 +67,6 @@ test('bootstrap helpers rely on owned startup order instead of document-wide obs
   for (const source of [
     monthView,
     calendarSettings,
-    fold,
     settingsUsability,
     reactionPagination,
     mobile,
@@ -82,12 +79,16 @@ test('bootstrap helpers rely on owned startup order instead of document-wide obs
   assert.doesNotMatch(adminEntry, /admin-calendar-load-guard\.js/);
   await assert.rejects(readFile(calendarLoadGuardPath, 'utf8'), error => error?.code === 'ENOENT');
   assert.ok(enhancementsEntry.indexOf("./common/admin-tools.js") < enhancementsEntry.indexOf("./common/admin-enhancement-modules.js"));
-  assert.ok(enhancementModules.indexOf("./admin-calendar-settings.js") < enhancementModules.indexOf("./admin-calendar-settings-fold.js"));
+  assert.doesNotMatch(enhancementModules, /admin-calendar-settings-fold\.js/);
+  await assert.rejects(readFile(retiredCalendarSettingsFoldPath, 'utf8'), error => error?.code === 'ENOENT');
   assert.ok(enhancementModules.indexOf("./admin-calendar-settings.js") < enhancementModules.indexOf("./admin-calendar-settings-usability.js"));
   assert.ok(enhancementModules.indexOf("./admin-calendar-settings.js") < enhancementModules.indexOf("./admin-mobile.js"));
   assert.doesNotMatch(enhancementModules, /admin-mobile-layout-hotfix\.js/);
   await assert.rejects(readFile(mobileLayoutHotfixPath, 'utf8'), error => error?.code === 'ENOENT');
 
+  assert.match(calendarSettings, /const mount = q\('#calendarSettingsMount'\)/);
+  assert.match(calendarSettings, /panel\.className = 'reactus-calendar-settings-fold'/);
+  assert.match(calendarSettings, /mount\.append\(panel\)/);
   assert.match(monthView, /MONTH_REQUEST_TIMEOUT_MS = 40_000/);
   assert.match(monthView, /new AbortController\(\)/);
   assert.match(monthView, /signal: controller\.signal/);
