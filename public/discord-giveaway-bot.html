@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0f14">
+  <meta name="robots" content="index,follow,max-image-preview:large">
+  <meta name="description" content="Discordの抽選予定を、複数景品までまとめて予約。Reactusなら日本語Web管理画面から景品・本文・開始時刻を設定し、開始時刻に上から順に抽選投稿できます。">
+  <title>Discord抽選Bot・複数景品の抽選を予約 | Reactus</title>
+  <link rel="canonical" href="https://reactus.fly.dev/discord-giveaway-bot.html">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="ja_JP">
+  <meta property="og:site_name" content="Reactus">
+  <meta property="og:title" content="Discord抽選Bot・複数景品の抽選を予約 | Reactus">
+  <meta property="og:description" content="複数景品をひとつの予定にまとめ、開始時刻に順番に抽選投稿。">
+  <meta property="og:url" content="https://reactus.fly.dev/discord-giveaway-bot.html">
+  <meta property="og:image" content="https://reactus.fly.dev/images/bot-icon.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Discord抽選Bot | Reactus">
+  <meta name="twitter:description" content="複数景品の抽選を日本語Web管理画面からまとめて予約。">
+  <meta name="twitter:image" content="https://reactus.fly.dev/images/bot-icon.png">
+  <link rel="stylesheet" href="/common/css/import_screen.css">
+  <link rel="stylesheet" href="/common/css/use-case.css">
+  <link rel="icon" href="/images/favicon.ico">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "Discord抽選Bot・複数景品の抽選を予約",
+    "url": "https://reactus.fly.dev/discord-giveaway-bot.html",
+    "inLanguage": "ja",
+    "description": "Discordで複数景品の抽選をまとめて予約できるReactusの機能説明。",
+    "isPartOf": {"@type": "WebSite", "name": "Reactus", "url": "https://reactus.fly.dev/"},
+    "about": {"@type": "SoftwareApplication", "name": "Reactus", "applicationCategory": "CommunicationApplication"}
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main">本文へ移動</a>
+  <header class="site-header">
+    <div class="site-shell header-inner">
+      <a class="brand" href="/" aria-label="Reactus トップ">
+        <img src="/images/bot-icon.png" alt="" width="40" height="40">
+        <span>Reactus</span>
+      </a>
+      <nav class="site-nav" aria-label="メインナビゲーション">
+        <a href="/">トップ</a>
+        <a href="/discord-scheduled-posts.html">予約・定期投稿</a>
+        <a href="/discord-google-calendar.html">Calendar連携</a>
+        <a href="https://github.com/chun7953/reactus">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="use-case-main">
+    <div class="site-shell use-case-shell">
+      <div class="use-case-heading">
+        <p class="eyebrow">DISCORD GIVEAWAY</p>
+        <h1>Discordの抽選を、複数景品までまとめて予約。</h1>
+        <p>Reactusは、ひとつの抽選予定に複数の景品を登録し、開始時刻になったら上から順に抽選投稿する運用に対応しています。</p>
+      </div>
+
+      <section class="use-case-card">
+        <h2>景品ごとに予定を作り直さなくていい</h2>
+        <p>抽選イベントで景品が複数ある場合も、同じ予定の中へまとめて登録できます。開始時刻や投稿先を共通化し、抽選内容だけを景品ごとに設定できます。</p>
+        <ul>
+          <li>ひとつの予定に複数景品を登録</li>
+          <li>開始時刻に上から順へ連続投稿</li>
+          <li>景品ごとの本文を管理</li>
+          <li>Google Calendar上で予定を確認</li>
+          <li>PC・スマホのWeb管理画面から編集</li>
+        </ul>
+      </section>
+
+      <section class="use-case-card">
+        <h2>使い方</h2>
+        <ol>
+          <li>Discordで /reactus を実行して管理画面を開きます。</li>
+          <li>予定種別で抽選を選び、投稿先と開始日時を設定します。</li>
+          <li>必要な数だけ景品を追加し、景品名や本文を入力します。</li>
+          <li>保存後は開始時刻にReactusが抽選投稿を進めます。</li>
+        </ol>
+        <div class="use-case-cta">
+          <a class="button primary" href="https://discord.gg/m6mFzzEQhr">Reactus開発室で試す</a>
+          <a class="button secondary" href="https://github.com/chun7953/reactus">GitHubを見る</a>
+        </div>
+      </section>
+
+      <section class="use-case-card">
+        <h2>関連する使い方</h2>
+        <div class="use-case-links">
+          <a class="use-case-link" href="/discord-scheduled-posts.html"><strong>予約・定期投稿</strong><span>Discord告知を自動化する</span></a>
+          <a class="use-case-link" href="/discord-google-calendar.html"><strong>Discord × Google Calendar</strong><span>予定表を中心に運用する</span></a>
+          <a class="use-case-link" href="/"><strong>Reactusトップ</strong><span>全機能と管理画面の概要を見る</span></a>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="site-shell footer-inner">
+      <div><strong>Reactus</strong><span>Discord × Google Calendar automation</span></div>
+      <nav aria-label="フッターナビゲーション">
+        <a href="/">Home</a>
+        <a href="/privacy.html">Privacy</a>
+        <a href="https://discord.gg/m6mFzzEQhr">Discord</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>
