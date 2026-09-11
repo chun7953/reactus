@@ -1,3 +1,4 @@
+import { loadEnhancementBootstrap } from './admin-enhancement-bootstrap.js';
 import {
   analyzeAnnouncementMentions,
   hasAnnouncementMentions,
@@ -376,7 +377,7 @@ async function initializeAnnouncements() {
   if (!installAnnouncementPanel()) return false;
   installAnnouncementStyles();
   try {
-    announcementState.bootstrap = await announcementApi('/api/admin/bootstrap');
+    announcementState.bootstrap = await loadEnhancementBootstrap();
     populateAnnouncementChannels();
     await loadAnnouncements();
   } catch (error) {
