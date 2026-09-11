@@ -25,13 +25,37 @@
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
-    "@type": "WebPage",
-    "name": "Discord抽選Bot・複数景品の抽選を予約",
-    "url": "https://reactus.fly.dev/discord-giveaway-bot.html",
-    "inLanguage": "ja",
-    "description": "Discordで複数景品の抽選をまとめて予約できるReactusの機能説明。",
-    "isPartOf": {"@type": "WebSite", "name": "Reactus", "url": "https://reactus.fly.dev/"},
-    "about": {"@type": "SoftwareApplication", "name": "Reactus", "applicationCategory": "CommunicationApplication"}
+    "@graph": [
+      {
+        "@type": "WebPage",
+        "name": "Discord抽選Bot・複数景品の抽選を予約",
+        "url": "https://reactus.fly.dev/discord-giveaway-bot.html",
+        "inLanguage": "ja",
+        "description": "Discordで複数景品の抽選をまとめて予約できるReactusの機能説明。",
+        "isPartOf": {"@type": "WebSite", "name": "Reactus", "url": "https://reactus.fly.dev/"},
+        "about": {"@type": "SoftwareApplication", "name": "Reactus", "applicationCategory": "CommunicationApplication"}
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Reactusは複数景品のDiscord抽選に対応していますか？",
+            "acceptedAnswer": {"@type": "Answer", "text": "はい。ひとつの抽選予定に複数景品を登録し、開始時刻に上から順へ連続して抽選投稿できます。"}
+          },
+          {
+            "@type": "Question",
+            "name": "複数景品はどの順番で投稿されますか？",
+            "acceptedAnswer": {"@type": "Answer", "text": "管理画面で登録した景品を上から順に連続して投稿します。"}
+          },
+          {
+            "@type": "Question",
+            "name": "抽選予定はスマートフォンから編集できますか？",
+            "acceptedAnswer": {"@type": "Answer", "text": "はい。ReactusのWeb管理画面はPCとスマートフォンの両方に対応しています。"}
+          }
+        ]
+      }
+    ]
   }
   </script>
 </head>
@@ -73,6 +97,23 @@
       </section>
 
       <section class="use-case-card">
+        <h2>複数景品でも、ひとつの運用単位として管理</h2>
+        <p>景品が3個、5個と増えても、景品ごとに別々の予定を作る必要はありません。ひとつの抽選予定の中に景品を並べ、共通の投稿先と開始日時を設定できます。</p>
+        <p>開始時刻になると、Reactusは管理画面で登録した順番どおりに景品を連続して抽選投稿します。イベント全体の予定はGoogle Calendarでも確認できるため、「いつ抽選を始めるか」と「何を配るか」を分けずに管理できます。</p>
+      </section>
+
+      <section class="use-case-card">
+        <h2>向いている運用</h2>
+        <ul>
+          <li>ひとつのイベントで複数の景品を配布するサーバー</li>
+          <li>抽選ごとに投稿予定を作り直す手間を減らしたい運営</li>
+          <li>景品名や本文を事前にまとめて準備したい運営</li>
+          <li>抽選開始日時をGoogle Calendarでも共有したいチーム</li>
+          <li>PCとスマートフォンの両方から抽選予定を確認・編集したい運営</li>
+        </ul>
+      </section>
+
+      <section class="use-case-card">
         <h2>使い方</h2>
         <ol>
           <li>Discordで /reactus を実行して管理画面を開きます。</li>
@@ -84,6 +125,17 @@
           <a class="button primary" href="https://discord.gg/m6mFzzEQhr">Reactus開発室で試す</a>
           <a class="button secondary" href="https://github.com/chun7953/reactus">GitHubを見る</a>
         </div>
+      </section>
+
+      <section class="use-case-card">
+        <h2>よくある質問</h2>
+        <h3>複数景品をひとつの抽選予定にまとめられますか？</h3>
+        <p>はい。ひとつの抽選予定に複数景品を登録できます。開始日時や投稿先を共通にし、景品ごとの内容をまとめて管理できます。</p>
+        <h3>景品はどの順番で投稿されますか？</h3>
+        <p>管理画面で登録した景品を上から順に連続して抽選投稿します。</p>
+        <h3>スマートフォンから抽選予定を編集できますか？</h3>
+        <p>はい。ReactusのWeb管理画面はPCとスマートフォンの両方に対応しています。</p>
+        <p><a class="text-link" href="/reference.html">Reactus公式リファレンスで抽選機能の仕様を確認する</a></p>
       </section>
 
       <section class="use-case-card">
