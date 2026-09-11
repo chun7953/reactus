@@ -59,7 +59,7 @@ export async function queryWithRetry(db, sql, {
     }
 }
 
-async function migrateLegacyCalendarClaims(db) {
+async function migrateLegacyCalendarClaims(db, { allowBootstrap = true } = {}) {
     const client = await db.connect();
     let transactionOpen = false;
     try {
@@ -70,26 +70,28 @@ async function migrateLegacyCalendarClaims(db) {
             [LEGACY_CALENDAR_CLAIM_MIGRATION],
         );
         if (applied.rowCount === 0) {
-            const existingClaims = await client.query(
-                'SELECT COUNT(*)::INTEGER AS count FROM calendar_claims',
-            );
-            if (Number(existingClaims.rows?.[0]?.count || 0) === 0) {
-                await client.query(
-                    `WITH existing_calendar_ids AS (
-                        SELECT guild_id, calendar_id
-                        FROM calendar_monitors
-                        WHERE calendar_id IS NOT NULL AND BTRIM(calendar_id) <> ''
-                        UNION
-                        SELECT guild_id, main_calendar_id AS calendar_id
-                        FROM guild_configs
-                        WHERE main_calendar_id IS NOT NULL AND BTRIM(main_calendar_id) <> ''
-                    )
-                    INSERT INTO calendar_claims
-                        (guild_id, calendar_id, verified_at, verification_method)
-                    SELECT guild_id, calendar_id, CURRENT_TIMESTAMP, 'legacy_pre_public'
-                    FROM existing_calendar_ids
-                    ON CONFLICT (guild_id, calendar_id) DO NOTHING`,
+            if (allowBootstrap) {
+                const existingClaims = await client.query(
+                    'SELECT COUNT(*)::INTEGER AS count FROM calendar_claims',
                 );
+                if (Number(existingClaims.rows?.[0]?.count || 0) === 0) {
+                    await client.query(
+                        `WITH existing_calendar_ids AS (
+                            SELECT guild_id, calendar_id
+                            FROM calendar_monitors
+                            WHERE calendar_id IS NOT NULL AND BTRIM(calendar_id) <> ''
+                            UNION
+                            SELECT guild_id, main_calendar_id AS calendar_id
+                            FROM guild_configs
+                            WHERE main_calendar_id IS NOT NULL AND BTRIM(main_calendar_id) <> ''
+                        )
+                        INSERT INTO calendar_claims
+                            (guild_id, calendar_id, verified_at, verification_method)
+                        SELECT guild_id, calendar_id, CURRENT_TIMESTAMP, 'legacy_pre_public'
+                        FROM existing_calendar_ids
+                        ON CONFLICT (guild_id, calendar_id) DO NOTHING`,
+                    );
+                }
             }
             await client.query(
                 'INSERT INTO schema_migrations (name) VALUES ($1)',
@@ -161,7 +163,12 @@ export function createDatabaseManager({
                 } else {
                     logger.log('✅ Database migration was already completed.');
                 }
-                await migrateLegacyCalendarClaimsFn(targetPool);
+                await migrateLegacyCalendarClaimsFn(targetPool, {
+                    // If the source already had the claims table, its current
+                    // contents (including an intentionally empty/revoked set)
+                    // are authoritative. Never recreate trust from settings.
+                    allowBootstrap: result.copiedCalendarClaims !== true,
+                });
 
                 await sourcePool.end();
                 pool = targetPool;
@@ -202,7 +209,6 @@ export function createDatabaseManager({
 
     function closeDatabase() {
         if (closePromise) return closePromise;
-
         const pending = (async () => {
             closed = true;
             if (initializationPromise) {
