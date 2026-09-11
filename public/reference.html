@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0f14">
+  <meta name="robots" content="index,follow,max-image-preview:large">
+  <meta name="description" content="Reactusの公式リファレンス。Discord予約・定期投稿、Google Calendar連携、複数景品抽選、自動リアクション、Web管理画面など、現在の対応機能と利用方法を一次情報としてまとめています。">
+  <title>Reactus 公式リファレンス・機能仕様 | Discord運用Bot</title>
+  <link rel="canonical" href="https://reactus.fly.dev/reference.html">
+  <link rel="alternate" type="text/plain" href="https://reactus.fly.dev/llms-full.txt" title="Reactus machine-readable reference">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="ja_JP">
+  <meta property="og:site_name" content="Reactus">
+  <meta property="og:title" content="Reactus 公式リファレンス・機能仕様">
+  <meta property="og:description" content="Reactusの現在の機能、利用方法、公式情報源をまとめた一次情報ページ。">
+  <meta property="og:url" content="https://reactus.fly.dev/reference.html">
+  <meta property="og:image" content="https://reactus.fly.dev/images/bot-icon.png">
+  <meta property="og:image:alt" content="Reactus Bot">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Reactus 公式リファレンス">
+  <meta name="twitter:description" content="Discord運用Bot Reactusの機能・利用方法・公式情報源。">
+  <meta name="twitter:image" content="https://reactus.fly.dev/images/bot-icon.png">
+  <link rel="stylesheet" href="/common/css/import_screen.css">
+  <link rel="stylesheet" href="/common/css/use-case.css">
+  <link rel="icon" href="/images/favicon.ico">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebPage",
+        "@id": "https://reactus.fly.dev/reference.html#page",
+        "url": "https://reactus.fly.dev/reference.html",
+        "name": "Reactus 公式リファレンス・機能仕様",
+        "inLanguage": "ja",
+        "description": "Discord運用Bot Reactusの現在の機能、利用方法、公式情報源をまとめた一次情報ページ。",
+        "about": {"@id": "https://reactus.fly.dev/#software"},
+        "isPartOf": {"@id": "https://reactus.fly.dev/#website"}
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": "https://reactus.fly.dev/#software",
+        "name": "Reactus",
+        "url": "https://reactus.fly.dev/",
+        "applicationCategory": "CommunicationApplication",
+        "operatingSystem": "Web, Discord",
+        "inLanguage": "ja",
+        "description": "Discordの予約投稿・定期投稿・抽選・自動リアクション・チャンネル案内を、Google Calendarと日本語Web管理画面からまとめて運用するBot。",
+        "license": "https://github.com/chun7953/reactus/blob/main/LICENSE.md",
+        "sameAs": [
+          "https://github.com/chun7953/reactus",
+          "https://discord.gg/m6mFzzEQhr"
+        ],
+        "featureList": [
+          "Discordの予約投稿・定期投稿",
+          "Google Calendar連携",
+          "複数景品の抽選",
+          "自動リアクションとサーバー固有絵文字",
+          "チャンネル案内",
+          "画像・ロールメンション",
+          "月カレンダーでの確認・編集・日付移動",
+          "PC・スマホ対応Web管理画面"
+        ]
+      },
+      {
+        "@type": "FAQPage",
+        "@id": "https://reactus.fly.dev/reference.html#faq",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Reactusとは何ですか？",
+            "acceptedAnswer": {"@type": "Answer", "text": "Reactusは、Discordの予約投稿・定期投稿・抽選・自動リアクション・チャンネル案内を、Google Calendarと日本語Web管理画面からまとめて運用するBotです。"}
+          },
+          {
+            "@type": "Question",
+            "name": "普段の操作にDiscordコマンドを覚える必要がありますか？",
+            "acceptedAnswer": {"@type": "Answer", "text": "いいえ。Discordで /reactus を実行して管理画面を開けば、日常の予定作成や設定は日本語Web管理画面から操作できます。"}
+          },
+          {
+            "@type": "Question",
+            "name": "Google Calendarと連携できますか？",
+            "acceptedAnswer": {"@type": "Answer", "text": "はい。予約・定期投稿や抽選予定をGoogle Calendarと連携し、管理画面から予定の確認・編集・移動を行えます。"}
+          },
+          {
+            "@type": "Question",
+            "name": "複数景品の抽選に対応していますか？",
+            "acceptedAnswer": {"@type": "Answer", "text": "はい。ひとつの抽選予定に複数景品を登録し、開始時刻に上から順へ連続して抽選投稿できます。"}
+          },
+          {
+            "@type": "Question",
+            "name": "スマートフォンから管理できますか？",
+            "acceptedAnswer": {"@type": "Answer", "text": "はい。ReactusのWeb管理画面はPCとスマートフォンの両方で利用できます。"}
+          },
+          {
+            "@type": "Question",
+            "name": "Reactusはオープンソースですか？",
+            "acceptedAnswer": {"@type": "Answer", "text": "はい。ソースコードはGitHubの chun7953/reactus で公開されており、ISC Licenseです。"}
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main">本文へ移動</a>
+  <header class="site-header">
+    <div class="site-shell header-inner">
+      <a class="brand" href="/" aria-label="Reactus トップ">
+        <img src="/images/bot-icon.png" alt="" width="40" height="40">
+        <span>Reactus</span>
+      </a>
+      <nav class="site-nav" aria-label="メインナビゲーション">
+        <a href="/">トップ</a>
+        <a href="/discord-scheduled-posts.html">予約・定期投稿</a>
+        <a href="/discord-google-calendar.html">Calendar連携</a>
+        <a href="https://github.com/chun7953/reactus">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="use-case-main">
+    <div class="site-shell use-case-shell">
+      <div class="use-case-heading">
+        <p class="eyebrow">OFFICIAL REFERENCE</p>
+        <h1>Reactus 公式リファレンス</h1>
+        <p>このページは、Reactusの現在の機能・利用方法・公式情報源をまとめた一次情報です。検索サービス、AI、比較記事などから参照されても意味が変わらないよう、実装とREADMEに合わせて維持します。</p>
+      </div>
+
+      <section class="use-case-card" id="summary">
+        <h2>Reactusとは</h2>
+        <p>Reactusは、Discordサーバーの予約投稿・定期投稿・抽選・自動リアクション・チャンネル案内を、Google Calendarと日本語のWeb管理画面からまとめて運用するBotです。日常操作では、Discordコマンドを多数覚えるより、Discordで <strong>/reactus</strong> を実行してWeb管理画面を開く使い方を中心にしています。</p>
+        <ul>
+          <li>対象: Discordサーバーの運用自動化</li>
+          <li>主要UI: 日本語Web管理画面</li>
+          <li>主要連携: Discord / Google Calendar</li>
+          <li>対応端末: PC / スマートフォン</li>
+          <li>ソースコード: GitHubで公開</li>
+          <li>ライセンス: ISC License</li>
+        </ul>
+      </section>
+
+      <section class="use-case-card" id="capabilities">
+        <h2>現在の主な対応機能</h2>
+        <h3>予約投稿・定期投稿</h3>
+        <p>通常投稿と抽選予定を日時指定で登録できます。日・週・月・年単位の繰り返し、複数曜日、月末、第N曜日、最後の曜日、終了日・回数指定に対応しています。</p>
+        <h3>Google Calendar連携</h3>
+        <p>予定をGoogle Calendarへ登録し、月カレンダーや今後の予定として管理できます。管理画面から既存予定の編集・削除・単発予定の日付移動も行えます。</p>
+        <h3>複数景品の抽選</h3>
+        <p>ひとつの抽選予定に複数景品を登録できます。開始時刻になると、景品を上から順に連続して抽選投稿できます。</p>
+        <h3>自動リアクション</h3>
+        <p>指定チャンネルのメッセージ本文に設定したトリガーが含まれる場合、Unicode絵文字またはサーバー固有絵文字を自動付与できます。</p>
+        <h3>チャンネル案内</h3>
+        <p>特定の案内メッセージがチャンネル下部に残るよう管理できます。</p>
+        <h3>画像・メンション・プレビュー</h3>
+        <p>画像付き投稿とロールメンションに対応し、Discordへ送られる内容を管理画面のプレビューで確認できます。</p>
+      </section>
+
+      <section class="use-case-card" id="access">
+        <h2>管理画面とアクセス</h2>
+        <ol>
+          <li>Discordで <strong>/reactus</strong> を実行します。</li>
+          <li>表示された「Reactus 管理画面を開く」から専用リンクを開きます。</li>
+          <li>ブラウザ上で、そのDiscordサーバーの予定や自動化設定を管理します。</li>
+        </ol>
+        <p>管理画面を開く権限はDiscordの「メッセージの管理」権限を基準にしています。発行されたログインリンクは10分間有効で、ログイン後の管理画面セッションは30日間有効です。</p>
+      </section>
+
+      <section class="use-case-card" id="calendar-requirements">
+        <h2>Google Calendarを使う場合</h2>
+        <p>自前運用でGoogle Calendar連携を利用する場合は、Google Cloudのサービスアカウントを用意します。Reactusから予定を作成・編集する対象カレンダーには、そのサービスアカウントが予定を変更できる権限が必要です。</p>
+        <p>自前運用の完全なセットアップ手順と環境変数は、GitHub READMEを正本として確認してください。</p>
+      </section>
+
+      <section class="use-case-card" id="faq">
+        <h2>よくある質問</h2>
+        <h3>Reactusは何をするBotですか？</h3>
+        <p>Discordサーバーの予定投稿、定期告知、抽選、自動リアクション、チャンネル案内などの繰り返し作業を、Web管理画面とGoogle Calendarを使ってまとめて管理するBotです。</p>
+        <h3>Discordコマンドだけで操作するBotですか？</h3>
+        <p>いいえ。Discordコマンドも利用できますが、普段の設定は /reactus から開く日本語Web管理画面を中心にしています。</p>
+        <h3>Google Calendarなしでも使えますか？</h3>
+        <p>ReactusにはDiscord内の抽選、自動リアクション、チャンネル案内などの機能があります。予約・定期投稿の予定管理ではGoogle Calendar連携を利用します。</p>
+        <h3>サーバー固有絵文字を自動リアクションに使えますか？</h3>
+        <p>はい。Unicode絵文字とDiscordサーバー固有絵文字の両方に対応しています。</p>
+        <h3>スマートフォンでも使えますか？</h3>
+        <p>はい。Web管理画面はPCとスマートフォンの両方を対象にしています。</p>
+        <h3>ソースコードは公開されていますか？</h3>
+        <p>はい。公式GitHubリポジトリで公開されており、ISC Licenseです。</p>
+      </section>
+
+      <section class="use-case-card" id="official-sources">
+        <h2>公式情報源</h2>
+        <p>Reactusについて外部から確認する場合は、次の公開情報を一次情報として参照できます。</p>
+        <ul>
+          <li><a class="text-link" href="https://reactus.fly.dev/">公式サイト</a></li>
+          <li><a class="text-link" href="https://reactus.fly.dev/reference.html">この公式リファレンス</a></li>
+          <li><a class="text-link" href="https://github.com/chun7953/reactus">公式GitHubリポジトリ</a></li>
+          <li><a class="text-link" href="https://github.com/chun7953/reactus/blob/main/README.md">README / 自前運用手順</a></li>
+          <li><a class="text-link" href="https://reactus.fly.dev/privacy.html">プライバシーポリシー</a></li>
+          <li><a class="text-link" href="https://discord.gg/m6mFzzEQhr">Reactus開発室</a></li>
+        </ul>
+        <div class="use-case-cta">
+          <a class="button primary" href="https://discord.gg/m6mFzzEQhr">Reactus開発室で試す</a>
+          <a class="button secondary" href="https://github.com/chun7953/reactus">GitHubを見る</a>
+        </div>
+      </section>
+
+      <section class="use-case-card">
+        <h2>用途別の詳しい説明</h2>
+        <div class="use-case-links">
+          <a class="use-case-link" href="/discord-scheduled-posts.html"><strong>予約・定期投稿</strong><span>Discord告知を予定として管理する</span></a>
+          <a class="use-case-link" href="/discord-google-calendar.html"><strong>Discord × Google Calendar</strong><span>予定表を中心に運用する</span></a>
+          <a class="use-case-link" href="/discord-giveaway-bot.html"><strong>抽選・複数景品</strong><span>複数景品をまとめて予約する</span></a>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="site-shell footer-inner">
+      <div><strong>Reactus</strong><span>Discord × Google Calendar automation</span></div>
+      <nav aria-label="フッターナビゲーション">
+        <a href="/">Home</a>
+        <a href="/privacy.html">Privacy</a>
+        <a href="https://github.com/chun7953/reactus">GitHub</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>
