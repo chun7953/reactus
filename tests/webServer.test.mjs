@@ -40,12 +40,14 @@ test('production web server serves public search discovery routes with correct c
 
     const cases = [
         ['/privacy.html', 'text/html; charset=utf-8', 'プライバシーポリシー'],
+        ['/reference.html', 'text/html; charset=utf-8', 'Reactus 公式リファレンス'],
         ['/discord-scheduled-posts.html', 'text/html; charset=utf-8', 'Discordの予約投稿'],
         ['/discord-google-calendar.html', 'text/html; charset=utf-8', 'Google Calendar'],
         ['/discord-giveaway-bot.html', 'text/html; charset=utf-8', '複数景品'],
         ['/robots.txt', 'text/plain; charset=utf-8', 'Sitemap: https://reactus.fly.dev/sitemap.xml'],
         ['/sitemap.xml', 'application/xml; charset=utf-8', '<urlset'],
         ['/llms.txt', 'text/plain; charset=utf-8', '# Reactus'],
+        ['/llms-full.txt', 'text/plain; charset=utf-8', '# Reactus official machine-readable reference'],
     ];
 
     for (const [pathname, contentType, expectedText] of cases) {
