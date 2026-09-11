@@ -5,7 +5,7 @@ const LOGIN_TTL_MINUTES = 10;
 const SESSION_TTL_DAYS = 30;
 const SESSION_CACHE_TTL_MS = 30 * 1000;
 const sessionCache = new Map();
-const revokingGuilds = new Set();
+const guildRevocationStates = new Map();
 let authRevocationRevision = 0;
 
 function randomToken() {
@@ -14,6 +14,44 @@ function randomToken() {
 
 function hashToken(token) {
     return crypto.createHash('sha256').update(String(token || '')).digest('hex');
+}
+
+function scopedGuildId(guildId) {
+    return String(guildId || '').trim();
+}
+
+function guildRevocationState(guildId) {
+    const id = scopedGuildId(guildId);
+    if (!id) return { active: 0, revision: 0 };
+    return guildRevocationStates.get(id) || { active: 0, revision: 0 };
+}
+
+function guildAuthRevision(guildId) {
+    return guildRevocationState(guildId).revision;
+}
+
+function isGuildAuthRevoking(guildId) {
+    return guildRevocationState(guildId).active > 0;
+}
+
+function beginGuildAuthRevocation(guildId) {
+    const id = scopedGuildId(guildId);
+    const current = guildRevocationState(id);
+    guildRevocationStates.set(id, {
+        active: current.active + 1,
+        revision: current.revision + 1,
+    });
+    authRevocationRevision += 1;
+}
+
+function endGuildAuthRevocation(guildId) {
+    const id = scopedGuildId(guildId);
+    const current = guildRevocationState(id);
+    guildRevocationStates.set(id, {
+        active: Math.max(0, current.active - 1),
+        revision: current.revision + 1,
+    });
+    authRevocationRevision += 1;
 }
 
 function sessionExpiryMs(session) {
@@ -27,6 +65,7 @@ function rememberSession(sessionHash, session) {
     const now = Date.now();
     const expiresAt = sessionExpiryMs(session);
     if (!sessionHash || !session || expiresAt <= now) return;
+    if (isGuildAuthRevoking(session.guild_id)) return;
     sessionCache.set(sessionHash, {
         session,
         cacheUntil: Math.min(now + SESSION_CACHE_TTL_MS, expiresAt),
@@ -40,16 +79,16 @@ function readCachedSession(sessionHash) {
         sessionCache.delete(sessionHash);
         return null;
     }
-    if (revokingGuilds.has(String(cached.session?.guild_id || ''))) return null;
+    if (isGuildAuthRevoking(cached.session?.guild_id)) return null;
     return cached.session;
 }
 
 function clearGuildSessionCache(guildId) {
-    const scopedGuildId = String(guildId || '').trim();
-    if (!scopedGuildId) return 0;
+    const id = scopedGuildId(guildId);
+    if (!id) return 0;
     let cleared = 0;
     for (const [sessionHash, cached] of sessionCache.entries()) {
-        if (String(cached?.session?.guild_id || '') !== scopedGuildId) continue;
+        if (String(cached?.session?.guild_id || '') !== id) continue;
         sessionCache.delete(sessionHash);
         cleared += 1;
     }
@@ -66,25 +105,41 @@ async function selectWebAdminSession(db, sessionHash) {
     return result.rows[0] || null;
 }
 
-export async function issueWebAdminLogin(guildId, userId) {
-    if (!guildId || !userId) throw new Error('guildId and userId are required');
+export async function issueWebAdminLogin(guildId, userId, { db: suppliedDb } = {}) {
+    const id = scopedGuildId(guildId);
+    if (!id || !userId) throw new Error('guildId and userId are required');
+    if (isGuildAuthRevoking(id)) throw new Error('Web admin auth is being revoked for this guild');
+
+    const observedRevision = guildAuthRevision(id);
     const token = randomToken();
-    const pool = await getDBPool();
-    await pool.query(
+    const tokenHash = hashToken(token);
+    const db = suppliedDb || await getDBPool();
+    await db.query(
         `INSERT INTO web_admin_login_tokens (token_hash, guild_id, user_id, expires_at)
          VALUES ($1, $2, $3, NOW() + ($4 || ' minutes')::interval)`,
-        [hashToken(token), guildId, userId, String(LOGIN_TTL_MINUTES)],
+        [tokenHash, id, userId, String(LOGIN_TTL_MINUTES)],
     );
-    await pool.query('DELETE FROM web_admin_login_tokens WHERE expires_at < NOW()');
-    await pool.query('DELETE FROM web_admin_sessions WHERE expires_at < NOW()');
+
+    // A guild departure can overlap the INSERT and miss the not-yet-committed
+    // token. If that boundary moved, remove the new credential before it can be
+    // returned to the caller.
+    if (observedRevision !== guildAuthRevision(id) || isGuildAuthRevoking(id)) {
+        await db.query('DELETE FROM web_admin_login_tokens WHERE token_hash = $1', [tokenHash]);
+        throw new Error('Web admin auth was revoked while issuing a login link');
+    }
+
+    await db.query('DELETE FROM web_admin_login_tokens WHERE expires_at < NOW()');
+    await db.query('DELETE FROM web_admin_sessions WHERE expires_at < NOW()');
     return token;
 }
 
-export async function consumeWebAdminLogin(token) {
+export async function consumeWebAdminLogin(token, { db: suppliedDb } = {}) {
     if (!token) return null;
-    const pool = await getDBPool();
+    const pool = suppliedDb || await getDBPool();
     const client = await pool.connect();
     let transactionOpen = false;
+    let sessionHash = null;
+    let guildId = null;
     try {
         await client.query('BEGIN');
         transactionOpen = true;
@@ -100,9 +155,20 @@ export async function consumeWebAdminLogin(token) {
             return null;
         }
 
+        const { guild_id: rawGuildId, user_id: userId } = login.rows[0];
+        guildId = scopedGuildId(rawGuildId);
+        const observedRevision = guildAuthRevision(guildId);
+
+        // Keep the one-time token consumed, but do not mint a session while a
+        // guild-wide credential revocation is already active.
+        if (isGuildAuthRevoking(guildId)) {
+            await client.query('COMMIT');
+            transactionOpen = false;
+            return null;
+        }
+
         const sessionToken = randomToken();
-        const sessionHash = hashToken(sessionToken);
-        const { guild_id: guildId, user_id: userId } = login.rows[0];
+        sessionHash = hashToken(sessionToken);
         await client.query(
             `INSERT INTO web_admin_sessions (session_hash, guild_id, user_id, expires_at)
              VALUES ($1, $2, $3, NOW() + ($4 || ' days')::interval)`,
@@ -110,6 +176,16 @@ export async function consumeWebAdminLogin(token) {
         );
         await client.query('COMMIT');
         transactionOpen = false;
+
+        // A single guild-delete statement can observe the consumed login token
+        // yet miss a session inserted later in this transaction. Detect that
+        // crossed boundary after commit and remove the newly-created session.
+        if (observedRevision !== guildAuthRevision(guildId) || isGuildAuthRevoking(guildId)) {
+            await pool.query('DELETE FROM web_admin_sessions WHERE session_hash = $1', [sessionHash]);
+            sessionCache.delete(sessionHash);
+            return null;
+        }
+
         rememberSession(sessionHash, {
             guild_id: guildId,
             user_id: userId,
@@ -118,6 +194,7 @@ export async function consumeWebAdminLogin(token) {
         return { sessionToken, guildId, userId, maxAgeSeconds: SESSION_TTL_DAYS * 24 * 60 * 60 };
     } catch (error) {
         if (transactionOpen) await client.query('ROLLBACK').catch(() => {});
+        if (sessionHash) sessionCache.delete(sessionHash);
         throw error;
     } finally {
         client.release();
@@ -134,18 +211,17 @@ export async function getWebAdminSession(sessionToken, { db: suppliedDb } = {}) 
     let observedRevision = authRevocationRevision;
     let session = await selectWebAdminSession(db, sessionHash);
 
-    // A guild-wide revocation can overlap this SELECT. If the revocation
+    // A guild-wide revocation can overlap this SELECT. If any revocation
     // boundary moved while the query was in flight, never cache or return that
     // snapshot. Re-read once from the post-revocation database state. If the
-    // boundary moves again during the retry, fail closed and let the caller
-    // authenticate again on its next request.
+    // boundary moves again during the retry, fail closed.
     if (observedRevision !== authRevocationRevision) {
         observedRevision = authRevocationRevision;
         session = await selectWebAdminSession(db, sessionHash);
         if (observedRevision !== authRevocationRevision) return null;
     }
 
-    if (session && revokingGuilds.has(String(session.guild_id || ''))) return null;
+    if (session && isGuildAuthRevoking(session.guild_id)) return null;
     if (session) rememberSession(sessionHash, session);
     return session;
 }
@@ -160,12 +236,11 @@ export async function revokeWebAdminSession(sessionToken) {
 }
 
 export async function revokeWebAdminAuthForGuild(guildId, { db: suppliedDb } = {}) {
-    const scopedGuildId = String(guildId || '').trim();
-    if (!scopedGuildId) throw new Error('guildId is required');
+    const id = scopedGuildId(guildId);
+    if (!id) throw new Error('guildId is required');
 
-    revokingGuilds.add(scopedGuildId);
-    authRevocationRevision += 1;
-    clearGuildSessionCache(scopedGuildId);
+    beginGuildAuthRevocation(id);
+    clearGuildSessionCache(id);
     const db = suppliedDb || await getDBPool();
 
     try {
@@ -183,7 +258,7 @@ export async function revokeWebAdminAuthForGuild(guildId, { db: suppliedDb } = {
              SELECT
                 (SELECT COUNT(*)::INTEGER FROM deleted_login_tokens) AS login_tokens,
                 (SELECT COUNT(*)::INTEGER FROM deleted_sessions) AS sessions`,
-            [scopedGuildId],
+            [id],
         );
 
         return {
@@ -191,8 +266,7 @@ export async function revokeWebAdminAuthForGuild(guildId, { db: suppliedDb } = {
             sessions: Number(result.rows?.[0]?.sessions || 0),
         };
     } finally {
-        clearGuildSessionCache(scopedGuildId);
-        revokingGuilds.delete(scopedGuildId);
-        authRevocationRevision += 1;
+        clearGuildSessionCache(id);
+        endGuildAuthRevocation(id);
     }
 }
