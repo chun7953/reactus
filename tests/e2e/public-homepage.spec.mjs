@@ -79,6 +79,8 @@ test('crawler discovery files advertise only public content', async ({ request }
   expect(sitemap).toContain('/discord-scheduled-posts.html</loc>');
   expect(sitemap).toContain('/discord-google-calendar.html</loc>');
   expect(sitemap).toContain('/discord-giveaway-bot.html</loc>');
+  expect(sitemap).toContain('/privacy.html</loc>');
+  expect(sitemap).toContain('/terms.html</loc>');
   expect(sitemap).not.toContain('/admin');
 
   const llmsResponse = await request.get('/llms.txt');
@@ -102,9 +104,30 @@ test('privacy page matches current Reactus storage and external-service disclosu
   await expect(page.getByText(/Google Analytics等のアクセス解析タグは導入していません/)).toBeVisible();
   await expect(page.getByRole('link', { name: 'Reactus開発室Discord' })).toHaveAttribute('href', 'https://discord.gg/m6mFzzEQhr');
   await expect(page.getByRole('link', { name: 'Reactus トップ' })).toHaveAttribute('href', '/');
+  await expect(page.getByRole('link', { name: '利用規約' })).toHaveAttribute('href', '/terms.html');
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'https://reactus.fly.dev/privacy.html');
   await expect(page.locator('meta[property="og:url"]')).toHaveAttribute('content', 'https://reactus.fly.dev/privacy.html');
   await expect(page.locator('body')).not.toContainText('第三者と共有、または販売することは一切ありません');
+
+  await expectNoHorizontalOverflow(page);
+});
+
+test('terms page is public, indexable, linked to privacy, and responsive', async ({ page }) => {
+  await page.goto('/terms.html');
+
+  await expect(page).toHaveTitle('利用規約 | Reactus');
+  await expect(page.getByRole('heading', { level: 1, name: 'Reactus 利用規約' })).toBeVisible();
+  await expect(page.getByText('最終更新日: 2026年9月12日')).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: '1. 適用' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: '4. 禁止事項' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: '5. Google Calendar連携' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: '7. データとプライバシー' })).toBeVisible();
+  await expect(page.getByText(/Discordサーバーごとのカレンダー所有確認/)).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Reactusのプライバシーポリシー' })).toHaveAttribute('href', '/privacy.html');
+  await expect(page.getByRole('link', { name: 'Reactus開発室Discord' })).toHaveAttribute('href', 'https://discord.gg/m6mFzzEQhr');
+  await expect(page.getByRole('link', { name: 'Reactus トップ' })).toHaveAttribute('href', '/');
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'https://reactus.fly.dev/terms.html');
+  await expect(page.locator('meta[property="og:url"]')).toHaveAttribute('content', 'https://reactus.fly.dev/terms.html');
 
   await expectNoHorizontalOverflow(page);
 });

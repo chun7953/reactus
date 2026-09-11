@@ -40,6 +40,7 @@ test('production web server serves public search discovery routes with correct c
 
     const cases = [
         ['/privacy.html', 'text/html; charset=utf-8', 'プライバシーポリシー'],
+        ['/terms.html', 'text/html; charset=utf-8', 'Reactus 利用規約'],
         ['/reference.html', 'text/html; charset=utf-8', 'Reactus 公式リファレンス'],
         ['/discord-scheduled-posts.html', 'text/html; charset=utf-8', 'Discordの予約投稿'],
         ['/discord-google-calendar.html', 'text/html; charset=utf-8', 'Google Calendar'],

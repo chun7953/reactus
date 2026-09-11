@@ -2,11 +2,11 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://reactus.fly.dev/</loc>
-    <lastmod>2026-09-11</lastmod>
+    <lastmod>2026-09-12</lastmod>
   </url>
   <url>
     <loc>https://reactus.fly.dev/reference.html</loc>
-    <lastmod>2026-09-11</lastmod>
+    <lastmod>2026-09-12</lastmod>
   </url>
   <url>
     <loc>https://reactus.fly.dev/discord-scheduled-posts.html</loc>
@@ -22,6 +22,10 @@
   </url>
   <url>
     <loc>https://reactus.fly.dev/privacy.html</loc>
-    <lastmod>2026-09-11</lastmod>
+    <lastmod>2026-09-12</lastmod>
+  </url>
+  <url>
+    <loc>https://reactus.fly.dev/terms.html</loc>
+    <lastmod>2026-09-12</lastmod>
   </url>
 </urlset>

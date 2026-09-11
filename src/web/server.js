@@ -10,6 +10,7 @@ const __dirname = path.dirname(__filename);
 const publicPath = path.resolve(__dirname, '..', '..', 'public');
 const publicRootFiles = new Set([
     '/privacy.html',
+    '/terms.html',
     '/reference.html',
     '/discord-scheduled-posts.html',
     '/discord-google-calendar.html',
