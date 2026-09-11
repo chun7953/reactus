@@ -4,6 +4,8 @@ import { showAdminNotice } from './admin-notice.js';
 const qa = (selector) => [...document.querySelectorAll(selector)];
 const q = (selector) => document.querySelector(selector);
 const fallbackCommonEmoji = ['✅','❌','⭕','🔴','🟠','🟡','🟢','🔵','🟣','⚪','⚫','👍','👎','❤️','🎉','⭐','👀','💡','📌','🔥'];
+const REACTION_PAGE_SIZE = 8;
+let reactionPage = 0;
 
 const toolsState = {
   bootstrap: null,
@@ -48,6 +50,7 @@ function installStyles() {
     .reaction-actions{display:flex;gap:7px;align-items:center}
     .rule-emojis{display:flex;gap:5px;align-items:center;flex-wrap:wrap;margin-top:5px}
     .invalid-rule{color:#ff9c9c;font-size:12px;margin-top:4px}
+    .reaction-rule-controls{display:grid;gap:8px;margin-top:10px}
     .calendar-search{margin-right:auto}
     @media(max-width:760px){.reaction-rule{grid-template-columns:1fr}.tools-row input,.tools-row select{width:100%}}
   `;
@@ -203,6 +206,89 @@ function ruleEmojiNode(item) {
   return img;
 }
 
+function ensureReactionControls() {
+  const list = q('#reactionRules');
+  if (!list) return null;
+  let wrapper = q('#reactionRuleControls');
+  if (wrapper) return wrapper;
+
+  wrapper = document.createElement('div');
+  wrapper.id = 'reactionRuleControls';
+  wrapper.className = 'reaction-rule-controls';
+
+  const search = document.createElement('input');
+  search.id = 'reactionRuleSearch';
+  search.type = 'search';
+  search.placeholder = 'チャンネル名・トリガー・絵文字で検索';
+  search.autocomplete = 'off';
+
+  const nav = document.createElement('div');
+  nav.className = 'tools-row';
+  const prev = document.createElement('button');
+  prev.id = 'reactionRulePrev';
+  prev.type = 'button';
+  prev.className = 'small';
+  prev.textContent = '← 前へ';
+  const status = document.createElement('span');
+  status.id = 'reactionRuleStatus';
+  status.className = 'muted';
+  const next = document.createElement('button');
+  next.id = 'reactionRuleNext';
+  next.type = 'button';
+  next.className = 'small';
+  next.textContent = '次へ →';
+
+  prev.addEventListener('click', () => {
+    reactionPage = Math.max(0, reactionPage - 1);
+    applyReactionPage();
+  });
+  next.addEventListener('click', () => {
+    reactionPage += 1;
+    applyReactionPage();
+  });
+  search.addEventListener('input', () => {
+    reactionPage = 0;
+    applyReactionPage();
+  });
+
+  nav.append(prev, status, next);
+  wrapper.append(search, nav);
+  list.after(wrapper);
+  return wrapper;
+}
+
+function applyReactionPage() {
+  const list = q('#reactionRules');
+  const controls = ensureReactionControls();
+  if (!list || !controls) return;
+  const rows = [...list.querySelectorAll(':scope > .reaction-rule')];
+  if (!rows.length) {
+    controls.hidden = true;
+    return;
+  }
+  controls.hidden = false;
+
+  const query = String(q('#reactionRuleSearch')?.value || '').trim().toLocaleLowerCase('ja');
+  const matched = rows.filter(row => !query || row.textContent.toLocaleLowerCase('ja').includes(query));
+  const totalPages = Math.max(1, Math.ceil(matched.length / REACTION_PAGE_SIZE));
+  reactionPage = Math.min(reactionPage, totalPages - 1);
+  const start = reactionPage * REACTION_PAGE_SIZE;
+  const visibleSet = new Set(matched.slice(start, start + REACTION_PAGE_SIZE));
+  const matchedSet = new Set(matched);
+  for (const row of rows) row.style.display = matchedSet.has(row) && visibleSet.has(row) ? '' : 'none';
+
+  const prev = q('#reactionRulePrev');
+  const next = q('#reactionRuleNext');
+  const status = q('#reactionRuleStatus');
+  if (prev) prev.disabled = reactionPage <= 0;
+  if (next) next.disabled = reactionPage >= totalPages - 1;
+  if (status) {
+    status.textContent = query
+      ? `${matched.length}件一致 · ${reactionPage + 1} / ${totalPages}ページ`
+      : `${rows.length}件 · ${reactionPage + 1} / ${totalPages}ページ`;
+  }
+}
+
 function notifyReactionRulesRendered(count) {
   document.dispatchEvent(new CustomEvent('reactus:reaction-rules-rendered', { detail: { count } }));
 }
@@ -211,12 +297,14 @@ function renderRules() {
   const list = q('#reactionRules');
   if (!list) return;
   list.replaceChildren();
+  reactionPage = 0;
   const rules = toolsState.bootstrap?.reactionRules || [];
   if (!rules.length) {
     const p = document.createElement('p');
     p.className = 'muted';
     p.textContent = '自動リアクション設定はありません。';
     list.append(p);
+    applyReactionPage();
     notifyReactionRulesRendered(0);
     return;
   }
@@ -264,6 +352,7 @@ function renderRules() {
     row.append(main, actions);
     list.append(row);
   }
+  applyReactionPage();
   notifyReactionRulesRendered(rules.length);
 }
 
@@ -339,6 +428,7 @@ function installReactionPanel() {
     </div>
     <div class="field-block"><span class="field-title">現在の設定</span><div id="reactionRules"></div></div>`;
   app.append(section);
+  ensureReactionControls();
   q('#reactionSave').addEventListener('click', saveRule);
   q('#reactionCancel').addEventListener('click', resetRuleEditor);
   q('#addUnicodeEmoji').addEventListener('click', () => {
