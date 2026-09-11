@@ -197,7 +197,7 @@ function initialize() {
   const flash = sessionStorage.getItem('reactusCalendarMoveFlash');
   if (flash) {
     sessionStorage.removeItem('reactusCalendarMoveFlash');
-    window.setTimeout(() => showNotice(flash), 50);
+    showNotice(flash);
   }
   document.addEventListener('reactus:month-rendered', bindMonth);
   bindMonth();
