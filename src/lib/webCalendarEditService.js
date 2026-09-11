@@ -397,9 +397,8 @@ export async function updateWebSchedule(guildId, payload) {
             throw error;
         }
 
-        const activeAssetId = imageMode === 'replace' ? newAssetId : (imageMode === 'keep' ? oldAssetId : null);
-        if (activeAssetId) {
-            await bindCalendarPostImageOwner(activeAssetId, guildId, {
+        if (newAssetId) {
+            await bindCalendarPostImageOwner(newAssetId, guildId, {
                 calendarId: resolved.calendarId,
                 eventId: resolved.target.id,
             });
