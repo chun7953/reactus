@@ -41,7 +41,7 @@ test('calendar asset ownership is nullable, guild-scoped, and verification-stamp
   assert.match(assetSource, /catch \(error\)[\s\S]*return false;/);
 });
 
-test('all asset-producing calendar writes bind ownership after Google succeeds', async () => {
+test('only newly created image assets are bound after Google succeeds', async () => {
   const [webCreate, duplicate, webEdit, slashCreate, slashEdit] = await Promise.all([
     readFile(webCreatePath, 'utf8'),
     readFile(duplicatePath, 'utf8'),
@@ -52,10 +52,11 @@ test('all asset-producing calendar writes bind ownership after Google succeeds',
 
   assert.equal((webCreate.match(/bindCalendarPostImageOwner\(assetId, guildId/g) || []).length, 2);
   assert.equal((duplicate.match(/bindCalendarPostImageOwner\(clonedAssetId, guildId/g) || []).length, 1);
-  assert.equal((webEdit.match(/bindCalendarPostImageOwner\(newAssetId, guildId/g) || []).length, 1);
-  assert.equal((webEdit.match(/bindCalendarPostImageOwner\(activeAssetId, guildId/g) || []).length, 1);
+  assert.equal((webEdit.match(/bindCalendarPostImageOwner\(newAssetId, guildId/g) || []).length, 2);
+  assert.doesNotMatch(webEdit, /activeAssetId/);
   assert.equal((slashCreate.match(/bindCalendarPostImageOwner\(assetId, interaction\.guildId/g) || []).length, 1);
-  assert.equal((slashEdit.match(/bindCalendarPostImageOwner\(activeAssetId, interaction\.guildId/g) || []).length, 2);
+  assert.equal((slashEdit.match(/bindCalendarPostImageOwner\(image\.assetId, interaction\.guildId/g) || []).length, 2);
+  assert.doesNotMatch(slashEdit, /activeAssetId/);
 
   assert.ok(webCreate.indexOf('const event = await insertEvent') < webCreate.indexOf('bindCalendarPostImageOwner(assetId, guildId'));
   assert.ok(duplicate.indexOf('const response = await calendar.events.insert') < duplicate.indexOf('bindCalendarPostImageOwner(clonedAssetId, guildId'));
