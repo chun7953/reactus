@@ -1,5 +1,13 @@
 import { expect, test } from '@playwright/test';
 
+async function expectNoHorizontalOverflow(page) {
+  const dimensions = await page.evaluate(() => ({
+    viewportWidth: document.documentElement.clientWidth,
+    documentWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+  }));
+  expect(dimensions.documentWidth).toBeLessThanOrEqual(dimensions.viewportWidth + 1);
+}
+
 test('public homepage presents the current Reactus workflow without horizontal overflow', async ({ page }) => {
   await page.goto('/index.html');
 
@@ -15,9 +23,16 @@ test('public homepage presents the current Reactus workflow without horizontal o
   await expect(page.getByRole('link', { name: 'プライバシーポリシー' })).toHaveAttribute('href', '/privacy.html');
   await expect(page.getByRole('link', { name: 'GitHubを見る' })).toHaveAttribute('href', 'https://github.com/chun7953/reactus');
 
-  const dimensions = await page.evaluate(() => ({
-    viewportWidth: document.documentElement.clientWidth,
-    documentWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
-  }));
-  expect(dimensions.documentWidth).toBeLessThanOrEqual(dimensions.viewportWidth + 1);
+  await expectNoHorizontalOverflow(page);
+});
+
+test('privacy page shares the rebuilt public layout and remains readable', async ({ page }) => {
+  await page.goto('/privacy.html');
+
+  await expect(page).toHaveTitle('プライバシーポリシー | Reactus');
+  await expect(page.getByRole('heading', { level: 1, name: 'プライバシーポリシー' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: '収集する情報' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Reactus トップ' })).toHaveAttribute('href', '/');
+
+  await expectNoHorizontalOverflow(page);
 });
