@@ -5,6 +5,7 @@ import {
     CalendarClaimChallengeError,
     CalendarClaimRequiredError,
     ensureCalendarClaim,
+    revokeCalendarClaimsForGuild,
     unverifiedCalendarIds,
 } from '../src/lib/calendarClaimService.js';
 
@@ -148,4 +149,14 @@ test('restore helper reports only calendars without verified claims', async () =
         'guild-1',
         ['verified@example.com', 'missing@example.com'],
     ]);
+});
+
+test('guild departure revokes every persisted calendar claim for that guild', async () => {
+    const db = sequenceDb([{ rows: [], rowCount: 3 }]);
+
+    const revoked = await revokeCalendarClaimsForGuild('guild-1', { db });
+
+    assert.equal(revoked, 3);
+    assert.match(db.queries[0].sql, /DELETE FROM calendar_claims/);
+    assert.deepEqual(db.queries[0].params, ['guild-1']);
 });
