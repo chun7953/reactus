@@ -1,14 +1,9 @@
+import { loadEnhancementBootstrap } from './admin-enhancement-bootstrap.js';
+
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
 
 let bootstrap = null;
-
-async function api(path) {
-  const response = await fetch(path, { credentials: 'same-origin' });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
-  return data;
-}
 
 function installStyles() {
   if ($('#discordPreviewStyles')) return;
@@ -286,7 +281,7 @@ async function initialize() {
   installStyles();
   installPanel();
   try {
-    bootstrap = await api('/api/admin/bootstrap');
+    bootstrap = await loadEnhancementBootstrap();
   } catch {
     return;
   }
