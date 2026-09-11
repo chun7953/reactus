@@ -1,4 +1,6 @@
 import './admin-polyfills.js';
+import { dismissAdminNotice } from './common/admin-notice-owner.js';
+import { showAdminNotice } from './common/admin-notice.js';
 import './admin.js';
 import './common/admin-calendar-shell.js';
 import './common/admin-calendar-month-view.js';
@@ -19,10 +21,7 @@ function clearExpiredLoginStateForActiveSession() {
   } catch {}
   if (!expired) return;
 
-  const notice = document.querySelector('#notice');
-  if (notice?.textContent?.includes('ログインリンクの有効期限が切れています')) {
-    notice.classList.add('hidden');
-  }
+  dismissAdminNotice({ messageIncludes: 'ログインリンクの有効期限が切れています' });
 
   try {
     window.history.replaceState({}, '', `${window.location.pathname}${window.location.hash || ''}`);
@@ -30,11 +29,10 @@ function clearExpiredLoginStateForActiveSession() {
 }
 
 function showEnhancementFailure() {
-  const notice = document.querySelector('#notice');
-  if (!notice) return;
-  notice.textContent = '補助機能の読み込みに失敗しました。基本操作は利用できます。ページを再読み込みしてください。';
-  notice.classList.add('error');
-  notice.classList.remove('hidden');
+  showAdminNotice(
+    '補助機能の読み込みに失敗しました。基本操作は利用できます。ページを再読み込みしてください。',
+    { error: true, duration: 0 },
+  );
 }
 
 function startEnhancements() {
