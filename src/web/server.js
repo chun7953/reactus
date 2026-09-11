@@ -10,12 +10,14 @@ const __dirname = path.dirname(__filename);
 const publicPath = path.resolve(__dirname, '..', '..', 'public');
 const publicRootFiles = new Set([
     '/privacy.html',
+    '/reference.html',
     '/discord-scheduled-posts.html',
     '/discord-google-calendar.html',
     '/discord-giveaway-bot.html',
     '/robots.txt',
     '/sitemap.xml',
     '/llms.txt',
+    '/llms-full.txt',
 ]);
 const adminAssetVersion = encodeURIComponent(
     process.env.FLY_IMAGE_REF || process.env.GITHUB_SHA || `boot-${Date.now()}`,
