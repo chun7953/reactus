@@ -19,6 +19,7 @@ import { resolveCalendarEventPrivateProperties } from './calendarEventMetadata.j
 import { eventMentionTokens, extractDiscordMentions } from './calendarMentions.js';
 import { calendarDisplaySummary, resolveCalendarRoute } from './calendarRouting.js';
 import { monitorsForActiveGuilds } from './calendarMonitorScope.js';
+import { createCalendarEventsRunLoader } from './calendarEventsRunCache.js';
 
 function basicDecodeHtmlEntities(text) {
     if (!text || typeof text !== 'string') {
@@ -65,13 +66,17 @@ async function checkCalendarEvents(client) {
         const timeMin = new Date(now.getTime() - 10 * 60 * 1000).toISOString();
         const timeMax = new Date(now.getTime() + 10 * 60 * 1000).toISOString();
         const masterMetadataCache = new Map();
+        const listCalendarEvents = createCalendarEventsRunLoader(calendar, {
+            timeMin,
+            timeMax,
+            singleEvents: true,
+            orderBy: 'startTime',
+            timeZone: 'Asia/Tokyo',
+        });
         
         for (const monitor of monitors) {
             try {
-                const events = await calendar.events.list({
-                    calendarId: monitor.calendar_id,
-                    timeMin, timeMax, singleEvents: true, orderBy: 'startTime', timeZone: 'Asia/Tokyo'
-                });
+                const events = await listCalendarEvents(monitor.calendar_id);
                 if (!events.data.items) continue;
 
                 for (const event of events.data.items) {
