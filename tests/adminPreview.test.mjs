@@ -40,3 +40,10 @@ test('admin Discord preview follows owned form events without document-wide clic
     assert.doesNotMatch(source, /setTimeout\(render,\s*0\)/);
     assert.doesNotMatch(source, /new MutationObserver\(/);
 });
+
+test('admin Discord preview reads current shared bootstrap data and follows the reaction owner lifecycle', async () => {
+    const source = await readFile(previewPath, 'utf8');
+    assert.match(source, /currentEnhancementBootstrap/);
+    assert.doesNotMatch(source, /let bootstrap\s*=/);
+    assert.match(source, /addEventListener\('reactus:reaction-rules-rendered', render\)/);
+});
