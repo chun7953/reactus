@@ -5,16 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b0f14">
   <meta name="robots" content="index,follow">
-  <meta name="description" content="Reactusのプライバシーポリシーです。">
+  <meta name="description" content="Reactus公式環境で取り扱うDiscord・Google Calendar・Web管理画面・バックアップ等のデータと、その保存先・利用目的を説明します。">
   <title>プライバシーポリシー | Reactus</title>
   <link rel="canonical" href="https://reactus.fly.dev/privacy.html">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="ja_JP">
   <meta property="og:site_name" content="Reactus">
   <meta property="og:title" content="プライバシーポリシー | Reactus">
-  <meta property="og:description" content="Reactusがサービス提供のために扱う情報について説明します。">
+  <meta property="og:description" content="Reactus公式環境が取り扱う情報、保存先、外部サービス、保存期間について説明します。">
   <meta property="og:url" content="https://reactus.fly.dev/privacy.html">
   <meta property="og:image" content="https://reactus.fly.dev/images/bot-icon.png">
+  <meta property="og:image:alt" content="Reactus Bot">
   <meta name="twitter:card" content="summary">
   <link rel="stylesheet" href="/common/css/import_screen.css">
   <link rel="stylesheet" href="/common/css/privacy.css">
@@ -31,6 +32,7 @@
       </a>
       <nav class="site-nav" aria-label="メインナビゲーション">
         <a href="/">トップ</a>
+        <a href="/reference.html">公式リファレンス</a>
         <a href="https://github.com/chun7953/reactus">GitHub</a>
       </nav>
     </div>
@@ -41,21 +43,55 @@
       <div class="legal-heading">
         <p class="eyebrow">PRIVACY</p>
         <h1>プライバシーポリシー</h1>
-        <p>Reactusがサービス提供のために扱う情報について説明します。</p>
+        <p>Reactus公式環境で取り扱う情報、その利用目的、保存先について説明します。</p>
       </div>
 
       <article class="legal-card">
-        <p class="legal-updated">最終更新日: 2025年7月21日</p>
-        <p>本アプリケーション「Reactus」（以下「本アプリ」）は、ユーザーのプライバシーを尊重します。</p>
+        <p class="legal-updated">最終更新日: 2026年9月11日</p>
+        <p>本プライバシーポリシーは、開発者が運用するReactusの公式環境（公式Botおよび <strong>reactus.fly.dev</strong>）における情報の取扱いを説明するものです。Reactusはオープンソースであり、第三者が独自に運用する環境については、その運営者の方針が適用されます。</p>
 
-        <h2>収集する情報</h2>
-        <p>本アプリは、DiscordのユーザーID、サーバーID、チャンネルID、Googleカレンダーの予定情報など、サービスの提供に必要不可欠な情報のみを、ボットのデータベースおよびGoogle Sheetsに保存・利用します。これらの情報は、設定の保存と機能の提供以外の目的で使用することはありません。</p>
+        <h2>取り扱う情報</h2>
+        <p>Reactusは機能提供のため、必要な範囲で次の情報を取り扱います。</p>
+        <ul>
+          <li>DiscordのユーザーID、サーバーID、チャンネルID、ロールID、メッセージIDなどの識別子</li>
+          <li>自動リアクション、チャンネル案内、カレンダー連携、抽選など、サーバー管理者がReactusへ登録した設定や本文</li>
+          <li>抽選の参加者・当選者に関するDiscordユーザーID等、抽選機能の実行に必要な情報</li>
+          <li>Google Calendarの予定情報、カレンダーID、予定ID、日時、繰り返し条件など、予定投稿の作成・表示・編集・実行に必要な情報</li>
+          <li>予定投稿へ添付された画像などのファイル情報およびデータ</li>
+          <li>Web管理画面の認証に必要なDiscordユーザーID・サーバーID・有効期限、およびハッシュ化されたログイン／セッション用トークン</li>
+        </ul>
 
-        <h2>データの共有</h2>
-        <p>本アプリが収集した情報を、開発者以外の第三者と共有、または販売することは一切ありません。</p>
+        <h2>利用目的</h2>
+        <p>これらの情報は、予約・定期投稿、抽選、自動リアクション、チャンネル案内、Google Calendar連携、Web管理画面、設定のバックアップ／復元、障害時の復旧など、Reactusの機能提供・保守・セキュリティ確保のために利用します。</p>
+        <p>広告配信や個人情報の販売を目的として利用することはありません。現時点の公式サイトには、広告配信や利用者行動を追跡するためのGoogle Analytics等のアクセス解析タグは導入していません。将来この取扱いを変更する場合は、本ポリシーを更新します。</p>
+
+        <h2>保存先と外部サービス</h2>
+        <ul>
+          <li><strong>PostgreSQLデータベース:</strong> Reactusの各種設定、抽選状態、管理画面認証情報、管理画面表示用のGoogle Calendar予定スナップショット、予定投稿用画像などを保存します。</li>
+          <li><strong>Google Calendar:</strong> 予約・定期投稿や抽選予定など、カレンダー連携対象の予定情報を保存・取得・更新します。</li>
+          <li><strong>Google Sheets:</strong> 設定バックアップ機能が利用可能な環境では、自動リアクション、チャンネル案内、カレンダー設定、サーバー設定などのバックアップ／復元先として使用します。Google Calendarの予定すべてをGoogle Sheetsへ複製するものではありません。</li>
+          <li><strong>Discord:</strong> 投稿、リアクション、抽選、権限確認、管理画面へのログイン導線など、Bot機能の提供に必要な情報をDiscord APIとの間で送受信します。</li>
+          <li><strong>ホスティング／インフラ提供者:</strong> 公式環境の提供に必要な範囲で、Fly.ioおよびデータベース等のインフラ提供者が通信・保存データを処理する場合があります。</li>
+        </ul>
+
+        <h2>Web管理画面の認証</h2>
+        <p>管理画面用のワンタイムログインリンクは10分間有効です。ログイン後のセッションは30日間有効です。サーバー側には生のログイン／セッショントークンではなくSHA-256によるハッシュ値を保存し、ブラウザにはセッション用Cookieを設定します。期限切れの認証レコードは認証処理の中で順次削除されます。</p>
+
+        <h2>データの共有・販売</h2>
+        <p>Reactusが取り扱う情報を広告事業者等へ販売することはありません。機能提供に必要な範囲で、Discord、Google、ホスティング／データベース提供者などのサービス事業者へ情報が送信・保存される場合があります。また、法令上必要な場合には情報を開示することがあります。</p>
+
+        <h2>保存期間と削除</h2>
+        <p>設定・抽選・予定関連データは、Reactusの機能提供や復旧に必要な期間保存します。管理画面またはDiscordコマンドから削除できる設定や予定は、各機能の削除操作に従って削除されます。Google Calendar上のデータは、対象カレンダーの設定やGoogle側の保持方針にも従います。Google Sheets上のバックアップは、次回バックアップによる上書きまたはシート側での削除まで残る場合があります。</p>
+        <p>公式環境に保存されたデータについて個別の削除相談が必要な場合は、下記の問い合わせ先へご連絡ください。</p>
+
+        <h2>セキュリティ</h2>
+        <p>Reactusは、認証トークンのハッシュ化、HTTPS通信、権限確認など、情報への不正アクセスを抑えるための合理的な対策を行います。ただし、インターネット上のサービスについて完全な安全性を保証するものではありません。</p>
+
+        <h2>本ポリシーの変更</h2>
+        <p>機能、保存先、外部サービス、アクセス解析等の取扱いを変更した場合は、必要に応じて本ポリシーを更新し、最終更新日を変更します。</p>
 
         <h2>お問い合わせ</h2>
-        <p>本プライバシーポリシーに関するご質問は、開発者までご連絡ください。</p>
+        <p>本プライバシーポリシーや公式環境に保存されたデータに関するご質問・削除相談は、<a href="https://discord.gg/m6mFzzEQhr">Reactus開発室Discord</a>から開発者へご連絡ください。</p>
       </article>
     </div>
   </main>
@@ -65,6 +101,7 @@
       <div><strong>Reactus</strong><span>Discord × Google Calendar automation</span></div>
       <nav aria-label="フッターナビゲーション">
         <a href="/">Home</a>
+        <a href="/reference.html">Reference</a>
         <a href="https://github.com/chun7953/reactus">GitHub</a>
         <a href="https://discord.gg/m6mFzzEQhr">Discord</a>
       </nav>
