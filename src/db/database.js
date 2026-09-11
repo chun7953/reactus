@@ -70,22 +70,27 @@ async function migrateLegacyCalendarClaims(db) {
             [LEGACY_CALENDAR_CLAIM_MIGRATION],
         );
         if (applied.rowCount === 0) {
-            await client.query(
-                `WITH existing_calendar_ids AS (
-                    SELECT guild_id, calendar_id
-                    FROM calendar_monitors
-                    WHERE calendar_id IS NOT NULL AND BTRIM(calendar_id) <> ''
-                    UNION
-                    SELECT guild_id, main_calendar_id AS calendar_id
-                    FROM guild_configs
-                    WHERE main_calendar_id IS NOT NULL AND BTRIM(main_calendar_id) <> ''
-                )
-                INSERT INTO calendar_claims
-                    (guild_id, calendar_id, verified_at, verification_method)
-                SELECT guild_id, calendar_id, CURRENT_TIMESTAMP, 'legacy_pre_public'
-                FROM existing_calendar_ids
-                ON CONFLICT (guild_id, calendar_id) DO NOTHING`,
+            const existingClaims = await client.query(
+                'SELECT COUNT(*)::INTEGER AS count FROM calendar_claims',
             );
+            if (Number(existingClaims.rows?.[0]?.count || 0) === 0) {
+                await client.query(
+                    `WITH existing_calendar_ids AS (
+                        SELECT guild_id, calendar_id
+                        FROM calendar_monitors
+                        WHERE calendar_id IS NOT NULL AND BTRIM(calendar_id) <> ''
+                        UNION
+                        SELECT guild_id, main_calendar_id AS calendar_id
+                        FROM guild_configs
+                        WHERE main_calendar_id IS NOT NULL AND BTRIM(main_calendar_id) <> ''
+                    )
+                    INSERT INTO calendar_claims
+                        (guild_id, calendar_id, verified_at, verification_method)
+                    SELECT guild_id, calendar_id, CURRENT_TIMESTAMP, 'legacy_pre_public'
+                    FROM existing_calendar_ids
+                    ON CONFLICT (guild_id, calendar_id) DO NOTHING`,
+                );
+            }
             await client.query(
                 'INSERT INTO schema_migrations (name) VALUES ($1)',
                 [LEGACY_CALENDAR_CLAIM_MIGRATION],
