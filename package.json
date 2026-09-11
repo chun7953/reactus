@@ -15,12 +15,24 @@
   },
   "keywords": [
     "discord",
-    "bot",
-    "reaction"
+    "discord-bot",
+    "discord-automation",
+    "google-calendar",
+    "scheduled-posts",
+    "recurring-posts",
+    "giveaway",
+    "automatic-reactions",
+    "web-admin",
+    "nodejs"
   ],
   "author": "chun",
   "license": "ISC",
-  "description": "A refactored Discord bot that manages automatic reactions.",
+  "description": "Discord automation bot for scheduled and recurring posts, giveaways, automatic reactions, and Google Calendar workflows with a Japanese web admin.",
+  "homepage": "https://reactus.fly.dev/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chun7953/reactus.git"
+  },
   "dependencies": {
     "@discordjs/rest": "^2.6.3",
     "discord-api-types": "^0.37.120",
