@@ -9,6 +9,12 @@ function requireGuildId(guildId) {
     return value;
 }
 
+function requireOwnerIdentifier(value, label) {
+    const normalized = String(value || '').trim();
+    if (!normalized) throw new Error(`${label}を特定できません。`);
+    return normalized;
+}
+
 async function insertCalendarPostImage(guildId, { filename, contentType, data }) {
     const scopedGuildId = requireGuildId(guildId);
     if (!contentType?.startsWith('image/')) {
@@ -68,7 +74,7 @@ export async function getCalendarPostImage(assetId, guildId) {
     const scopedGuildId = requireGuildId(guildId);
     const pool = await getDBPool();
     const result = await pool.query(
-        `SELECT id, filename, content_type, size_bytes, data
+        `SELECT id, filename, content_type, size_bytes, data, calendar_id, event_id, last_verified_at
            FROM calendar_post_assets
           WHERE id = $1 AND guild_id = $2`,
         [assetId, scopedGuildId],
@@ -85,6 +91,23 @@ export async function cloneCalendarPostImage(guildId, assetId) {
         contentType: source.content_type,
         data: source.data,
     });
+}
+
+export async function bindCalendarPostImageOwner(assetId, guildId, { calendarId, eventId }) {
+    if (!assetId) return false;
+    const scopedGuildId = requireGuildId(guildId);
+    const scopedCalendarId = requireOwnerIdentifier(calendarId, '画像を所有するカレンダー');
+    const scopedEventId = requireOwnerIdentifier(eventId, '画像を所有する予定');
+    const pool = await getDBPool();
+    const result = await pool.query(
+        `UPDATE calendar_post_assets
+            SET calendar_id = $3,
+                event_id = $4,
+                last_verified_at = CURRENT_TIMESTAMP
+          WHERE id = $1 AND guild_id = $2`,
+        [assetId, scopedGuildId, scopedCalendarId, scopedEventId],
+    );
+    return result.rowCount > 0;
 }
 
 export async function deleteCalendarPostImage(assetId, guildId) {
