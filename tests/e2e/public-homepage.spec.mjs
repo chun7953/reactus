@@ -85,7 +85,16 @@ test('crawler discovery files advertise only public content', async ({ request }
 
   const llmsResponse = await request.get('/llms.txt');
   expect(llmsResponse.ok()).toBeTruthy();
-  expect(await llmsResponse.text()).toContain('# Reactus');
+  const llms = await llmsResponse.text();
+  expect(llms).toContain('# Reactus');
+  expect(llms).toContain('- Privacy: https://reactus.fly.dev/privacy.html');
+  expect(llms).toContain('- Terms: https://reactus.fly.dev/terms.html');
+
+  const llmsFullResponse = await request.get('/llms-full.txt');
+  expect(llmsFullResponse.ok()).toBeTruthy();
+  const llmsFull = await llmsFullResponse.text();
+  expect(llmsFull).toContain('Privacy policy: https://reactus.fly.dev/privacy.html');
+  expect(llmsFull).toContain('Terms of service: https://reactus.fly.dev/terms.html');
 });
 
 test('privacy page matches current Reactus storage and external-service disclosures', async ({ page }) => {
