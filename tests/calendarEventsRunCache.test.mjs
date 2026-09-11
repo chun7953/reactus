@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import { createCalendarEventsRunLoader } from '../src/lib/calendarEventsRunCache.js';
+
+const taskMonitorPath = new URL('../src/lib/taskMonitor.js', import.meta.url);
 
 function createCalendar({ failFirst = false } = {}) {
   const calls = [];
@@ -56,4 +59,12 @@ test('failed calendar list is not cached and can retry in the same run', async (
 
   assert.equal(calls.length, 2);
   assert.equal(result.data.items[0].id, 'event-calendar-a');
+});
+
+test('task monitor delegates calendar listing to the per-run loader', async () => {
+  const source = await readFile(taskMonitorPath, 'utf8');
+
+  assert.match(source, /createCalendarEventsRunLoader\(calendar,/);
+  assert.match(source, /listCalendarEvents\(monitor\.calendar_id\)/);
+  assert.doesNotMatch(source, /calendar\.events\.list\(/);
 });
