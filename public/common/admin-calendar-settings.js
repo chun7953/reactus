@@ -1,4 +1,5 @@
 import { loadEnhancementBootstrap } from './admin-enhancement-bootstrap.js';
+import { showAdminNotice } from './admin-notice.js';
 
 const calendarSettingsState = {
   bootstrap: null,
@@ -19,12 +20,7 @@ async function settingsApi(path, options = {}) {
 }
 
 function flash(message, error = false) {
-  const notice = q('#notice');
-  if (!notice) return;
-  notice.textContent = message;
-  notice.classList.toggle('error', error);
-  notice.classList.remove('hidden');
-  window.setTimeout(() => notice.classList.add('hidden'), 7000);
+  showAdminNotice(message, { error });
 }
 
 function roleName(id) {
