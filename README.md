@@ -1,150 +1,286 @@
-# Reactus Bot
+# Reactus
 
 ![Node.js](https://img.shields.io/badge/node-24.x-green.svg)
 ![Discord.js](https://img.shields.io/badge/discord.js-v14-blue.svg)
 ![License](https://img.shields.io/badge/license-ISC-lightgrey.svg)
 
-Reactusは、Discordサーバー向けの多機能ボットです。
-自動リアクション、アナウンス機能、Googleカレンダーと連携したイベント通知機能などを備えています。
+Reactusは、Discordサーバーの**予約投稿・定期投稿・抽選・自動リアクション・チャンネル案内**を、Google Calendarと日本語のWeb管理画面からまとめて運用するBotです。
 
-このプロジェクトは、Fly.ioでの稼働を想定しています。
+普段の設定は、Discordで `/reactus` を実行して開く管理画面から行うことを想定しています。スラッシュコマンドも残っているため、Discord内だけで直接操作することもできます。
 
-## ✨ 主な機能
+## Reactusでできること
 
--   **自動リアクション**: 特定のキーワードを含むメッセージに、設定した絵文字を自動で付与します。
--   **自動アナウンス**: 指定したメッセージを常にチャンネルの最新部に表示し続けます。
--   **抽選機能**:
-    -   賞品、当選者数、期間などを設定して抽選イベントを作成・管理できます。
-    -   `/giveaway schedule`による単発の予約開催や、`/giveaway edit`で進行中の抽選内容の変更が可能です。
-    -   `/calendarpost giveaway`ではGoogleカレンダーを予定の正本として、期間付き抽選をDiscordから登録できます。
-    -   日・週・月・年単位、N週ごと、複数曜日、第N曜日、最終曜日、月末、終了日、回数指定などの定期抽選に対応します。
-    -   Googleカレンダーに従来どおり`【ラキショ】`を含む予定を手入力する方式も引き続き利用できます。
-    -   `/giveaway-permission`コマンドで、管理者以外の特定ロールに抽選の管理権限を付与できます。
--   **Googleカレンダー連携**:
-    -   Googleカレンダーの予定を10分おきに監視します。
-    -   特定のキーワードを含む予定が対象時間になると、指定したチャンネルへ投稿します。
-    -   `/calendarpost post`から通常の予約投稿・定期投稿をDiscordだけで登録できます。
-    -   投稿ごとにメンションの有無・ロールを指定でき、画像付きの定期投稿にも対応します。
-    -   `/calendarpost list`、`/calendarpost delete`、`/calendaredit`で一覧・削除・編集もDiscord内で行えます。
-    -   サーバーのメインカレンダーを登録できます。
--   **投票作成**: リアクションを利用した投票を作成できます。
--   **CSVリアクション集計**: メッセージに付けられたリアクションを、ユーザーリスト付きのCSVファイルとして出力します。集計結果は、**全員に公開**するか、**自分だけに表示**するかを選択できます。
--   **Googleスプレッドシート連携**: 全ての設定を、コマンド一つで、または設定変更時に自動でGoogleスプレッドシートにバックアップ・復元できます。
+### Web管理画面
 
-## 🚀 セットアップとデプロイ手順
+`/reactus` から発行されるリンクでログインすると、ブラウザ上で次の操作ができます。
 
-### 1. 前提条件
--   Node.js (v24.x)
--   Git
--   Fly.ioアカウントおよび`flyctl`コマンドラインツール
--   Google Cloud Platformアカウント
+- 通常の予約投稿・定期投稿を作成
+- 抽選予定を作成
+  - 1つの予定に複数景品を登録すると、開始時刻に上から順に連続投稿
+  - 複数抽選のあとに本文を1回だけ投稿する設定にも対応
+- 投稿本文、画像、メンション先を設定
+- 日・週・月・年単位の繰り返しを設定
+  - 複数曜日
+  - N日 / N週 / Nか月 / N年ごと
+  - 月末、第N曜日、最後の曜日
+  - 終了日・回数指定
+- 月カレンダーで予定を確認
+- 予定を編集・削除・日付移動
+- 今後の予定を検索・一覧表示
+- Discord投稿のプレビューを確認
+- Google CalendarとDiscord投稿先の対応を管理
+- 自動リアクションを設定・編集・削除
+  - Unicode絵文字とサーバー固有絵文字に対応
+- チャンネル下部に残す案内メッセージを管理
+- PC / スマートフォンの両方から操作
 
-### 2. Google APIの準備
+`/reactus` のログインリンクは10分間有効です。ログイン後の管理画面セッションは30日間有効です。管理画面を開く権限はDiscordの `メッセージの管理` 権限を基準にしています。
 
-1.  **Google Cloudプロジェクトの作成**: [Google Cloud Platform](https://console.cloud.google.com/) で新しいプロジェクトを作成します。
-2.  **APIの有効化**: 作成したプロジェクトで、以下の2つのAPIを有効にします。
-    -   **Google Sheets API**
-    -   **Google Calendar API**
-3.  **サービスアカウントの作成とキーの取得**:
-    - 「APIとサービス」 > 「認証情報」 > 「+ 認証情報を作成」 > 「サービスアカウント」を選択します。
-    - サービスアカウント名（例: `reactus-bot-service-account`）を入力し、作成して続行します。
-    - ロールは不要なので、何も選択せずに「完了」をクリックします。
-    - 作成したサービスアカウントのメールアドレス（`...@...iam.gserviceaccount.com`）をコピーしておきます。
-    - 作成したサービスアカウントをクリックし、「キー」タブ > 「鍵を追加」 > 「新しい鍵を作成」を選択します。
-    - キーのタイプは「**JSON**」を選んで作成すると、認証情報が記述されたJSONファイルがダウンロードされます。**このファイルは公開しないでください。**
-4. **Googleリソースの共有設定**:
-    - **Googleスプレッドシート**: バックアップ先のスプレッドシートを開き、右上の「共有」ボタンから、先ほどコピーしたサービスアカウントのメールアドレスを**編集者**として追加します。
-    - **Googleカレンダー**: 対象Googleカレンダーの設定を開き、「特定のユーザーとの共有」で、同じサービスアカウントのメールアドレスを**予定の変更**権限で追加します。閲覧だけなら従来のカレンダー通知は動きますが、`/calendarpost`と`/calendaredit`でDiscordから予定を作成・編集するには変更権限が必要です。
-5.  **スプレッドシートIDの取得**:
-    - 共有したスプレッドシートのURL（`https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit`）から、`SPREADSHEET_ID`の部分をコピーしておきます。
+### Google Calendar連携
 
-### 3. Fly.ioへのデプロイと運用
+Reactusでは、予約・定期投稿の予定をGoogle Calendarに登録して運用できます。
 
-1.  **Fly.ioアプリの作成**:
-    -   プロジェクトのルートディレクトリで `fly launch` を実行します。
-    -   アプリ名やリージョン（例: nrt - Tokyo）などを設定します。
-    -   `fly.toml` ファイルが生成されます。
-2.  **Supabase PostgreSQLの接続情報を用意**:
-    -   Supabaseの「Connect」から接続文字列を取得します。
-    -   Fly.ioのような常駐VMではDirect connection、IPv4接続が必要な場合はShared PoolerのSession modeを使用します。
-3.  **環境変数（Secrets）を設定**:
-    -   `flyctl secrets set` コマンドを使用して、以下の変数を設定します。
-        -   `flyctl secrets set TOKEN="あなたのDiscordボットのトークン"`
-        -   `flyctl secrets set DATABASE_URL="SupabaseのPostgreSQL接続文字列"`
-        -   `flyctl secrets set CLIENT_ID="あなたのDiscordボットのクライアントID"`
-        -   `flyctl secrets set SPREADSHEET_ID="手順2-5で取得したスプレッドシートのID"`
-        -   `flyctl secrets set GOOGLE_SHEETS_CREDENTIALS="手順2-3でダウンロードしたJSONファイルの中身をすべてコピー＆ペースト"`
-4.  **デプロイ**:
-    -   `fly deploy` コマンドを実行して、アプリケーションをデプロイします。
-    -   GitHubリポジトリと連携している場合、mainブランチへのプッシュで自動的にデプロイが実行されます（`.github/workflows/fly-deploy.yml`）。
+- 通常投稿と抽選予定をGoogle Calendarへ登録
+- Google Calendar上の予定からDiscordへ自動投稿
+- 繰り返し予定に対応
+- 画像・メンション設定を予定と一緒に保持
+- サーバーごとのメインカレンダーを設定
+- Discordチャンネルごとに監視するGoogle Calendarを設定
+- 管理画面またはDiscordコマンドから予定を編集・削除
 
-### ヘルスチェック
+Google CalendarをReactusから作成・編集する場合、サービスアカウントに対象カレンダーの**予定を変更できる権限**を付与してください。
 
--   `/healthz`: プロセスの稼働状態を返します。
--   `/readyz`: DB、Discord、監視サービスを含む初期化が完了した場合だけHTTP 200を返します。Fly.ioのデプロイ判定にはこちらを使用します。
+### 自動リアクション
 
-### 4. スラッシュコマンドの登録・更新
+指定したDiscordチャンネルで、メッセージ本文に設定したトリガーが含まれたときにリアクションを自動付与します。
 
-BotはDiscordへ接続した後、現在のコマンド定義を自動同期します。通常は手動登録は不要です。
+管理画面では、利用可能なチャンネル・Unicode絵文字・サーバー固有絵文字から設定できます。既存メッセージに対して手動適用する `/reacttomessage` もあります。
 
-自動同期を使えない場合の手動手段として、従来どおり次を利用できます。
+### チャンネル下部の案内
 
-```sh
+特定の案内メッセージがチャンネル下部に残るよう管理できます。管理画面または `/startannounce` / `/stopannounce` から設定できます。
+
+### 抽選・ユーティリティ
+
+- ボタン参加型の抽選
+- 即時開始・予約・終了・再抽選・編集・復旧・削除
+- 抽選管理権限をロールへ付与
+- リアクション投票
+- リアクション参加者のCSV出力
+- 設定一覧の確認
+- Google Sheetsへの設定バックアップ / 復元
+
+## まず使う
+
+Botを導入済みのDiscordサーバーでは、まず次を実行します。
+
+```text
+/reactus
+```
+
+表示された **「Reactus 管理画面を開く」** を押すと、現在のDiscordサーバー専用の管理画面が開きます。
+
+コマンド一覧は `/help` でも確認できます。
+
+## 主なDiscordコマンド
+
+普段は管理画面の利用を推奨しています。以下はDiscord内から直接操作したい場合のコマンドです。
+
+| 用途 | コマンド |
+| --- | --- |
+| 管理画面 | `/reactus` |
+| ヘルプ | `/help` |
+| 自動リアクション | `/setreaction`, `/removereaction`, `/reacttomessage` |
+| 予約・定期投稿 | `/calendarpost post`, `/calendarpost giveaway`, `/calendarpost list`, `/calendarpost delete` |
+| 予定編集 | `/calendaredit post`, `/calendaredit giveaway` |
+| Calendar設定 | `/register-main-calendar`, `/setcalendar`, `/removecalendar` |
+| チャンネル案内 | `/startannounce`, `/stopannounce` |
+| 抽選 | `/giveaway start`, `schedule`, `end`, `reroll`, `edit`, `list`, `unschedule`, `delete`, `fix`, `restore` |
+| 抽選権限 | `/giveaway-permission` |
+| その他 | `/poll`, `/csvreactions`, `/listsettings`, `/feedback` |
+| バックアップ | `/backup`, `/restore` |
+
+DiscordアプリケーションコマンドはBot起動時に自動同期されます。通常は手動登録不要です。必要な場合のみ次を実行できます。
+
+```bash
 npm run register-commands
 ```
 
-## 🤖 コマンド一覧
+## 自前で動かす場合
 
-### リアクション管理
--   `/setreaction`: 自動リアクションを設定します。（設定時に自動バックアップ）
--   `/removereaction`: 設定した自動リアクションを解除します。（設定時に自動バックアップ）
--   `/reacttomessage`: 指定したメッセージに、設定済みの自動リアクションを手動で適用します。
+### 必要なもの
 
-### カレンダー連携
--   `/calendarpost post`: 通常の予約投稿・定期投稿をGoogleカレンダーへ登録します。本文、画像、メンション、カスタム繰り返しを指定できます。
--   `/calendarpost giveaway`: 開始・終了時刻を持つ抽選をGoogleカレンダーへ登録します。複数景品、画像、メンション、カスタム繰り返しに対応します。
--   `/calendarpost list`: 今後の自動投稿予定を表示します。表示されたイベントIDは編集・削除に使えます。
--   `/calendarpost delete`: 予定を削除します。定期予定は「この回だけ」「繰り返し全体」を選べます。
--   `/calendaredit post`: 登録済みの通常投稿を編集します。日時、本文、画像、メンション、繰り返しルールを変更できます。
--   `/calendaredit giveaway`: 登録済みの抽選予定を編集します。景品、当選人数、期間、画像、メンション、繰り返しルールを変更できます。
--   `/register-main-calendar`: サーバーのメインカレンダーを登録・更新します。（管理者のみ）
--   `/setcalendar`: チャンネルにカレンダー通知を設定します。IDを省略するとメインカレンダーが使われます。
--   `/removecalendar`: チャンネルのカレンダー通知設定を解除します。
+- Node.js 24.x
+- Discord Bot / Application
+- PostgreSQL
+- Google Cloudのサービスアカウント（Google Calendarを使う場合）
+- Google Sheets（バックアップ / 復元を使う場合）
+- HTTPSで公開できる実行環境
+  - このリポジトリではFly.io向け設定を同梱しています
 
-### アナウンス機能
--   `/startannounce`: チャンネルに自動アナウンスを設定します。
--   `/stopannounce`: アナウンスを停止します。
+### 1. インストール
 
-### 抽選機能
--   `/giveaway start`: 抽選を今すぐ開始します。
--   `/giveaway schedule`: 単発の抽選を予約します。定期抽選には`/calendarpost giveaway`を使用します。
--   `/giveaway end`: 進行中の抽選を即時終了します。
--   `/giveaway reroll`: 終了した抽選の再抽選をします。
--   `/giveaway edit`: 進行中の抽選の内容（賞品、当選者数、終了日時）を変更します。
--   `/giveaway fix`: 不具合が起きた抽選を、参加者を引き継いで作り直します。
--   `/giveaway restore`: エラーで止まった抽選を、進行中に復元します。
--   `/giveaway list`: 進行中・予約中の抽選を一覧表示します。
--   `/giveaway delete`: 抽選のメッセージとデータを完全に削除します。
--   `/giveaway-permission`: 抽選コマンドの管理権限をロールに付与します。
+```bash
+git clone https://github.com/chun7953/reactus.git
+cd reactus
+npm ci
+```
 
-### ユーティリティ
--   `/poll`: 簡易投票を作成します。リアクション集計ボタン付きです。
--   `/csvreactions`: 指定メッセージのリアクションをCSVで集計します。公開/非公開を選べます。
--   `/listsettings`: リアクション、カレンダー通知、メインカレンダーの全ての設定を一覧表示します。
--   `/help`: このヘルプメッセージを表示します。
--   `/feedback`: 開発サーバーの招待リンクを表示します。
+### 2. Discordアプリを準備
 
-### 管理者向け機能
--   `/backup`: 全ての設定を、今すぐ強制的にGoogleスプレッドシートにバックアップします。
--   `/restore`: Googleスプレッドシートから全ての設定を復元（上書き）します。
+Discord Developer PortalでBot/Applicationを作成し、少なくとも以下を用意します。
 
----
+- Bot Token → `TOKEN`
+- Application ID → `CLIENT_ID`
 
-## ✨ 謝辞 (Acknowledgements)
+Reactusはメッセージ、リアクション、メンバー、メッセージ本文、サーバー絵文字などを利用します。Bot側の権限とGateway Intentも、利用する機能に合わせて有効にしてください。
 
-このボットの抽選機能は、[Androz2091氏が開発したGiveawayBot](https://github.com/Androz2091/giveaways-bot)を参考にしています。
-GiveawayBotは Apache License 2.0 の下で公開されています。
+### 3. PostgreSQLを準備
 
-## 📜 ライセンス
+PostgreSQLの接続文字列を `DATABASE_URL` に設定します。SupabaseなどのマネージドPostgreSQLも利用できます。
 
-このプロジェクトは ISC License の下で公開されています。プロジェクトのルートにある `LICENSE` ファイルで詳細を確認できます。
+### 4. Google APIを準備
+
+Google Calendar連携を使う場合は、Google Cloudでサービスアカウントを作成し、Google Calendar APIを有効にします。Google Sheetsへのバックアップも使う場合はGoogle Sheets APIも有効にします。
+
+1. サービスアカウントのJSONキーを作成
+2. JSON内の `client_email` を確認
+3. 対象Google Calendarを、そのメールアドレスへ共有
+   - 予定をReactusから作成・編集するなら「予定の変更」が可能な権限を付与
+4. バックアップを使う場合は、対象Google Sheetsも同じメールアドレスへ編集者として共有
+5. JSONファイル全体を**base64エンコード**し、`GOOGLE_SHEETS_CREDENTIALS` に設定
+
+> 環境変数名は歴史的に `GOOGLE_SHEETS_CREDENTIALS` ですが、このサービスアカウント認証はGoogle Calendar機能でも使用します。JSON文字列をそのまま設定するのではなく、現行実装ではbase64文字列が必要です。
+
+macOS / Linuxの例:
+
+```bash
+base64 < service-account.json | tr -d '\n'
+```
+
+PowerShellの例:
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("service-account.json"))
+```
+
+### 5. 環境変数
+
+主要な環境変数は次のとおりです。
+
+| 変数 | 必須 | 用途 |
+| --- | --- | --- |
+| `TOKEN` | 必須 | Discord Bot Token |
+| `CLIENT_ID` | 実運用では必須 | Discord Application ID。コマンド自動同期に使用 |
+| `DATABASE_URL` | 必須 | PostgreSQL接続文字列 |
+| `PUBLIC_BASE_URL` | 公開環境で推奨 | `/reactus` が発行する管理画面URLのベース。既定値は `https://reactus.fly.dev` |
+| `PORT` | 任意 | HTTPポート。既定値は `8080` |
+| `GOOGLE_SHEETS_CREDENTIALS` | Calendar利用時 | base64化したGoogleサービスアカウントJSON |
+| `SPREADSHEET_ID` | Sheets利用時 | 設定バックアップ / 復元先のGoogle Sheets ID |
+| `MIGRATION_TARGET_DATABASE_URL` | 特殊用途 | DB移行時に利用する接続先 |
+
+ローカルでは `.env` に設定できます。
+
+```dotenv
+TOKEN=...
+CLIENT_ID=...
+DATABASE_URL=postgresql://...
+PUBLIC_BASE_URL=http://localhost:8080
+GOOGLE_SHEETS_CREDENTIALS=...
+SPREADSHEET_ID=...
+```
+
+`PUBLIC_BASE_URL` はlocalhost以外ではHTTPSが必要です。
+
+### 6. 起動
+
+```bash
+npm start
+```
+
+起動時には、Webサーバー、Botモジュール、PostgreSQL、Discord接続、監視処理が順に初期化されます。Discord接続後、現在のスラッシュコマンド定義も自動同期されます。
+
+## Fly.ioへデプロイ
+
+このリポジトリには `fly.toml` とGitHub ActionsのFly Deploy workflowが含まれています。現在の設定では東京リージョン、内部ポート8080、`/readyz` health checkを使用します。
+
+Fly Secretsの例:
+
+```bash
+fly secrets set TOKEN="..."
+fly secrets set CLIENT_ID="..."
+fly secrets set DATABASE_URL="postgresql://..."
+fly secrets set PUBLIC_BASE_URL="https://your-app.fly.dev"
+fly secrets set GOOGLE_SHEETS_CREDENTIALS="<base64>"
+fly secrets set SPREADSHEET_ID="..."
+```
+
+手動デプロイ:
+
+```bash
+fly deploy
+```
+
+GitHub Actionsを使う場合は、GitHub repository secretに `FLY_API_TOKEN` を登録します。`main` へのpush時に次が自動実行されます。
+
+1. `npm ci`
+2. `npm run check`
+3. production dependency audit
+4. `flyctl deploy --remote-only`
+
+## ヘルスチェック
+
+- `/healthz` — HTTPプロセスの状態確認
+- `/readyz` — Reactus全体の起動状態確認
+
+`/readyz` は設定、HTTP、モジュール、DB、Discord、監視処理がreadyになるまでHTTP 503を返し、準備完了後にHTTP 200になります。Fly.ioのhealth checkもこちらを使用します。
+
+## 開発・テスト
+
+構文チェックとNode.jsテスト:
+
+```bash
+npm run check
+```
+
+個別に実行する場合:
+
+```bash
+npm run check:syntax
+npm test
+```
+
+GitHub Actionsでは、通常のCIに加えてPC / スマートフォン相当のChromiumによる管理画面E2Eも実行しています。管理画面の主要操作、月カレンダー、予定作成・編集、権限表示、スマホレイアウト、JavaScriptエラー、イベントループ応答などをPR段階で確認します。
+
+## 構成
+
+```text
+src/
+  commands/       Discordスラッシュコマンド
+  events/         Discordイベント
+  lib/            Calendar、抽選、リアクション、監視、DB等のドメイン処理
+  web/            HTTPサーバーと管理画面API
+public/
+  admin.html      管理画面
+  admin.js        管理画面core
+  common/         管理画面の機能別module
+  index.html      公開サイト
+  privacy.html    プライバシーページ
+tests/
+  e2e/            Chromium実ブラウザE2E
+```
+
+## 運用上の考え方
+
+- 通常の設定はWeb管理画面から行い、Discordコマンドは直接操作・補助操作として併用します。
+- Google Calendar関連のデータ取得はサーバー側でキャッシュし、管理画面からの明示的な更新や予定変更で更新します。
+- 管理画面はDiscordサーバーごとの権限を基準に、編集可能なチャンネルと閲覧のみの設定を分けて表示します。
+- 変更はNode.jsテストだけでなく実ブラウザE2Eを通してから `main` へ反映します。
+
+## 謝辞
+
+抽選機能は [GiveawayBot](https://github.com/Androz2091/giveaways-bot) を参考にしています。GiveawayBotはApache License 2.0の下で公開されています。
+
+## ライセンス
+
+ReactusはISC Licenseの下で公開されています。詳細は [`LICENSE.md`](./LICENSE.md) を参照してください。
