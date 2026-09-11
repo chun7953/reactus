@@ -1,3 +1,5 @@
+import { loadEnhancementBootstrap } from './admin-enhancement-bootstrap.js';
+
 const calendarSettingsState = {
   bootstrap: null,
   editingId: null,
@@ -317,7 +319,7 @@ async function initializeCalendarSettings() {
   installStyles();
   if (!installPanel()) return;
   try {
-    calendarSettingsState.bootstrap = await settingsApi('/api/admin/bootstrap');
+    calendarSettingsState.bootstrap = await loadEnhancementBootstrap();
     wirePanel();
     const message = sessionStorage.getItem('reactusSettingsFlash');
     if (message) {
