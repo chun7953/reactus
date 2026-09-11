@@ -29,10 +29,14 @@ test('admin Discord preview mirrors production newline layout and treats datetim
     assert.match(source, /function parseJstDateTimeInput/);
 });
 
-test('admin Discord preview follows explicit form events instead of observing DOM mutations', async () => {
+test('admin Discord preview follows owned form events without document-wide click interception or zero-delay repair timers', async () => {
     const source = await readFile(previewPath, 'utf8');
     assert.match(source, /form\.addEventListener\('input', render\)/);
     assert.match(source, /form\.addEventListener\('change'/);
-    assert.match(source, /\.segment, #addPrize, \.prize-row \.danger, #clearImage/);
+    assert.match(source, /\$\$\('\.segment'\)/);
+    assert.match(source, /#prizeList/);
+    assert.match(source, /#imagePreview/);
+    assert.doesNotMatch(source, /document\.addEventListener\('click'/);
+    assert.doesNotMatch(source, /setTimeout\(render,\s*0\)/);
     assert.doesNotMatch(source, /new MutationObserver\(/);
 });
