@@ -1,4 +1,5 @@
 import { loadMentionConfig, mentionPayload, syncMentionRoleOptions } from './common/admin-mentions.js';
+import { showAdminNotice } from './common/admin-notice.js';
 
 const state = {
   bootstrap: null,
@@ -19,11 +20,7 @@ const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 
 function showNotice(message, error = false) {
-  const node = $('#notice');
-  node.textContent = message;
-  node.classList.toggle('error', error);
-  node.classList.remove('hidden');
-  window.setTimeout(() => node.classList.add('hidden'), 7000);
+  showAdminNotice(message, { error });
 }
 
 async function api(path, options = {}) {

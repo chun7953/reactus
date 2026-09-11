@@ -1,3 +1,5 @@
+import { showAdminNotice } from './admin-notice.js';
+
 const dragState = {
   source: null,
   suppressClickUntil: 0,
@@ -7,12 +9,7 @@ const q = selector => document.querySelector(selector);
 const qa = selector => [...document.querySelectorAll(selector)];
 
 function showNotice(message, error = false) {
-  const node = q('#notice');
-  if (!node) return;
-  node.textContent = message;
-  node.classList.toggle('error', error);
-  node.classList.remove('hidden');
-  window.setTimeout(() => node.classList.add('hidden'), 7000);
+  showAdminNotice(message, { error });
 }
 
 async function api(path, options = {}) {

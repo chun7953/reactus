@@ -1,4 +1,5 @@
 import { loadEnhancementBootstrap } from './admin-enhancement-bootstrap.js';
+import { showAdminNotice } from './admin-notice.js';
 
 const qa = (selector) => [...document.querySelectorAll(selector)];
 const q = (selector) => document.querySelector(selector);
@@ -23,12 +24,7 @@ async function api(path, options = {}) {
 }
 
 function notice(message, error = false) {
-  const node = q('#notice');
-  if (!node) return;
-  node.textContent = message;
-  node.classList.toggle('error', error);
-  node.classList.remove('hidden');
-  window.setTimeout(() => node.classList.add('hidden'), 7000);
+  showAdminNotice(message, { error });
 }
 
 function installStyles() {
