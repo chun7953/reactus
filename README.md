@@ -133,7 +133,41 @@ Discord Developer PortalでBot/Applicationを作成し、少なくとも以下�
 - Bot Token → `TOKEN`
 - Application ID → `CLIENT_ID`
 
-Reactusはメッセージ、リアクション、メンバー、メッセージ本文、サーバー絵文字などを利用します。Bot側の権限とGateway Intentも、利用する機能に合わせて有効にしてください。
+OAuth2でサーバーへ追加する場合は、`bot` と `applications.commands` のscopeを使用します。
+
+#### Gateway Intent
+
+現行runtimeは次のGateway Intentを使用します。
+
+- `Guilds`
+- `GuildMessages`
+- `GuildMembers`
+- `MessageContent`
+- `GuildEmojisAndStickers`
+
+Discord Developer Portalの **Bot → Privileged Gateway Intents** では、少なくとも次を有効にしてください。
+
+- **Server Members Intent** — 管理画面のメンバー検索などで使用
+- **Message Content Intent** — 本文トリガー型の自動リアクションなどで使用
+
+`GuildMessageReactions` Intentは現行runtimeでは使用していません。自動リアクションは `messageCreate` で受け取ったメッセージへ `message.react()` を実行するため、このIntentを追加する必要はありません。
+
+#### Botに付与する権限
+
+Reactusの全機能を使う場合、Botには対象チャンネルで次の権限を付与する構成を推奨します。
+
+- チャンネルを見る（View Channels）
+- メッセージを送信（Send Messages）
+- 埋め込みリンク（Embed Links）
+- ファイルを添付（Attach Files）
+- メッセージ履歴を読む（Read Message History）
+- リアクションを追加（Add Reactions）
+
+`@everyone` / `@here` や、通常はメンションできないロールを実際に通知したい場合だけ、**Mention @everyone, @here, and All Roles** も追加してください。
+
+**BotロールにAdministrator権限は不要です。** 通常の管理操作で使う `メッセージの管理` や、`/register-main-calendar`・`/giveaway-permission`・`/backup`・`/restore` など一部のサーバー全体設定で要求されるAdministratorは、コマンドを実行するDiscordユーザー側の権限です。Bot自体へAdministratorを付与する前提ではありません。
+
+サーバー全体で権限を付与していても、投稿先チャンネルの上書きで上記権限が拒否されていると、そのチャンネルでは該当機能を利用できません。
 
 ### 3. PostgreSQLを準備
 
