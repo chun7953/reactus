@@ -174,4 +174,13 @@ export async function unverifiedCalendarIds(db, guildId, calendarIds) {
     return ids.filter(id => !verified.has(id));
 }
 
+export async function revokeCalendarClaimsForGuild(guildId, { db: suppliedDb } = {}) {
+    const db = suppliedDb || await getDBPool();
+    const result = await db.query(
+        'DELETE FROM calendar_claims WHERE guild_id = $1',
+        [guildId],
+    );
+    return Number(result.rowCount || 0);
+}
+
 export { CHALLENGE_PREFIX, CHALLENGE_TTL_MS, normalizeCalendarId as normalizeClaimCalendarId };
