@@ -1,4 +1,5 @@
 import { loadEnhancementBootstrap } from './admin-enhancement-bootstrap.js';
+import { showAdminNotice } from './admin-notice.js';
 import {
   analyzeAnnouncementMentions,
   hasAnnouncementMentions,
@@ -28,12 +29,7 @@ async function announcementApi(path, options = {}) {
 }
 
 function announcementNotice(message, error = false) {
-  const node = aq('#notice');
-  if (!node) return;
-  node.textContent = message;
-  node.classList.toggle('error', error);
-  node.classList.remove('hidden');
-  window.setTimeout(() => node.classList.add('hidden'), 8000);
+  showAdminNotice(message, { error, duration: 8000 });
 }
 
 function channelInfo(channelId) {
