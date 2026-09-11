@@ -43,6 +43,10 @@ async function verifiedCalendarIds(db, guildId) {
     return (result.rows || []).map(row => String(row.calendar_id || '').trim()).filter(Boolean);
 }
 
+function sameCalendarSet(left, right) {
+    return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
 async function findLiveAssetReference(calendar, calendarIds, assetId) {
     for (const calendarId of calendarIds) {
         const response = await calendar.events.list({
@@ -159,6 +163,13 @@ export async function reconcileCalendarPostAssets(client, {
 
             const missingSince = asset.missing_since ? new Date(asset.missing_since) : null;
             if (missingSince && Number.isFinite(missingSince.getTime()) && missingSince <= missingBefore) {
+                const currentCalendarIds = await verifiedCalendarIds(db, guildId);
+                if (!sameCalendarSet(calendarIds, currentCalendarIds)) {
+                    await assetStore.recordCalendarPostImageReconciliationAttempt(asset, { checkedAt });
+                    calendarIdsByGuild.set(guildId, currentCalendarIds);
+                    stats.deferred += 1;
+                    continue;
+                }
                 const deleted = await assetStore.deleteCalendarPostImageIfUnchanged(asset);
                 if (deleted) stats.deleted += 1;
                 else stats.deferred += 1;
