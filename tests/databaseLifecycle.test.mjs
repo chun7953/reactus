@@ -113,10 +113,11 @@ test('legacy calendar claims are migrated only after database copy reaches the t
             assert.equal(source, sourcePool);
             assert.equal(target, targetPool);
             order.push('copy');
-            return { migrated: true, counts: {} };
+            return { migrated: true, counts: {}, copiedCalendarClaims: false };
         },
-        migrateLegacyCalendarClaimsFn: async (candidate) => {
+        migrateLegacyCalendarClaimsFn: async (candidate, options) => {
             assert.equal(candidate, targetPool);
+            assert.equal(options.allowBootstrap, true);
             order.push('claims');
         },
         logger: silentLogger,
@@ -124,5 +125,35 @@ test('legacy calendar claims are migrated only after database copy reaches the t
 
     assert.equal(await manager.initializeDatabase(), targetPool);
     assert.deepEqual(order.slice(0, 5), ['target-check', 'tables', 'copy', 'claims', 'source-close']);
+    await manager.closeDatabase();
+});
+
+test('database move never recreates trust when the source already has calendar claims authority', async () => {
+    const sourcePool = { async end() {} };
+    const targetPool = {
+        async query() { return { rows: [] }; },
+        async end() {},
+    };
+    let bootstrapOption;
+    const manager = createDatabaseManager({
+        connectionString: 'postgres://source',
+        migrationTargetConnectionString: 'postgres://target',
+        createPoolFn(connectionString) {
+            return connectionString === 'postgres://source' ? sourcePool : targetPool;
+        },
+        createTablesFn: async () => {},
+        migrateDatabaseFn: async () => ({
+            migrated: true,
+            counts: { calendar_claims: 0 },
+            copiedCalendarClaims: true,
+        }),
+        migrateLegacyCalendarClaimsFn: async (_candidate, options) => {
+            bootstrapOption = options.allowBootstrap;
+        },
+        logger: silentLogger,
+    });
+
+    assert.equal(await manager.initializeDatabase(), targetPool);
+    assert.equal(bootstrapOption, false);
     await manager.closeDatabase();
 });
