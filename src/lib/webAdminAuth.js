@@ -41,6 +41,18 @@ function readCachedSession(sessionHash) {
     return cached.session;
 }
 
+function clearGuildSessionCache(guildId) {
+    const scopedGuildId = String(guildId || '').trim();
+    if (!scopedGuildId) return 0;
+    let cleared = 0;
+    for (const [sessionHash, cached] of sessionCache.entries()) {
+        if (String(cached?.session?.guild_id || '') !== scopedGuildId) continue;
+        sessionCache.delete(sessionHash);
+        cleared += 1;
+    }
+    return cleared;
+}
+
 export async function issueWebAdminLogin(guildId, userId) {
     if (!guildId || !userId) throw new Error('guildId and userId are required');
     const token = randomToken();
@@ -124,4 +136,37 @@ export async function revokeWebAdminSession(sessionToken) {
     const pool = await getDBPool();
     const result = await pool.query('DELETE FROM web_admin_sessions WHERE session_hash = $1', [sessionHash]);
     return result.rowCount > 0;
+}
+
+export async function revokeWebAdminAuthForGuild(guildId, { db: suppliedDb } = {}) {
+    const scopedGuildId = String(guildId || '').trim();
+    if (!scopedGuildId) throw new Error('guildId is required');
+
+    // Cached sessions are credentials too. Drop them before and after the DB
+    // revocation so requests overlapping this operation cannot keep a stale
+    // cached credential alive after the guild leaves.
+    clearGuildSessionCache(scopedGuildId);
+    const db = suppliedDb || await getDBPool();
+    const result = await db.query(
+        `WITH deleted_login_tokens AS (
+            DELETE FROM web_admin_login_tokens
+             WHERE guild_id = $1
+             RETURNING 1
+         ),
+         deleted_sessions AS (
+            DELETE FROM web_admin_sessions
+             WHERE guild_id = $1
+             RETURNING 1
+         )
+         SELECT
+            (SELECT COUNT(*)::INTEGER FROM deleted_login_tokens) AS login_tokens,
+            (SELECT COUNT(*)::INTEGER FROM deleted_sessions) AS sessions`,
+        [scopedGuildId],
+    );
+    clearGuildSessionCache(scopedGuildId);
+
+    return {
+        loginTokens: Number(result.rows?.[0]?.login_tokens || 0),
+        sessions: Number(result.rows?.[0]?.sessions || 0),
+    };
 }
