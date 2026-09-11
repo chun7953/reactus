@@ -1,0 +1,23 @@
+# Reactus
+
+Reactus is a Japanese-friendly Discord operations bot that connects a web admin interface, Google Calendar, and Discord.
+
+## Primary capabilities
+- Scheduled and recurring Discord posts
+- Google Calendar-linked schedule management
+- Multi-prize giveaway scheduling
+- Automatic reactions, including server emoji
+- Channel guidance messages
+- Image and role mention support
+- PC and mobile web administration
+
+## Canonical pages
+- Home: https://reactus.fly.dev/
+- Scheduled posts: https://reactus.fly.dev/discord-scheduled-posts.html
+- Google Calendar integration: https://reactus.fly.dev/discord-google-calendar.html
+- Giveaway bot: https://reactus.fly.dev/discord-giveaway-bot.html
+- Privacy: https://reactus.fly.dev/privacy.html
+
+## Source
+- GitHub: https://github.com/chun7953/reactus
+- Discord development server: https://discord.gg/m6mFzzEQhr
