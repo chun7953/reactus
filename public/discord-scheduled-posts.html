@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0f14">
+  <meta name="robots" content="index,follow,max-image-preview:large">
+  <meta name="description" content="Discordの予約投稿・定期投稿を、Google Calendarと日本語Web管理画面から自動化。日・週・月・年の繰り返し、画像、メンションにも対応するReactusの使い方を紹介します。">
+  <title>Discordの予約投稿・定期投稿を自動化 | Reactus</title>
+  <link rel="canonical" href="https://reactus.fly.dev/discord-scheduled-posts.html">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="ja_JP">
+  <meta property="og:site_name" content="Reactus">
+  <meta property="og:title" content="Discordの予約投稿・定期投稿を自動化 | Reactus">
+  <meta property="og:description" content="Discordの予約投稿・定期投稿を、Google Calendarと日本語Web管理画面からまとめて管理。">
+  <meta property="og:url" content="https://reactus.fly.dev/discord-scheduled-posts.html">
+  <meta property="og:image" content="https://reactus.fly.dev/images/bot-icon.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Discordの予約投稿・定期投稿を自動化 | Reactus">
+  <meta name="twitter:description" content="Google Calendarと日本語Web管理画面からDiscordの定期投稿を管理。">
+  <meta name="twitter:image" content="https://reactus.fly.dev/images/bot-icon.png">
+  <link rel="stylesheet" href="/common/css/import_screen.css">
+  <link rel="stylesheet" href="/common/css/use-case.css">
+  <link rel="icon" href="/images/favicon.ico">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "Discordの予約投稿・定期投稿を自動化",
+    "url": "https://reactus.fly.dev/discord-scheduled-posts.html",
+    "inLanguage": "ja",
+    "description": "Discordの予約投稿・定期投稿をGoogle CalendarとWeb管理画面から自動化するReactusの機能説明。",
+    "isPartOf": {"@type": "WebSite", "name": "Reactus", "url": "https://reactus.fly.dev/"},
+    "about": {"@type": "SoftwareApplication", "name": "Reactus", "applicationCategory": "CommunicationApplication"}
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main">本文へ移動</a>
+  <header class="site-header">
+    <div class="site-shell header-inner">
+      <a class="brand" href="/" aria-label="Reactus トップ">
+        <img src="/images/bot-icon.png" alt="" width="40" height="40">
+        <span>Reactus</span>
+      </a>
+      <nav class="site-nav" aria-label="メインナビゲーション">
+        <a href="/">トップ</a>
+        <a href="/discord-google-calendar.html">Calendar連携</a>
+        <a href="/discord-giveaway-bot.html">抽選</a>
+        <a href="https://github.com/chun7953/reactus">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="use-case-main">
+    <div class="site-shell use-case-shell">
+      <div class="use-case-heading">
+        <p class="eyebrow">DISCORD SCHEDULED POSTS</p>
+        <h1>Discordの予約投稿・定期投稿を、予定表から自動化。</h1>
+        <p>Reactusなら、毎回同じ告知を手作業で投稿する代わりに、日本語のWeb管理画面で予定を作り、Google Calendarと連携しながらDiscordへ自動投稿できます。</p>
+      </div>
+
+      <section class="use-case-card">
+        <h2>日常の定期告知を、1回の設定で回す</h2>
+        <p>通常投稿はもちろん、繰り返し予定として登録できます。運営メンバーが毎週同じ時刻にDiscordを開いて投稿する必要はありません。</p>
+        <ul>
+          <li>日・週・月・年単位の繰り返し</li>
+          <li>複数曜日、月末、第N曜日</li>
+          <li>終了日または実行回数の指定</li>
+          <li>画像付き投稿、ロールメンション</li>
+          <li>投稿先チャンネルをWeb管理画面から選択</li>
+        </ul>
+      </section>
+
+      <section class="use-case-card">
+        <h2>使い方</h2>
+        <ol>
+          <li>Discordで /reactus を実行して管理画面を開きます。</li>
+          <li>通常投稿を選び、本文・投稿先・開始日時を入力します。</li>
+          <li>必要なら繰り返し条件、画像、メンションを設定します。</li>
+          <li>予定を保存すると、Reactusが指定時刻のDiscord投稿を管理します。</li>
+        </ol>
+        <div class="use-case-cta">
+          <a class="button primary" href="https://discord.gg/m6mFzzEQhr">Reactus開発室で試す</a>
+          <a class="button secondary" href="https://github.com/chun7953/reactus">GitHubを見る</a>
+        </div>
+      </section>
+
+      <section class="use-case-card">
+        <h2>関連する使い方</h2>
+        <div class="use-case-links">
+          <a class="use-case-link" href="/discord-google-calendar.html"><strong>Discord × Google Calendar</strong><span>予定表を中心にDiscord運用を整理する</span></a>
+          <a class="use-case-link" href="/discord-giveaway-bot.html"><strong>Discord抽選</strong><span>複数景品の抽選をまとめて予約する</span></a>
+          <a class="use-case-link" href="/"><strong>Reactusトップ</strong><span>全機能と管理画面の概要を見る</span></a>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="site-shell footer-inner">
+      <div><strong>Reactus</strong><span>Discord × Google Calendar automation</span></div>
+      <nav aria-label="フッターナビゲーション">
+        <a href="/">Home</a>
+        <a href="/privacy.html">Privacy</a>
+        <a href="https://discord.gg/m6mFzzEQhr">Discord</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>
