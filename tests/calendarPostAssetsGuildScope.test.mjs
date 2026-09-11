@@ -62,6 +62,7 @@ test('calendar asset reconciliation is bounded, two-pass, and fail-closed', asyn
   assert.match(source, /singleEvents: false/);
   assert.match(source, /markCalendarPostImageMissing/);
   assert.match(source, /missingSince <= missingBefore/);
+  assert.match(source, /sameCalendarSet\(calendarIds, currentCalendarIds\)/);
   assert.match(source, /deleteCalendarPostImageIfUnchanged/);
   assert.match(source, /recordCalendarPostImageReconciliationAttempt/);
   assert.match(source, /削除せず保持します/);
@@ -73,7 +74,7 @@ test('daily monitor owns reconciliation without adding another timer', async () 
   assert.match(source, /async function runDailyTasks\(client\)/);
   assert.match(source, /await reconcileCalendarPostAssets\(client\)/);
   assert.equal((source.match(/name: 'デイリー'/g) || []).length, 1);
-  assert.equal((source.match(/24 \* 60 \* 60 \* 1000/g) || []).length, 1);
+  assert.match(source, /\{ name: 'デイリー', intervalMs: 24 \* 60 \* 60 \* 1000, run: runDailyTasks \}/);
 });
 
 test('only newly created image assets are bound after Google succeeds', async () => {
