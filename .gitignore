@@ -8,6 +8,9 @@ generateRefreshToken.js
 # エディタ設定
 /.vscode/
 
+# OS生成ファイル
+Thumbs.db
+
 # ログファイル
 *.log
 
