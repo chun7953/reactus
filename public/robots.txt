@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /auth/
+Disallow: /readyz
+Disallow: /healthz
+
+Sitemap: https://reactus.fly.dev/sitemap.xml
