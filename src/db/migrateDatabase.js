@@ -22,6 +22,8 @@ const CALENDAR_POST_ASSET_OWNER_COLUMNS = [
     'calendar_id',
     'event_id',
     'last_verified_at',
+    'last_checked_at',
+    'missing_since',
 ];
 
 const CALENDAR_POST_ASSETS_TABLE = {
