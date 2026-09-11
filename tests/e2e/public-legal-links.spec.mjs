@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 const PUBLIC_PAGES = [
-  '/',
+  '/index.html',
   '/reference.html',
   '/discord-scheduled-posts.html',
   '/discord-google-calendar.html',
