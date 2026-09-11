@@ -2,7 +2,11 @@ import { google } from 'googleapis';
 import { initializeSheetsAPI } from './sheetsAPI.js';
 import { get } from './settingsCache.js';
 import { parseJstDateTime } from './calendarScheduling.js';
-import { cloneCalendarPostImage, deleteCalendarPostImage } from './calendarPostAssets.js';
+import {
+    bindCalendarPostImageOwner,
+    cloneCalendarPostImage,
+    deleteCalendarPostImage,
+} from './calendarPostAssets.js';
 import { invalidateWebScheduleCache } from './webCalendarAdmin.js';
 import {
     buildDuplicatedEventBody,
@@ -99,6 +103,12 @@ export async function duplicateWebSchedule(guildId, { calendarId, eventId, start
         };
 
         const response = await calendar.events.insert({ calendarId, requestBody });
+        if (clonedAssetId) {
+            await bindCalendarPostImageOwner(clonedAssetId, guildId, {
+                calendarId,
+                eventId: response.data.id,
+            });
+        }
         invalidateWebScheduleCache(guildId);
         return response.data;
     } catch (error) {
