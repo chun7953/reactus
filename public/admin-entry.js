@@ -12,6 +12,23 @@ function appIsVisible() {
   return Boolean(app && !app.classList.contains('hidden'));
 }
 
+function clearExpiredLoginStateForActiveSession() {
+  let expired = false;
+  try {
+    expired = new URLSearchParams(window.location.search).get('login') === 'expired';
+  } catch {}
+  if (!expired) return;
+
+  const notice = document.querySelector('#notice');
+  if (notice?.textContent?.includes('ログインリンクの有効期限が切れています')) {
+    notice.classList.add('hidden');
+  }
+
+  try {
+    window.history.replaceState({}, '', `${window.location.pathname}${window.location.hash || ''}`);
+  } catch {}
+}
+
 function showEnhancementFailure() {
   const notice = document.querySelector('#notice');
   if (!notice) return;
@@ -27,6 +44,7 @@ function startEnhancements() {
     appObserver.disconnect();
     appObserver = null;
   }
+  clearExpiredLoginStateForActiveSession();
 
   window.setTimeout(() => {
     const script = document.createElement('script');

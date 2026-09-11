@@ -11,4 +11,3 @@ import './admin-reaction-pagination.js';
 import './admin-calendar-settings-usability.js';
 import './admin-navigation-polish.js';
 import './admin-mobile.js';
-import './admin-login-link-polish.js';
