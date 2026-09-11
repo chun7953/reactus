@@ -1,9 +1,7 @@
-import { loadEnhancementBootstrap } from './admin-enhancement-bootstrap.js';
+import { currentEnhancementBootstrap, loadEnhancementBootstrap } from './admin-enhancement-bootstrap.js';
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
-
-let bootstrap = null;
 
 function installStyles() {
   if ($('#discordPreviewStyles')) return;
@@ -28,13 +26,14 @@ function installStyles() {
 }
 
 function monitor() {
+  const bootstrap = currentEnhancementBootstrap();
   if (!bootstrap) return null;
   return bootstrap.monitors?.find(item => String(item.id) === String($('#monitor')?.value));
 }
 
 function roleName(id) {
   if (!id) return null;
-  return bootstrap?.roles?.find(role => String(role.id) === String(id))?.name || id;
+  return currentEnhancementBootstrap()?.roles?.find(role => String(role.id) === String(id))?.name || id;
 }
 
 function selectedMention() {
@@ -98,7 +97,7 @@ function reactionDescriptorNode(descriptor) {
     return chip;
   }
   if (descriptor?.type === 'custom') {
-    const emoji = bootstrap?.guildEmojis?.find(item => String(item.id) === String(descriptor.id));
+    const emoji = currentEnhancementBootstrap()?.guildEmojis?.find(item => String(item.id) === String(descriptor.id));
     if (emoji) {
       const image = document.createElement('img');
       image.src = emoji.url;
@@ -115,6 +114,7 @@ function reactionDescriptorNode(descriptor) {
 
 function appendReactionPreview(container, content) {
   const m = monitor();
+  const bootstrap = currentEnhancementBootstrap();
   if (!m || !bootstrap?.reactionRules) return;
   const rule = bootstrap.reactionRules.find(item =>
     String(item.channelId) === String(m.channelId) && String(content).includes(String(item.trigger || ''))
@@ -275,13 +275,14 @@ function wirePreviewUpdates() {
     if (event.target?.closest?.('.prize-row .danger')) render();
   });
   $('#imagePreview')?.addEventListener('load', render);
+  document.addEventListener('reactus:reaction-rules-rendered', render);
 }
 
 async function initialize() {
   installStyles();
   installPanel();
   try {
-    bootstrap = await loadEnhancementBootstrap();
+    await loadEnhancementBootstrap();
   } catch {
     return;
   }

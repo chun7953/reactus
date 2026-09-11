@@ -39,6 +39,7 @@ test('reaction owner renders permissions directly and pagination follows its lif
 
   await page.goto('/admin');
   await expect(page.locator('#reactionPanel')).toBeVisible();
+  await expect(page.locator('#discordPreviewPanel')).toBeVisible();
 
   const optionValues = await page.locator('#reactionChannel option').evaluateAll(options => options.map(option => option.value));
   expect(optionValues).not.toContain(READ_ONLY_CHANNEL);
@@ -60,6 +61,10 @@ test('reaction owner renders permissions directly and pagination follows its lif
   await expect(visibleRows).toHaveCount(2);
   await expect(status).toHaveText('10件 · 2 / 2ページ');
 
+  await page.locator('#body').fill('保存後のルールをプレビューで確認');
+  const refreshedPreviewRule = page.locator('#discordPreviewContent .discord-preview-meta').filter({ hasText: '自動リアクション（反応する言葉: 保存後）' });
+  await expect(refreshedPreviewRule).toHaveCount(0);
+
   await page.locator('#reactionTrigger').fill('新しい設定');
   await page.locator('#standardEmojiGrid .emoji-button').first().click();
   await page.locator('#reactionSave').click();
@@ -67,4 +72,6 @@ test('reaction owner renders permissions directly and pagination follows its lif
   await expect(rows).toHaveCount(11);
   await expect(visibleRows).toHaveCount(8);
   await expect(status).toHaveText('11件 · 1 / 2ページ');
+  await expect(refreshedPreviewRule).toHaveCount(1);
+  await expect(page.locator('#discordPreviewContent .discord-reaction-chip')).toContainText('✅');
 });
