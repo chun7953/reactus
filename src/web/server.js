@@ -18,6 +18,7 @@ const publicRootFiles = new Set([
     '/sitemap.xml',
     '/llms.txt',
     '/llms-full.txt',
+    '/5d09339110e16b9e2adf4cdb54aad9c1.txt',
 ]);
 const adminAssetVersion = encodeURIComponent(
     process.env.FLY_IMAGE_REF || process.env.GITHUB_SHA || `boot-${Date.now()}`,
@@ -64,7 +65,7 @@ function versionAdminHtml(content, filePath) {
 
     let html = content.toString('utf8')
         .replace('</head>', `${noScript}${enhancementBoot}</head>`)
-        .replace(/href="\/admin\.css"/g, `href="/admin.css${assetQuery}"`);
+        .replace(/href="\/admin\.css"/g, `href="/admin.css${assetQuery}`);
 
     if (hasBundle) {
         html = html
