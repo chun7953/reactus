@@ -10,7 +10,7 @@ const serverPath = new URL('../src/web/server.js', import.meta.url);
 const dockerPath = new URL('../Dockerfile', import.meta.url);
 const enhancementModulesPath = new URL('../public/common/admin-enhancement-modules.js', import.meta.url);
 const retiredFutureScopePath = new URL('../public/common/admin-future-scope.js', import.meta.url);
-const loginPolishPath = new URL('../public/common/admin-login-link-polish.js', import.meta.url);
+const retiredLoginPolishPath = new URL('../public/common/admin-login-link-polish.js', import.meta.url);
 
 test('bundled and unbundled admin use the same canonical entry graph', async () => {
   const [server, html, entry] = await Promise.all([
@@ -89,18 +89,16 @@ test('admin bootstrap leaves browser fetch ownership untouched', async () => {
   assert.doesNotMatch(entry, /admin-event-fetch-cache\.js/);
 });
 
-test('an expired one-time login link does not keep warning on a browser with a valid session', async () => {
-  const [enhancementModules, polish] = await Promise.all([
+test('core entry clears an expired one-time login state after a valid session becomes active', async () => {
+  const [entry, enhancementModules] = await Promise.all([
+    readFile(entryPath, 'utf8'),
     readFile(enhancementModulesPath, 'utf8'),
-    readFile(loginPolishPath, 'utf8'),
   ]);
-  assert.match(enhancementModules, /admin-login-link-polish\.js/);
-  assert.match(polish, /login.*expired/);
-  assert.match(polish, /#app/);
-  assert.match(polish, /ログインリンクの有効期限が切れています/);
-  assert.match(polish, /classList\.add\('hidden'\)/);
-  assert.match(polish, /history\.replaceState/);
-  assert.match(polish, /clearExpiredLoginWarningForActiveSession\(\);/);
-  assert.doesNotMatch(polish, /new MutationObserver/);
-  assert.doesNotMatch(polish, /\.observe\(/);
+  assert.match(entry, /function clearExpiredLoginStateForActiveSession\(\)/);
+  assert.match(entry, /login.*expired/);
+  assert.match(entry, /ログインリンクの有効期限が切れています/);
+  assert.match(entry, /history\.replaceState/);
+  assert.match(entry, /clearExpiredLoginStateForActiveSession\(\);/);
+  assert.doesNotMatch(enhancementModules, /admin-login-link-polish\.js/);
+  await assert.rejects(readFile(retiredLoginPolishPath, 'utf8'), error => error?.code === 'ENOENT');
 });
