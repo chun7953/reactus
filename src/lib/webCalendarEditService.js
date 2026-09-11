@@ -5,6 +5,7 @@ import { buildRecurrence, formatJstDateTime, parseJstDateTime } from './calendar
 import { buildPrivatePropertiesPatch } from './calendarEditHelpers.js';
 import { webScheduleDetail } from './webCalendarEditHelpers.js';
 import {
+    bindCalendarPostImageOwner,
     cloneCalendarPostImage,
     deleteCalendarPostImage,
     storeCalendarPostImageBuffer,
@@ -307,10 +308,17 @@ async function updateFutureSchedule(guildId, payload, resolved, targetType, star
         });
 
         try {
-            return (await resolved.calendar.events.insert({
+            const created = (await resolved.calendar.events.insert({
                 calendarId: resolved.calendarId,
                 requestBody,
             })).data;
+            if (newAssetId) {
+                await bindCalendarPostImageOwner(newAssetId, guildId, {
+                    calendarId: resolved.calendarId,
+                    eventId: created.id,
+                });
+            }
+            return created;
         } catch (error) {
             await resolved.calendar.events.patch({
                 calendarId: resolved.calendarId,
@@ -389,6 +397,13 @@ export async function updateWebSchedule(guildId, payload) {
             throw error;
         }
 
+        const activeAssetId = imageMode === 'replace' ? newAssetId : (imageMode === 'keep' ? oldAssetId : null);
+        if (activeAssetId) {
+            await bindCalendarPostImageOwner(activeAssetId, guildId, {
+                calendarId: resolved.calendarId,
+                eventId: resolved.target.id,
+            });
+        }
         if (imageMode !== 'keep' && oldAssetId) {
             await deleteCalendarPostImage(oldAssetId, guildId).catch(() => {});
         }
