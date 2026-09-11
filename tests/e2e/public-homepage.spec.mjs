@@ -43,7 +43,7 @@ test('public homepage presents the current Reactus workflow and SEO metadata wit
   await expectNoHorizontalOverflow(page);
 });
 
-test('search-intent pages are indexable, internally linked, and responsive', async ({ page }) => {
+test('search-intent pages are indexable, internally linked, responsive, and expose visible FAQ authority', async ({ page }) => {
   const pages = [
     ['/discord-scheduled-posts.html', 'Discordの予約投稿・定期投稿を、予定表から自動化。', 'https://reactus.fly.dev/discord-scheduled-posts.html'],
     ['/discord-google-calendar.html', 'Google Calendarの予定を、Discord運用につなげる。', 'https://reactus.fly.dev/discord-google-calendar.html'],
@@ -53,8 +53,13 @@ test('search-intent pages are indexable, internally linked, and responsive', asy
   for (const [path, heading, canonicalUrl] of pages) {
     await page.goto(path);
     await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 2, name: 'よくある質問' })).toBeVisible();
+    await expect(page.getByRole('link', { name: /Reactus公式リファレンス/ })).toHaveAttribute('href', '/reference.html');
     await expect(page.getByRole('link', { name: 'Reactus トップ' })).toHaveAttribute('href', '/');
     await expectSeoMetadata(page, canonicalUrl);
+
+    const jsonLd = JSON.parse(await page.locator('script[type="application/ld+json"]').first().textContent());
+    expect(jsonLd['@graph'].some((entry) => entry['@type'] === 'FAQPage')).toBeTruthy();
     await expectNoHorizontalOverflow(page);
   }
 });
