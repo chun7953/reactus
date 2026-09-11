@@ -95,19 +95,24 @@ export async function cloneCalendarPostImage(guildId, assetId) {
 
 export async function bindCalendarPostImageOwner(assetId, guildId, { calendarId, eventId }) {
     if (!assetId) return false;
-    const scopedGuildId = requireGuildId(guildId);
-    const scopedCalendarId = requireOwnerIdentifier(calendarId, '画像を所有するカレンダー');
-    const scopedEventId = requireOwnerIdentifier(eventId, '画像を所有する予定');
-    const pool = await getDBPool();
-    const result = await pool.query(
-        `UPDATE calendar_post_assets
-            SET calendar_id = $3,
-                event_id = $4,
-                last_verified_at = CURRENT_TIMESTAMP
-          WHERE id = $1 AND guild_id = $2`,
-        [assetId, scopedGuildId, scopedCalendarId, scopedEventId],
-    );
-    return result.rowCount > 0;
+    try {
+        const scopedGuildId = requireGuildId(guildId);
+        const scopedCalendarId = requireOwnerIdentifier(calendarId, '画像を所有するカレンダー');
+        const scopedEventId = requireOwnerIdentifier(eventId, '画像を所有する予定');
+        const pool = await getDBPool();
+        const result = await pool.query(
+            `UPDATE calendar_post_assets
+                SET calendar_id = $3,
+                    event_id = $4,
+                    last_verified_at = CURRENT_TIMESTAMP
+              WHERE id = $1 AND guild_id = $2`,
+            [assetId, scopedGuildId, scopedCalendarId, scopedEventId],
+        );
+        return result.rowCount > 0;
+    } catch (error) {
+        console.error(`[CalendarPostAssets] 画像 ${assetId} の予定所有情報を保存できませんでした:`, error);
+        return false;
+    }
 }
 
 export async function deleteCalendarPostImage(assetId, guildId) {
