@@ -33,6 +33,29 @@ test('health endpoints distinguish liveness from readiness', async (t) => {
     assert.equal((await available.json()).ready, true);
 });
 
+test('production web server serves public search discovery routes with correct content types', async (t) => {
+    const server = createWebServer();
+    t.after(() => closeHttpServer(server));
+    const baseUrl = await listen(server);
+
+    const cases = [
+        ['/privacy.html', 'text/html; charset=utf-8', 'プライバシーポリシー'],
+        ['/discord-scheduled-posts.html', 'text/html; charset=utf-8', 'Discordの予約投稿'],
+        ['/discord-google-calendar.html', 'text/html; charset=utf-8', 'Google Calendar'],
+        ['/discord-giveaway-bot.html', 'text/html; charset=utf-8', '複数景品'],
+        ['/robots.txt', 'text/plain; charset=utf-8', 'Sitemap: https://reactus.fly.dev/sitemap.xml'],
+        ['/sitemap.xml', 'application/xml; charset=utf-8', '<urlset'],
+        ['/llms.txt', 'text/plain; charset=utf-8', '# Reactus'],
+    ];
+
+    for (const [pathname, contentType, expectedText] of cases) {
+        const response = await fetch(`${baseUrl}${pathname}`);
+        assert.equal(response.status, 200, pathname);
+        assert.equal(response.headers.get('content-type'), contentType, pathname);
+        assert.match(await response.text(), new RegExp(expectedText), pathname);
+    }
+});
+
 test('web server rejects unsupported methods and traversal paths', async (t) => {
     const server = createWebServer();
     t.after(() => closeHttpServer(server));
@@ -40,4 +63,5 @@ test('web server rejects unsupported methods and traversal paths', async (t) => 
 
     assert.equal((await fetch(`${baseUrl}/healthz`, { method: 'POST' })).status, 405);
     assert.equal((await fetch(`${baseUrl}/common/%2e%2e/package.json`)).status, 404);
+    assert.equal((await fetch(`${baseUrl}/package.json`)).status, 404);
 });
