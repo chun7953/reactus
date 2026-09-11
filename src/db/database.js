@@ -119,7 +119,6 @@ async function createTables(db) {
     await db.query(`ALTER TABLE web_admin_login_tokens ENABLE ROW LEVEL SECURITY;`);
     await db.query(`ALTER TABLE web_admin_sessions ENABLE ROW LEVEL SECURITY;`);
     await db.query(`ALTER TABLE giveaways ADD COLUMN IF NOT EXISTS validation_fails INTEGER DEFAULT 0;`);
-    await migrateLegacyCalendarClaims(db);
     console.log('✅ Tables checked/created successfully.');
 }
 
@@ -129,6 +128,7 @@ export function createDatabaseManager({
     createPoolFn = createPool,
     createTablesFn = createTables,
     migrateDatabaseFn = migrateDatabase,
+    migrateLegacyCalendarClaimsFn = migrateLegacyCalendarClaims,
     logger = console,
 } = {}) {
     let pool;
@@ -156,12 +156,14 @@ export function createDatabaseManager({
                 } else {
                     logger.log('✅ Database migration was already completed.');
                 }
+                await migrateLegacyCalendarClaimsFn(targetPool);
 
                 await sourcePool.end();
                 pool = targetPool;
             } else {
                 await queryWithRetry(sourcePool, 'SELECT NOW()');
                 await createTablesFn(sourcePool);
+                await migrateLegacyCalendarClaimsFn(sourcePool);
                 pool = sourcePool;
             }
 
