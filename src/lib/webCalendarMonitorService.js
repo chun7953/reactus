@@ -1,4 +1,5 @@
 import { google } from 'googleapis';
+import { ensureCalendarClaim } from './calendarClaimService.js';
 import { initializeSheetsAPI } from './sheetsAPI.js';
 import { get, getDBPool } from './settingsCache.js';
 import { invalidateWebScheduleCache } from './webCalendarAdmin.js';
@@ -87,6 +88,7 @@ function friendlyDatabaseError(error) {
 
 export async function setWebMainCalendar(guildId, calendarId) {
     const normalized = normalizeCalendarId(calendarId);
+    await ensureCalendarClaim(guildId, normalized, { allowChallenge: true });
     await verifyCalendarAccess(normalized);
     const pool = await getDBPool();
     await pool.query(
@@ -111,12 +113,13 @@ export async function clearWebMainCalendar(guildId) {
     return { mainCalendarId: null };
 }
 
-export async function createWebCalendarMonitor(guildId, payload, guild) {
+export async function createWebCalendarMonitor(guildId, payload, guild, { allowChallenge = false } = {}) {
     const monitor = normalizeMonitorPayload(payload, guild);
     const existing = await get.monitorsByGuild(guildId);
     if (existing.length >= MAX_MONITORS_PER_GUILD) {
         throw new Error(`このサーバーで登録できるカレンダー監視設定は最大${MAX_MONITORS_PER_GUILD}件です。`);
     }
+    await ensureCalendarClaim(guildId, monitor.calendarId, { allowChallenge });
     await verifyCalendarAccess(monitor.calendarId);
 
     const pool = await getDBPool();
@@ -135,10 +138,11 @@ export async function createWebCalendarMonitor(guildId, payload, guild) {
     }
 }
 
-export async function updateWebCalendarMonitor(guildId, payload, guild) {
+export async function updateWebCalendarMonitor(guildId, payload, guild, { allowChallenge = false } = {}) {
     const monitorId = Number(payload?.id);
     if (!Number.isInteger(monitorId) || monitorId < 1) throw new Error('編集するカレンダー設定を特定できません。');
     const monitor = normalizeMonitorPayload(payload, guild);
+    await ensureCalendarClaim(guildId, monitor.calendarId, { allowChallenge });
     await verifyCalendarAccess(monitor.calendarId);
 
     const pool = await getDBPool();

@@ -50,6 +50,8 @@ Reactusでは、予約・定期投稿の予定をGoogle Calendarに登録して�
 
 Google CalendarをReactusから作成・編集する場合、サービスアカウントに対象カレンダーの**予定を変更できる権限**を付与してください。
 
+サービスアカウントがカレンダーへアクセスできることと、そのDiscordサーバーがカレンダーを利用してよいことは別に扱います。新しいGoogle CalendarをReactusへ登録する前に、サーバー管理者による**カレンダー所有確認**が1回必要です。確認済みでないカレンダーは監視・予定操作の対象になりません。
+
 ### 自動リアクション
 
 指定したDiscordチャンネルで、メッセージ本文に設定したトリガーが含まれたときにリアクションを自動付与します。
@@ -93,7 +95,7 @@ Botを導入済みのDiscordサーバーでは、まず次を実行します。
 | 自動リアクション | `/setreaction`, `/removereaction`, `/reacttomessage` |
 | 予約・定期投稿 | `/calendarpost post`, `/calendarpost giveaway`, `/calendarpost list`, `/calendarpost delete` |
 | 予定編集 | `/calendaredit post`, `/calendaredit giveaway` |
-| Calendar設定 | `/register-main-calendar`, `/setcalendar`, `/removecalendar` |
+| Calendar設定 | `/verify-calendar`, `/register-main-calendar`, `/setcalendar`, `/removecalendar` |
 | チャンネル案内 | `/startannounce`, `/stopannounce` |
 | 抽選 | `/giveaway start`, `schedule`, `end`, `reroll`, `edit`, `list`, `unschedule`, `delete`, `fix`, `restore` |
 | 抽選権限 | `/giveaway-permission` |
@@ -165,7 +167,7 @@ Reactusの全機能を使う場合、Botには対象チャンネルで次の権�
 
 `@everyone` / `@here` や、通常はメンションできないロールを実際に通知したい場合だけ、**Mention @everyone, @here, and All Roles** も追加してください。
 
-**BotロールにAdministrator権限は不要です。** 通常の管理操作で使う `メッセージの管理` や、`/register-main-calendar`・`/giveaway-permission`・`/backup`・`/restore` など一部のサーバー全体設定で要求されるAdministratorは、コマンドを実行するDiscordユーザー側の権限です。Bot自体へAdministratorを付与する前提ではありません。
+**BotロールにAdministrator権限は不要です。** 通常の管理操作で使う `メッセージの管理` や、`/verify-calendar`・`/register-main-calendar`・`/giveaway-permission`・`/backup`・`/restore` など一部のサーバー全体設定で要求されるAdministratorは、コマンドを実行するDiscordユーザー側の権限です。Bot自体へAdministratorを付与する前提ではありません。
 
 サーバー全体で権限を付与していても、投稿先チャンネルの上書きで上記権限が拒否されていると、そのチャンネルでは該当機能を利用できません。
 
@@ -197,6 +199,25 @@ PowerShellの例:
 ```powershell
 [Convert]::ToBase64String([IO.File]::ReadAllBytes("service-account.json"))
 ```
+
+#### Calendarの所有確認
+
+新しいカレンダーをメインカレンダーや投稿先として使う前に、そのDiscordサーバーに対する所有確認を行います。サーバー管理者が次を実行してください。
+
+```text
+/verify-calendar calendar_id:<対象のGoogleカレンダーID>
+```
+
+初回実行では、15分間有効な `REACTUS-VERIFY-...` の確認コードが表示されます。
+
+1. Google Calendarで対象カレンダーの設定を開く
+2. カレンダー自体の**説明**欄に、表示された確認コードをそのまま追加して保存
+3. 15分以内に同じ `/verify-calendar` をもう一度実行
+4. 確認完了後は、Google Calendarの説明欄からコードを削除して構いません
+
+管理画面でサーバー管理者が未確認のメインカレンダーを保存した場合も、同じ確認コードが表示されます。説明欄へコードを保存したあと、同じメインカレンダーをもう一度保存すれば確認が完了します。
+
+所有確認はDiscordサーバーごとに保存されます。同じGoogle Calendarを複数のDiscordサーバーで使う場合は、それぞれのサーバーで確認してください。Botをサーバーから退出させると、そのサーバーの所有確認は失効します。
 
 ### 5. 環境変数
 

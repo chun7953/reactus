@@ -29,6 +29,7 @@ export default {
                            '`/calendarpost delete` - 予定を削除\n' +
                            '`/calendaredit post` - 登録済みの通常投稿を編集\n' +
                            '`/calendaredit giveaway` - 登録済みの抽選予定を編集\n' +
+                           '`/verify-calendar` - Googleカレンダーの所有確認（管理者）\n' +
                            '`/register-main-calendar` - サーバーのメインカレンダーを登録\n' +
                            '`/setcalendar` - チャンネルにカレンダー通知を設定\n' +
                            '`/removecalendar` - カレンダー通知設定を解除'

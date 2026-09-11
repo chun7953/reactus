@@ -50,17 +50,49 @@ export const get = {
     }),
     monitorsByGuild: async (guildId) => {
         const db = await getDBPool();
-        const res = await db.query('SELECT * FROM calendar_monitors WHERE guild_id = $1', [guildId]);
+        const res = await db.query(
+            `SELECT cm.*
+             FROM calendar_monitors cm
+             INNER JOIN calendar_claims cc
+               ON cc.guild_id = cm.guild_id
+              AND cc.calendar_id = cm.calendar_id
+              AND cc.verified_at IS NOT NULL
+             WHERE cm.guild_id = $1`,
+            [guildId],
+        );
         return res.rows || [];
     },
     allMonitors: async () => {
         const db = await getDBPool();
-        const res = await db.query('SELECT * FROM calendar_monitors');
+        const res = await db.query(
+            `SELECT cm.*
+             FROM calendar_monitors cm
+             INNER JOIN calendar_claims cc
+               ON cc.guild_id = cm.guild_id
+              AND cc.calendar_id = cm.calendar_id
+              AND cc.verified_at IS NOT NULL`,
+        );
         return res.rows || [];
     },
     guildConfig: async (guildId) => {
         const db = await getDBPool();
-        const res = await db.query('SELECT * FROM guild_configs WHERE guild_id = $1', [guildId]);
+        const res = await db.query(
+            `SELECT
+                gc.guild_id,
+                CASE
+                    WHEN gc.main_calendar_id IS NULL OR cc.verified_at IS NOT NULL
+                    THEN gc.main_calendar_id
+                    ELSE NULL
+                END AS main_calendar_id,
+                gc.giveaway_manager_roles
+             FROM guild_configs gc
+             LEFT JOIN calendar_claims cc
+               ON cc.guild_id = gc.guild_id
+              AND cc.calendar_id = gc.main_calendar_id
+              AND cc.verified_at IS NOT NULL
+             WHERE gc.guild_id = $1`,
+            [guildId],
+        );
         return res.rows[0] || { guild_id: guildId, main_calendar_id: null, giveaway_manager_roles: [] };
     },
     activeGiveaways: async (guildId) => {
