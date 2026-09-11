@@ -8,6 +8,15 @@ import { createAdminHandler } from './adminHandler.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const publicPath = path.resolve(__dirname, '..', '..', 'public');
+const publicRootFiles = new Set([
+    '/privacy.html',
+    '/discord-scheduled-posts.html',
+    '/discord-google-calendar.html',
+    '/discord-giveaway-bot.html',
+    '/robots.txt',
+    '/sitemap.xml',
+    '/llms.txt',
+]);
 const adminAssetVersion = encodeURIComponent(
     process.env.FLY_IMAGE_REF || process.env.GITHUB_SHA || `boot-${Date.now()}`,
 );
@@ -101,6 +110,8 @@ function getContentType(filePath) {
         case '.png': return 'image/png';
         case '.ico': return 'image/x-icon';
         case '.html': return 'text/html; charset=utf-8';
+        case '.txt': return 'text/plain; charset=utf-8';
+        case '.xml': return 'application/xml; charset=utf-8';
         default: return 'application/octet-stream';
     }
 }
@@ -146,11 +157,12 @@ export function createWebServer({
             } else if (pathname.startsWith('/common/') || pathname.startsWith('/images/')) {
                 const filePath = safeStaticPath(staticRoot, pathname);
                 serveFile(req, res, filePath, getContentType(filePath || ''));
+            } else if (publicRootFiles.has(pathname)) {
+                const filePath = safeStaticPath(staticRoot, pathname);
+                serveFile(req, res, filePath, getContentType(filePath || ''));
             } else if (pathname === '/interactions') {
                 res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
                 res.end(req.method === 'HEAD' ? undefined : 'Reactus bot is running. This window can be closed.');
-            } else if (pathname === '/privacy.html') {
-                serveFile(req, res, path.join(staticRoot, 'privacy.html'), 'text/html; charset=utf-8');
             } else {
                 res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
                 res.end('Not Found');
