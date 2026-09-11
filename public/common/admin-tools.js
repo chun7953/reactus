@@ -1,3 +1,5 @@
+import { loadEnhancementBootstrap } from './admin-enhancement-bootstrap.js';
+
 const qa = (selector) => [...document.querySelectorAll(selector)];
 const q = (selector) => document.querySelector(selector);
 const fallbackCommonEmoji = ['✅','❌','⭕','🔴','🟠','🟡','🟢','🔵','🟣','⚪','⚫','👍','👎','❤️','🎉','⭐','👀','💡','📌','🔥'];
@@ -238,7 +240,7 @@ function renderRules() {
     if (rule.invalid) {
       const warn = document.createElement('div');
       warn.className = 'invalid-rule';
-      warn.textContent = '⚠ 現在のDiscordでは使えない絵文字が含まれています。編集してください。';
+      warn.textContent = '⚠ 現在のDiscordでは使えない絵文字があります。編集してください。';
       main.append(warn);
     }
     if (!canManage) {
@@ -289,8 +291,8 @@ function resetRuleEditor() {
   renderDraft(); renderEmojiGrid();
 }
 
-async function reloadToolsBootstrap() {
-  toolsState.bootstrap = await api('/api/admin/bootstrap');
+async function reloadToolsBootstrap({ force = false } = {}) {
+  toolsState.bootstrap = await loadEnhancementBootstrap({ force });
   renderChannelOptions(); renderEmojiGrid(); renderRules();
 }
 
@@ -306,7 +308,7 @@ async function saveRule() {
   try {
     const result = await api(endpoint, { method:'POST', body:JSON.stringify(payload) });
     notice(result.backupOk === false ? '保存しました。バックアップのみ失敗しました。' : '自動リアクション設定を保存しました。', result.backupOk === false);
-    resetRuleEditor(); await reloadToolsBootstrap();
+    resetRuleEditor(); await reloadToolsBootstrap({ force: true });
   } catch (error) { notice(error.message, true); }
 }
 
@@ -316,7 +318,7 @@ async function deleteRule(rule) {
     await api('/api/admin/reactions/delete', { method:'POST', body:JSON.stringify({ channelId:rule.channelId, trigger:rule.trigger }) });
     notice('自動リアクション設定を削除しました。');
     if (toolsState.editing?.channelId === rule.channelId && toolsState.editing?.trigger === rule.trigger) resetRuleEditor();
-    await reloadToolsBootstrap();
+    await reloadToolsBootstrap({ force: true });
   } catch (error) { notice(error.message, true); }
 }
 
