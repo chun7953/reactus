@@ -7,6 +7,7 @@ import {
     parseJstDateTime,
 } from './calendarScheduling.js';
 import {
+    bindCalendarPostImageOwner,
     deleteCalendarPostImage,
     storeCalendarPostImageBuffer,
 } from './calendarPostAssets.js';
@@ -136,7 +137,7 @@ export async function createWebSchedule(guildId, payload) {
                 throw new Error('予定の長さは1〜1440分で指定してください。');
             }
             const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
-            return await insertEvent({
+            const event = await insertEvent({
                 calendar,
                 auth,
                 monitor,
@@ -149,6 +150,13 @@ export async function createWebSchedule(guildId, payload) {
                     ...(recurrence ? { recurrence } : {}),
                 },
             });
+            if (assetId) {
+                await bindCalendarPostImageOwner(assetId, guildId, {
+                    calendarId: monitor.calendar_id,
+                    eventId: event.id,
+                });
+            }
+            return event;
         }
 
         const end = parseRequiredDateTime(payload.endTime, '抽選終了日時');
@@ -167,7 +175,7 @@ export async function createWebSchedule(guildId, payload) {
         });
         const prizeLines = prizes.map(({ prize, winners }) => `【${prize}/${winners}】`);
         const description = [prizeLines.join('\n'), String(payload.message || '').trim()].filter(Boolean).join('\n');
-        return await insertEvent({
+        const event = await insertEvent({
             calendar,
             auth,
             monitor,
@@ -180,6 +188,13 @@ export async function createWebSchedule(guildId, payload) {
                 ...(recurrence ? { recurrence } : {}),
             },
         });
+        if (assetId) {
+            await bindCalendarPostImageOwner(assetId, guildId, {
+                calendarId: monitor.calendar_id,
+                eventId: event.id,
+            });
+        }
+        return event;
     } catch (error) {
         if (assetId) await deleteCalendarPostImage(assetId, guildId).catch(() => {});
         throw error;
