@@ -102,7 +102,7 @@ test('privacy page matches current Reactus storage and external-service disclosu
 
   await expect(page).toHaveTitle('プライバシーポリシー | Reactus');
   await expect(page.getByRole('heading', { level: 1, name: 'プライバシーポリシー' })).toBeVisible();
-  await expect(page.getByText('最終更新日: 2026年9月11日')).toBeVisible();
+  await expect(page.getByText('最終更新日: 2026年9月12日')).toBeVisible();
   await expect(page.getByRole('heading', { level: 2, name: '取り扱う情報' })).toBeVisible();
   await expect(page.getByRole('heading', { level: 2, name: '保存先と外部サービス' })).toBeVisible();
   await expect(page.getByRole('heading', { level: 2, name: 'Web管理画面の認証' })).toBeVisible();
@@ -111,6 +111,9 @@ test('privacy page matches current Reactus storage and external-service disclosu
   await expect(page.getByText(/ワンタイムログインリンクは10分間有効/)).toBeVisible();
   await expect(page.getByText(/セッションは30日間有効/)).toBeVisible();
   await expect(page.getByText(/Google Analytics等のアクセス解析タグは導入していません/)).toBeVisible();
+  await expect(page.getByText(/Google Calendarの所有確認は失効/)).toBeVisible();
+  await expect(page.getByText(/退出したサーバーのカレンダー監視を継続しません/)).toBeVisible();
+  await expect(page.getByText(/Botをサーバーから削除しただけでは直ちに自動で全削除されない場合があります/)).toBeVisible();
   await expect(page.getByRole('link', { name: 'Reactus開発室Discord' })).toHaveAttribute('href', 'https://discord.gg/m6mFzzEQhr');
   await expect(page.getByRole('link', { name: 'Reactus トップ' })).toHaveAttribute('href', '/');
   await expect(page.getByRole('link', { name: '利用規約' })).toHaveAttribute('href', '/terms.html');
