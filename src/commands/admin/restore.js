@@ -130,10 +130,13 @@ export default {
 
         } catch (error) {
             console.error('Restore failed:', error);
-            const message = error instanceof BackupValidationError
-                ? `❌ ${error.message}\nデータベースは変更されていません。`
-                : '復元を完了できませんでした。データベースの変更は保存されていません。';
-            await interaction.editReply({ content: message, components: [] });
+            let message = '復元を完了できませんでした。データベースの変更は保存されていません。';
+            if (error instanceof BackupValidationError) {
+                message = `${error.message}\nデータベースは変更されていません。`;
+            } else if (error?.code === 'UNVERIFIED_CALENDAR_RESTORE') {
+                message = `${error.message}\nデータベースは変更されていません。`;
+            }
+            await interaction.editReply({ content: `❌ ${message}`, components: [] });
         }
     },
 };
