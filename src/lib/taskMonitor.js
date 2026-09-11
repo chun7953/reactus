@@ -18,6 +18,7 @@ import { createMonitorController } from './monitorController.js';
 import { resolveCalendarEventPrivateProperties } from './calendarEventMetadata.js';
 import { eventMentionTokens, extractDiscordMentions } from './calendarMentions.js';
 import { calendarDisplaySummary, resolveCalendarRoute } from './calendarRouting.js';
+import { monitorsForActiveGuilds } from './calendarMonitorScope.js';
 
 function basicDecodeHtmlEntities(text) {
     if (!text || typeof text !== 'string') {
@@ -52,7 +53,7 @@ async function eventImageFile(properties, guildId) {
 }
 
 async function checkCalendarEvents(client) {
-    const monitors = await get.allMonitors();
+    const monitors = monitorsForActiveGuilds(client, await get.allMonitors());
     if (monitors.length === 0) return;
 
     try {
@@ -224,7 +225,7 @@ async function checkFinishedGiveaways(client, activeGiveaways, now = new Date())
             console.log(`抽選「${giveaway.prize}」が終了しました。当選者が発表されました。`);
         } catch (error) {
             console.error(`抽選 ${candidate.message_id} の処理中にエラー:`, error);
-            if (giveaway) await failClaimedGiveaway(pool, candidate.message_id);
+            if (giveaway) await failClaimedGiveaway(pool, giveaway.message_id);
         }
     }
 }
