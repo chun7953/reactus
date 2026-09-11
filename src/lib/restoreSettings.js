@@ -1,3 +1,5 @@
+import { unverifiedCalendarIds } from './calendarClaimService.js';
+
 const REQUIRED_COLUMNS = {
     reactions: [1, 2, 3],
     announcements: [1, 2],
@@ -64,6 +66,25 @@ export function normalizeRestoreData(guildId, data) {
     };
 }
 
+function restoredCalendarIds(data) {
+    return [
+        ...data.calendarMonitors.map(row => row[2]),
+        ...data.guildConfigs.map(row => row[1]),
+    ].filter(Boolean);
+}
+
+async function assertRestoredCalendarsAreVerified(pool, guildId, data) {
+    const unverified = await unverifiedCalendarIds(pool, guildId, restoredCalendarIds(data));
+    if (unverified.length === 0) return;
+    const error = new Error(
+        `バックアップに、このDiscordサーバーで所有確認されていないGoogleカレンダーが含まれています: ${unverified.join(', ')}。` +
+        ' 先にサーバー管理者が `/verify-calendar` で各カレンダーの所有確認を完了してから、復元をやり直してください。',
+    );
+    error.code = 'UNVERIFIED_CALENDAR_RESTORE';
+    error.calendarIds = unverified;
+    throw error;
+}
+
 async function replaceGuildSettings(client, guildId, data) {
     await client.query('DELETE FROM reactions WHERE guild_id = $1', [guildId]);
     for (const row of data.reactions) {
@@ -111,6 +132,7 @@ async function replaceGuildSettings(client, guildId, data) {
 export async function restoreGuildSettings(pool, guildId, rawData) {
     // Validate and normalize untrusted spreadsheet data before opening a transaction.
     const data = normalizeRestoreData(guildId, rawData);
+    await assertRestoredCalendarsAreVerified(pool, guildId, data);
     const client = await pool.connect();
     let transactionOpen = false;
     let releaseError;
@@ -144,3 +166,5 @@ export async function restoreGuildSettings(pool, guildId, rawData) {
         client.release(releaseError);
     }
 }
+
+export { assertRestoredCalendarsAreVerified };
