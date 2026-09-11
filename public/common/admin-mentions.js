@@ -1,3 +1,5 @@
+import { showAdminNotice } from './admin-notice.js';
+
 const MAX_TARGETS = 20;
 
 const mentionState = {
@@ -80,12 +82,7 @@ function removeTarget(key) {
 }
 
 function showLocalNotice(message, error = false) {
-  const node = q('#notice');
-  if (!node) return;
-  node.textContent = message;
-  node.classList.toggle('error', error);
-  node.classList.remove('hidden');
-  window.setTimeout(() => node.classList.add('hidden'), 7000);
+  showAdminNotice(message, { error });
 }
 
 function renderTargets() {
