@@ -19,6 +19,7 @@ import {
     parseGiveawayDescription,
 } from '../../lib/calendarEditHelpers.js';
 import {
+    bindCalendarPostImageOwner,
     deleteCalendarPostImage,
     storeCalendarPostImage,
 } from '../../lib/calendarPostAssets.js';
@@ -349,6 +350,12 @@ export default {
                 const updated = await patchEvent({
                     calendar, auth, calendarId: target.calendarId, eventId: target.event.id, requestBody,
                 });
+                if (image.mode === 'replace' && image.assetId) {
+                    await bindCalendarPostImageOwner(image.assetId, interaction.guildId, {
+                        calendarId: target.calendarId,
+                        eventId: target.event.id,
+                    });
+                }
                 if (image.mode !== 'keep' && image.oldAssetId && image.oldAssetId !== image.assetId) {
                     await deleteCalendarPostImage(image.oldAssetId, interaction.guildId).catch(() => {});
                 }
@@ -397,6 +404,12 @@ export default {
                 const updated = await patchEvent({
                     calendar, auth, calendarId: target.calendarId, eventId: target.event.id, requestBody,
                 });
+                if (image.mode === 'replace' && image.assetId) {
+                    await bindCalendarPostImageOwner(image.assetId, interaction.guildId, {
+                        calendarId: target.calendarId,
+                        eventId: target.event.id,
+                    });
+                }
                 if (image.mode !== 'keep' && image.oldAssetId && image.oldAssetId !== image.assetId) {
                     await deleteCalendarPostImage(image.oldAssetId, interaction.guildId).catch(() => {});
                 }

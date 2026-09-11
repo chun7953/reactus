@@ -8,17 +8,25 @@ const TABLES = [
     { name: 'scheduled_giveaways', columns: ['id', 'guild_id', 'prize', 'winner_count', 'giveaway_channel_id', 'start_time', 'duration_hours', 'end_time', 'schedule_cron', 'confirmation_channel_id', 'confirmation_role_id'] },
 ];
 
+const CALENDAR_POST_ASSET_BASE_COLUMNS = [
+    'id',
+    'guild_id',
+    'filename',
+    'content_type',
+    'size_bytes',
+    'data',
+    'created_at',
+];
+
+const CALENDAR_POST_ASSET_OWNER_COLUMNS = [
+    'calendar_id',
+    'event_id',
+    'last_verified_at',
+];
+
 const CALENDAR_POST_ASSETS_TABLE = {
     name: 'calendar_post_assets',
-    columns: [
-        'id',
-        'guild_id',
-        'filename',
-        'content_type',
-        'size_bytes',
-        'data',
-        'created_at',
-    ],
+    columns: CALENDAR_POST_ASSET_BASE_COLUMNS,
 };
 
 const CALENDAR_CLAIMS_TABLE = {
@@ -88,6 +96,19 @@ async function sourceTableExists(source, tableName) {
     return Boolean(result.rows?.[0]?.table_name);
 }
 
+async function sourceTableColumns(source, tableName, candidateColumns) {
+    const result = await source.query(
+        `SELECT column_name
+           FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = $1
+            AND column_name = ANY($2::TEXT[])`,
+        [tableName, candidateColumns],
+    );
+    const available = new Set((result.rows || []).map(row => row.column_name));
+    return candidateColumns.filter(column => available.has(column));
+}
+
 async function resetSequence(target, tableName) {
     await target.query(`
         SELECT setval(
@@ -123,9 +144,21 @@ export async function migrateDatabase(sourcePool, targetPool) {
 
         const copiedCalendarPostAssets = await sourceTableExists(source, CALENDAR_POST_ASSETS_TABLE.name);
         const copiedCalendarClaims = await sourceTableExists(source, CALENDAR_CLAIMS_TABLE.name);
+        let calendarPostAssetsTable = CALENDAR_POST_ASSETS_TABLE;
+        if (copiedCalendarPostAssets) {
+            const ownerColumns = await sourceTableColumns(
+                source,
+                CALENDAR_POST_ASSETS_TABLE.name,
+                CALENDAR_POST_ASSET_OWNER_COLUMNS,
+            );
+            calendarPostAssetsTable = {
+                ...CALENDAR_POST_ASSETS_TABLE,
+                columns: [...CALENDAR_POST_ASSET_BASE_COLUMNS, ...ownerColumns],
+            };
+        }
         const tables = [
             ...TABLES,
-            ...(copiedCalendarPostAssets ? [CALENDAR_POST_ASSETS_TABLE] : []),
+            ...(copiedCalendarPostAssets ? [calendarPostAssetsTable] : []),
             ...(copiedCalendarClaims ? [CALENDAR_CLAIMS_TABLE] : []),
         ];
         const truncateTables = [...TABLES, CALENDAR_POST_ASSETS_TABLE, CALENDAR_CLAIMS_TABLE];

@@ -12,6 +12,7 @@ import {
     parseJstDateTime,
 } from '../../lib/calendarScheduling.js';
 import {
+    bindCalendarPostImageOwner,
     deleteCalendarPostImage,
     storeCalendarPostImage,
 } from '../../lib/calendarPostAssets.js';
@@ -202,13 +203,20 @@ async function insertWithOptionalImage({ interaction, calendar, auth, monitor, t
     let assetId = null;
     try {
         assetId = await persistOptionalImage(interaction);
-        return await insertCalendarEvent({
+        const event = await insertCalendarEvent({
             calendar,
             auth,
             monitor,
             ...eventData,
             privateProperties: privatePropertiesFromInteraction(interaction, monitor, type, assetId),
         });
+        if (assetId) {
+            await bindCalendarPostImageOwner(assetId, interaction.guildId, {
+                calendarId: monitor.calendar_id,
+                eventId: event.id,
+            });
+        }
+        return event;
     } catch (error) {
         if (assetId) await deleteCalendarPostImage(assetId, interaction.guildId).catch(() => {});
         throw error;

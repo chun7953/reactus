@@ -34,8 +34,9 @@ test('buildInsertBatches splits large copies into bounded batches', () => {
     assert.deepEqual(statements[1].values, ['3']);
 });
 
-function migrationHarness({ sourceHasAssets }) {
+function migrationHarness({ sourceHasAssets, sourceHasAssetOwnerColumns = false }) {
     const imageData = Buffer.from([0, 1, 2, 250, 255]);
+    const ownerVerifiedAt = new Date('2026-09-12T00:00:00.000Z');
     const sourceRows = {
         reactions: [],
         announcements: [],
@@ -52,6 +53,9 @@ function migrationHarness({ sourceHasAssets }) {
             size_bytes: imageData.length,
             data: imageData,
             created_at: new Date('2026-09-01T00:00:00.000Z'),
+            calendar_id: 'calendar@example.com',
+            event_id: 'event-1',
+            last_verified_at: ownerVerifiedAt,
         }] : [],
     };
     const sourceSelects = [];
@@ -71,6 +75,13 @@ function migrationHarness({ sourceHasAssets }) {
                     ? sourceHasAssets
                     : tableName === 'calendar_claims' ? false : true;
                 return { rows: [{ table_name: exists ? `public.${tableName}` : null }], rowCount: 1 };
+            }
+            if (normalized.startsWith('SELECT column_name') && normalized.includes('information_schema.columns')) {
+                const candidateColumns = values[1] || [];
+                const rows = sourceHasAssetOwnerColumns
+                    ? candidateColumns.map(column_name => ({ column_name }))
+                    : [];
+                return { rows, rowCount: rows.length };
             }
             const match = normalized.match(/FROM public\."([^"]+)"/);
             if (match) {
@@ -122,11 +133,12 @@ function migrationHarness({ sourceHasAssets }) {
         targetQueries,
         getAssetInsertValues: () => assetInsertValues,
         imageData,
+        ownerVerifiedAt,
     };
 }
 
-test('database migration copies durable calendar post assets including binary data', async () => {
-    const harness = migrationHarness({ sourceHasAssets: true });
+test('database migration copies durable calendar post assets including ownership and binary data', async () => {
+    const harness = migrationHarness({ sourceHasAssets: true, sourceHasAssetOwnerColumns: true });
     const result = await migrateDatabase(harness.sourcePool, harness.targetPool);
 
     assert.equal(result.migrated, true);
@@ -143,6 +155,21 @@ test('database migration copies durable calendar post assets including binary da
     assert.equal(values[4], harness.imageData.length);
     assert.ok(Buffer.isBuffer(values[5]));
     assert.deepEqual(values[5], harness.imageData);
+    assert.deepEqual(values[6], new Date('2026-09-01T00:00:00.000Z'));
+    assert.equal(values[7], 'calendar@example.com');
+    assert.equal(values[8], 'event-1');
+    assert.deepEqual(values[9], harness.ownerVerifiedAt);
+});
+
+test('pre-ownership asset tables migrate base data without reading missing owner columns', async () => {
+    const harness = migrationHarness({ sourceHasAssets: true, sourceHasAssetOwnerColumns: false });
+    const result = await migrateDatabase(harness.sourcePool, harness.targetPool);
+
+    assert.equal(result.migrated, true);
+    assert.equal(result.copiedCalendarPostAssets, true);
+    const values = harness.getAssetInsertValues();
+    assert.ok(values);
+    assert.equal(values.length, 7);
     assert.deepEqual(values[6], new Date('2026-09-01T00:00:00.000Z'));
 });
 
