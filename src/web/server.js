@@ -65,7 +65,7 @@ function versionAdminHtml(content, filePath) {
 
     let html = content.toString('utf8')
         .replace('</head>', `${noScript}${enhancementBoot}</head>`)
-        .replace(/href="\/admin\.css"/g, `href="/admin.css${assetQuery}`);
+        .replace(/href="\/admin\.css"/g, `href="/admin.css${assetQuery}"`);
 
     if (hasBundle) {
         html = html
