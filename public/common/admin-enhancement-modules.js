@@ -1,5 +1,4 @@
 import './admin-calendar-settings.js';
-import './admin-calendar-settings-fold.js';
 import './admin-preview.js';
 import './admin-calendar-edit.js';
 import './admin-calendar-quick-create.js';
