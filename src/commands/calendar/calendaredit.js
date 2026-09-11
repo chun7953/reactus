@@ -19,6 +19,7 @@ import {
     parseGiveawayDescription,
 } from '../../lib/calendarEditHelpers.js';
 import {
+    bindCalendarPostImageOwner,
     deleteCalendarPostImage,
     storeCalendarPostImage,
 } from '../../lib/calendarPostAssets.js';
@@ -349,6 +350,15 @@ export default {
                 const updated = await patchEvent({
                     calendar, auth, calendarId: target.calendarId, eventId: target.event.id, requestBody,
                 });
+                const activeAssetId = image.mode === 'replace'
+                    ? image.assetId
+                    : (image.mode === 'keep' ? image.oldAssetId : null);
+                if (activeAssetId) {
+                    await bindCalendarPostImageOwner(activeAssetId, interaction.guildId, {
+                        calendarId: target.calendarId,
+                        eventId: target.event.id,
+                    });
+                }
                 if (image.mode !== 'keep' && image.oldAssetId && image.oldAssetId !== image.assetId) {
                     await deleteCalendarPostImage(image.oldAssetId, interaction.guildId).catch(() => {});
                 }
@@ -397,6 +407,15 @@ export default {
                 const updated = await patchEvent({
                     calendar, auth, calendarId: target.calendarId, eventId: target.event.id, requestBody,
                 });
+                const activeAssetId = image.mode === 'replace'
+                    ? image.assetId
+                    : (image.mode === 'keep' ? image.oldAssetId : null);
+                if (activeAssetId) {
+                    await bindCalendarPostImageOwner(activeAssetId, interaction.guildId, {
+                        calendarId: target.calendarId,
+                        eventId: target.event.id,
+                    });
+                }
                 if (image.mode !== 'keep' && image.oldAssetId && image.oldAssetId !== image.assetId) {
                     await deleteCalendarPostImage(image.oldAssetId, interaction.guildId).catch(() => {});
                 }
