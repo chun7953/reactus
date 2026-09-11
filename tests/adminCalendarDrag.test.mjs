@@ -29,6 +29,13 @@ test('dragging a one-off month event uses month-owned metadata and calls the ded
     assert.match(source, /newDate/);
 });
 
+test('calendar move flash uses the canonical notice owner without a timing workaround', async () => {
+    const source = await readFile(dragPath, 'utf8');
+    assert.match(source, /import \{ showAdminNotice \} from '\.\/admin-notice\.js';/);
+    assert.match(source, /sessionStorage\.removeItem\('reactusCalendarMoveFlash'\);\s*showNotice\(flash\);/s);
+    assert.doesNotMatch(source, /setTimeout/);
+});
+
 test('recurring month events are not silently drag-moved', async () => {
     const source = await readFile(dragPath, 'utf8');
     assert.match(source, /dataset\.reactusRecurringEventId/);
