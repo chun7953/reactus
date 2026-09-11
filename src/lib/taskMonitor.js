@@ -14,6 +14,7 @@ import {
 } from './giveawayLifecycle.js';
 import { buildCalendarNotificationKey } from './calendarNotificationKey.js';
 import { getCalendarPostImage } from './calendarPostAssets.js';
+import { reconcileCalendarPostAssets } from './calendarAssetReconciliation.js';
 import { createMonitorController } from './monitorController.js';
 import { resolveCalendarEventPrivateProperties } from './calendarEventMetadata.js';
 import { eventMentionTokens, extractDiscordMentions } from './calendarMentions.js';
@@ -365,9 +366,17 @@ async function runLowFrequencyTasks(client) {
     } catch (error) { console.error('[TaskMonitor] 低頻度タスクループ中にエラー:', error); }
 }
 
-async function runDailyTasks() {
+async function runDailyTasks(client) {
     try {
         await cleanupOldGiveaways();
+        const stats = await reconcileCalendarPostAssets(client);
+        if (stats.candidates > 0) {
+            console.log(
+                `[TaskMonitor] カレンダー画像参照確認: 候補${stats.candidates} / 生存${stats.verified}`
+                + ` / 再接続${stats.rebound} / 不在初回${stats.missingMarked}`
+                + ` / 削除${stats.deleted} / 保留${stats.deferred}`,
+            );
+        }
     } catch (error) { console.error('[TaskMonitor] デイリータスクループ中にエラー:', error); }
 }
 

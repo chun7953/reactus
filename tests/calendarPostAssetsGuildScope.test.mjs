@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const assetPath = new URL('../src/lib/calendarPostAssets.js', import.meta.url);
+const reconciliationPath = new URL('../src/lib/calendarAssetReconciliation.js', import.meta.url);
 const databasePath = new URL('../src/db/database.js', import.meta.url);
 const taskMonitorPath = new URL('../src/lib/taskMonitor.js', import.meta.url);
 const webCreatePath = new URL('../src/lib/webCalendarAdminCore.js', import.meta.url);
@@ -21,7 +22,7 @@ test('calendar image reads and deletes are scoped by guild', async () => {
   assert.match(source, /getCalendarPostImage\(assetId, scopedGuildId\)/);
 });
 
-test('calendar asset ownership is nullable, guild-scoped, and verification-stamped', async () => {
+test('calendar asset ownership and reconciliation state are nullable and indexed', async () => {
   const [assetSource, databaseSource] = await Promise.all([
     readFile(assetPath, 'utf8'),
     readFile(databasePath, 'utf8'),
@@ -30,15 +31,50 @@ test('calendar asset ownership is nullable, guild-scoped, and verification-stamp
   assert.match(databaseSource, /ALTER TABLE calendar_post_assets ADD COLUMN IF NOT EXISTS calendar_id TEXT/);
   assert.match(databaseSource, /ALTER TABLE calendar_post_assets ADD COLUMN IF NOT EXISTS event_id TEXT/);
   assert.match(databaseSource, /ALTER TABLE calendar_post_assets ADD COLUMN IF NOT EXISTS last_verified_at TIMESTAMP WITH TIME ZONE/);
+  assert.match(databaseSource, /ALTER TABLE calendar_post_assets ADD COLUMN IF NOT EXISTS last_checked_at TIMESTAMP WITH TIME ZONE/);
+  assert.match(databaseSource, /ALTER TABLE calendar_post_assets ADD COLUMN IF NOT EXISTS missing_since TIMESTAMP WITH TIME ZONE/);
   assert.match(databaseSource, /calendar_post_assets_owner_idx/);
+  assert.match(databaseSource, /calendar_post_assets_reconcile_idx/);
 
   assert.match(assetSource, /bindCalendarPostImageOwner\(assetId, guildId/);
-  assert.match(assetSource, /SET calendar_id = \$3,/);
-  assert.match(assetSource, /event_id = \$4,/);
   assert.match(assetSource, /last_verified_at = CURRENT_TIMESTAMP/);
-  assert.match(assetSource, /WHERE id = \$1 AND guild_id = \$2/);
-  assert.match(assetSource, /予定所有情報を保存できませんでした/);
-  assert.match(assetSource, /catch \(error\)[\s\S]*return false;/);
+  assert.match(assetSource, /last_checked_at = CURRENT_TIMESTAMP/);
+  assert.match(assetSource, /missing_since = NULL/);
+  assert.match(assetSource, /listCalendarPostImageReconciliationCandidates/);
+  assert.match(assetSource, /calendar_id IS NOT NULL/);
+  assert.match(assetSource, /event_id IS NOT NULL/);
+  assert.match(assetSource, /COALESCE\(last_checked_at, last_verified_at, created_at\) <= \$2/);
+  assert.match(assetSource, /deleteCalendarPostImageIfUnchanged/);
+  assert.match(assetSource, /last_verified_at IS NOT DISTINCT FROM \$5/);
+  assert.match(assetSource, /last_checked_at IS NOT DISTINCT FROM \$6/);
+  assert.match(assetSource, /missing_since IS NOT DISTINCT FROM \$7/);
+});
+
+test('calendar asset reconciliation is bounded, two-pass, and fail-closed', async () => {
+  const source = await readFile(reconciliationPath, 'utf8');
+
+  assert.match(source, /CALENDAR_ASSET_RECHECK_MS = 24 \* 60 \* 60 \* 1000/);
+  assert.match(source, /CALENDAR_ASSET_MISSING_CONFIRMATION_MS = 24 \* 60 \* 60 \* 1000/);
+  assert.match(source, /CALENDAR_ASSET_RECONCILIATION_BATCH_SIZE = 20/);
+  assert.match(source, /verified_at IS NOT NULL/);
+  assert.match(source, /privateExtendedProperty: \[`reactusAssetId=\$\{assetId\}`\]/);
+  assert.match(source, /showDeleted: false/);
+  assert.match(source, /singleEvents: false/);
+  assert.match(source, /markCalendarPostImageMissing/);
+  assert.match(source, /missingSince <= missingBefore/);
+  assert.match(source, /sameCalendarSet\(calendarIds, currentCalendarIds\)/);
+  assert.match(source, /deleteCalendarPostImageIfUnchanged/);
+  assert.match(source, /recordCalendarPostImageReconciliationAttempt/);
+  assert.match(source, /削除せず保持します/);
+});
+
+test('daily monitor owns reconciliation without adding another timer', async () => {
+  const source = await readFile(taskMonitorPath, 'utf8');
+  assert.match(source, /import \{ reconcileCalendarPostAssets \} from '\.\/calendarAssetReconciliation\.js'/);
+  assert.match(source, /async function runDailyTasks\(client\)/);
+  assert.match(source, /await reconcileCalendarPostAssets\(client\)/);
+  assert.equal((source.match(/name: 'デイリー'/g) || []).length, 1);
+  assert.match(source, /\{ name: 'デイリー', intervalMs: 24 \* 60 \* 60 \* 1000, run: runDailyTasks \}/);
 });
 
 test('only newly created image assets are bound after Google succeeds', async () => {
