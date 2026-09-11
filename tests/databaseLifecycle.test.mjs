@@ -9,6 +9,7 @@ test('database initialization is single-flight and closes one shared pool', asyn
     let poolsCreated = 0;
     let checks = 0;
     let tableChecks = 0;
+    let claimMigrations = 0;
     let closes = 0;
     const pool = {
         async query() {
@@ -27,6 +28,10 @@ test('database initialization is single-flight and closes one shared pool', asyn
             assert.equal(candidate, pool);
             tableChecks += 1;
         },
+        migrateLegacyCalendarClaimsFn: async (candidate) => {
+            assert.equal(candidate, pool);
+            claimMigrations += 1;
+        },
         logger: silentLogger,
     });
 
@@ -42,6 +47,7 @@ test('database initialization is single-flight and closes one shared pool', asyn
     assert.equal(poolsCreated, 1);
     assert.equal(checks, 1);
     assert.equal(tableChecks, 1);
+    assert.equal(claimMigrations, 1);
 
     assert.deepEqual(await Promise.all([
         manager.closeDatabase(),
@@ -68,6 +74,7 @@ test('database shutdown waits for an in-flight initialization and closes its poo
         connectionString: 'postgres://database',
         createPoolFn: () => pool,
         createTablesFn: async () => {},
+        migrateLegacyCalendarClaimsFn: async () => {},
         logger: silentLogger,
     });
 
@@ -78,4 +85,44 @@ test('database shutdown waits for an in-flight initialization and closes its poo
     assert.equal(await initialization, pool);
     assert.equal(await closing, true);
     assert.equal(closes, 1);
+});
+
+test('legacy calendar claims are migrated only after database copy reaches the target', async () => {
+    const order = [];
+    const sourcePool = {
+        async end() { order.push('source-close'); },
+    };
+    const targetPool = {
+        async query() {
+            order.push('target-check');
+            return { rows: [] };
+        },
+        async end() { order.push('target-close'); },
+    };
+    const manager = createDatabaseManager({
+        connectionString: 'postgres://source',
+        migrationTargetConnectionString: 'postgres://target',
+        createPoolFn(connectionString) {
+            return connectionString === 'postgres://source' ? sourcePool : targetPool;
+        },
+        createTablesFn: async (candidate) => {
+            assert.equal(candidate, targetPool);
+            order.push('tables');
+        },
+        migrateDatabaseFn: async (source, target) => {
+            assert.equal(source, sourcePool);
+            assert.equal(target, targetPool);
+            order.push('copy');
+            return { migrated: true, counts: {} };
+        },
+        migrateLegacyCalendarClaimsFn: async (candidate) => {
+            assert.equal(candidate, targetPool);
+            order.push('claims');
+        },
+        logger: silentLogger,
+    });
+
+    assert.equal(await manager.initializeDatabase(), targetPool);
+    assert.deepEqual(order.slice(0, 5), ['target-check', 'tables', 'copy', 'claims', 'source-close']);
+    await manager.closeDatabase();
 });
