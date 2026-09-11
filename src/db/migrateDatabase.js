@@ -8,6 +8,18 @@ const TABLES = [
     { name: 'scheduled_giveaways', columns: ['id', 'guild_id', 'prize', 'winner_count', 'giveaway_channel_id', 'start_time', 'duration_hours', 'end_time', 'schedule_cron', 'confirmation_channel_id', 'confirmation_role_id'] },
 ];
 
+const CALENDAR_CLAIMS_TABLE = {
+    name: 'calendar_claims',
+    columns: [
+        'guild_id',
+        'calendar_id',
+        'verified_at',
+        'verification_method',
+        'challenge_token',
+        'challenge_expires_at',
+    ],
+};
+
 const MIGRATION_NAME = 'fly_postgres_to_supabase_v1';
 
 function quoteIdentifier(value) {
@@ -58,6 +70,11 @@ async function migrationAlreadyCompleted(target) {
     return result.rowCount > 0;
 }
 
+async function sourceTableExists(source, tableName) {
+    const result = await source.query('SELECT to_regclass($1) AS table_name', [`public.${tableName}`]);
+    return Boolean(result.rows?.[0]?.table_name);
+}
+
 async function resetSequence(target, tableName) {
     await target.query(`
         SELECT setval(
@@ -77,7 +94,7 @@ export async function migrateDatabase(sourcePool, targetPool) {
     try {
         await ensureMigrationStateTable(target);
         if (await migrationAlreadyCompleted(target)) {
-            return { migrated: false, counts: null };
+            return { migrated: false, counts: null, copiedCalendarClaims: null };
         }
 
         source = await sourcePool.connect();
@@ -86,11 +103,14 @@ export async function migrateDatabase(sourcePool, targetPool) {
         await target.query('BEGIN');
         targetTransaction = true;
 
-        const truncateList = TABLES.map(({ name }) => `public.${quoteIdentifier(name)}`).join(', ');
+        const copiedCalendarClaims = await sourceTableExists(source, CALENDAR_CLAIMS_TABLE.name);
+        const tables = copiedCalendarClaims ? [...TABLES, CALENDAR_CLAIMS_TABLE] : TABLES;
+        const truncateTables = [...TABLES, CALENDAR_CLAIMS_TABLE];
+        const truncateList = truncateTables.map(({ name }) => `public.${quoteIdentifier(name)}`).join(', ');
         await target.query(`TRUNCATE ${truncateList} RESTART IDENTITY`);
 
         const counts = {};
-        for (const table of TABLES) {
+        for (const table of tables) {
             const columnList = table.columns.map(quoteIdentifier).join(', ');
             const sourceResult = await source.query(
                 `SELECT ${columnList} FROM public.${quoteIdentifier(table.name)}`,
@@ -123,7 +143,7 @@ export async function migrateDatabase(sourcePool, targetPool) {
         await source.query('COMMIT');
         sourceTransaction = false;
 
-        return { migrated: true, counts };
+        return { migrated: true, counts, copiedCalendarClaims };
     } catch (error) {
         if (targetTransaction) await target.query('ROLLBACK').catch(() => {});
         if (sourceTransaction && source) await source.query('ROLLBACK').catch(() => {});
@@ -133,4 +153,3 @@ export async function migrateDatabase(sourcePool, targetPool) {
         target.release();
     }
 }
-
