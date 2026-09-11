@@ -264,6 +264,24 @@ function installPanel() {
   formPanel.after(section);
 }
 
+function wirePreviewUpdates() {
+  const form = $('#scheduleForm');
+  if (form) {
+    form.addEventListener('input', render);
+    form.addEventListener('change', event => {
+      if (event.target?.id !== 'image') render();
+    });
+  }
+
+  $$('.segment').forEach(button => button.addEventListener('click', render));
+  $('#addPrize')?.addEventListener('click', render);
+  $('#clearImage')?.addEventListener('click', render);
+  $('#prizeList')?.addEventListener('click', event => {
+    if (event.target?.closest?.('.prize-row .danger')) render();
+  });
+  $('#imagePreview')?.addEventListener('load', render);
+}
+
 async function initialize() {
   installStyles();
   installPanel();
@@ -273,16 +291,7 @@ async function initialize() {
     return;
   }
   render();
-  const form = $('#scheduleForm');
-  if (form) {
-    form.addEventListener('input', render);
-    form.addEventListener('change', () => window.setTimeout(render, 0));
-  }
-  document.addEventListener('click', event => {
-    if (event.target?.matches?.('.segment, #addPrize, .prize-row .danger, #clearImage')) {
-      window.setTimeout(render, 0);
-    }
-  });
+  wirePreviewUpdates();
 }
 
 void initialize();
