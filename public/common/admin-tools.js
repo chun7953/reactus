@@ -1,7 +1,6 @@
 import { loadEnhancementBootstrap } from './admin-enhancement-bootstrap.js';
 import { showAdminNotice } from './admin-notice.js';
 
-const qa = (selector) => [...document.querySelectorAll(selector)];
 const q = (selector) => document.querySelector(selector);
 const fallbackCommonEmoji = ['✅','❌','⭕','🔴','🟠','🟡','🟢','🔵','🟣','⚪','⚫','👍','👎','❤️','🎉','⭐','👀','💡','📌','🔥'];
 const REACTION_PAGE_SIZE = 8;
@@ -51,28 +50,9 @@ function installStyles() {
     .rule-emojis{display:flex;gap:5px;align-items:center;flex-wrap:wrap;margin-top:5px}
     .invalid-rule{color:#ff9c9c;font-size:12px;margin-top:4px}
     .reaction-rule-controls{display:grid;gap:8px;margin-top:10px}
-    .calendar-search{margin-right:auto}
     @media(max-width:760px){.reaction-rule{grid-template-columns:1fr}.tools-row input,.tools-row select{width:100%}}
   `;
   document.head.append(style);
-}
-
-function addSearchBox() {
-  const refresh = q('#refreshEvents');
-  const head = refresh?.closest('.section-head');
-  if (!head || q('#eventSearch')) return;
-  const input = document.createElement('input');
-  input.id = 'eventSearch';
-  input.type = 'search';
-  input.className = 'calendar-search';
-  input.placeholder = '予定を検索';
-  input.addEventListener('input', () => {
-    const needle = input.value.trim().toLowerCase();
-    qa('#eventList .event-card').forEach(card => {
-      card.style.display = !needle || card.textContent.toLowerCase().includes(needle) ? '' : 'none';
-    });
-  });
-  refresh.before(input);
 }
 
 function emojiKey(item) { return item.type === 'custom' ? `c:${item.id}` : `u:${item.value}`; }
@@ -453,7 +433,6 @@ async function init() {
   // request, which caused the calendar owner and many MutationObservers to
   // repeatedly react to the same large DOM replacement.
   installReactionPanel();
-  addSearchBox();
   try {
     await reloadToolsBootstrap();
   } catch (error) {

@@ -1,6 +1,24 @@
 const PAGE_SIZE = 12;
-
 let upcomingLimit = PAGE_SIZE;
+
+function ensureEventSearch() {
+  let search = document.querySelector('#eventSearch');
+  if (search) return search;
+
+  const refresh = document.querySelector('#refreshEvents');
+  const head = refresh?.closest('.section-head');
+  if (!refresh || !head) return null;
+
+  search = document.createElement('input');
+  search.id = 'eventSearch';
+  search.type = 'search';
+  search.className = 'calendar-search';
+  search.placeholder = '予定を検索';
+  search.autocomplete = 'off';
+  search.addEventListener('input', applyEventListControls);
+  refresh.before(search);
+  return search;
+}
 
 function ensureUpcomingControls() {
   const list = document.querySelector('#eventList');
@@ -24,7 +42,7 @@ function ensureUpcomingControls() {
   more.textContent = `さらに${PAGE_SIZE}件表示`;
   more.addEventListener('click', () => {
     upcomingLimit += PAGE_SIZE;
-    applyUpcomingLimit();
+    applyEventListControls();
   });
 
   const collapse = document.createElement('button');
@@ -34,7 +52,7 @@ function ensureUpcomingControls() {
   collapse.textContent = '最初の12件に戻す';
   collapse.addEventListener('click', () => {
     upcomingLimit = PAGE_SIZE;
-    applyUpcomingLimit();
+    applyEventListControls();
     list.closest('.panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 
@@ -43,12 +61,22 @@ function ensureUpcomingControls() {
   return controls;
 }
 
-function applyUpcomingLimit() {
+function installStyles() {
+  if (document.querySelector('#eventListControlsStyles')) return;
+  const style = document.createElement('style');
+  style.id = 'eventListControlsStyles';
+  style.textContent = '.calendar-search{margin-right:auto}';
+  document.head.append(style);
+}
+
+function applyEventListControls() {
   const list = document.querySelector('#eventList');
+  const searchInput = ensureEventSearch();
   const controls = ensureUpcomingControls();
   if (!list || !controls) return;
+
   const cards = [...list.querySelectorAll(':scope > .event-card')];
-  const search = String(document.querySelector('#eventSearch')?.value || '').trim().toLocaleLowerCase('ja');
+  const search = String(searchInput?.value || '').trim().toLocaleLowerCase('ja');
   const status = controls.querySelector('#upcomingPaginationStatus');
   const more = controls.querySelector('#upcomingMore');
   const collapse = controls.querySelector('#upcomingCollapse');
@@ -82,14 +110,16 @@ function applyUpcomingLimit() {
   collapse.hidden = shown <= PAGE_SIZE;
 }
 
-function scheduleUpcomingUpdate() {
-  window.queueMicrotask(applyUpcomingLimit);
+function scheduleEventListControlsUpdate() {
+  window.queueMicrotask(applyEventListControls);
 }
 
 function install() {
-  document.addEventListener('reactus:event-list-rendered', scheduleUpcomingUpdate);
-  document.querySelector('#eventSearch')?.addEventListener('input', scheduleUpcomingUpdate);
-  applyUpcomingLimit();
+  installStyles();
+  ensureEventSearch();
+  ensureUpcomingControls();
+  document.addEventListener('reactus:event-list-rendered', scheduleEventListControlsUpdate);
+  applyEventListControls();
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install, { once: true });
