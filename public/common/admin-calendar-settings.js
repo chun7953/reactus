@@ -164,7 +164,11 @@ function installStyles() {
   const style = document.createElement('style');
   style.id = 'calendarSettingsStyles';
   style.textContent = `
-    .calendar-settings-details{margin-top:18px}
+    .reactus-calendar-settings-fold{margin-top:14px;padding-top:12px;border-top:1px solid #273341}
+    .reactus-calendar-settings-fold details{margin-top:0}
+    .reactus-calendar-settings-fold summary{cursor:pointer;font-weight:700;color:#c7d1dc}
+    .reactus-calendar-settings-fold details>.hint{margin:10px 0 0}
+    .calendar-settings-details{margin-top:0}
     .calendar-settings-details>summary{cursor:pointer;font-weight:700;font-size:1.02rem}
     .calendar-settings-body{display:grid;gap:18px;margin-top:16px}
     .calendar-settings-block{display:grid;gap:10px;padding:14px;border:1px solid #293746;border-radius:12px;background:#0d141c}
@@ -180,24 +184,16 @@ function installStyles() {
 
 function installPanel() {
   if (q('#calendarSettingsPanel')) return true;
-  const app = q('#app');
-  if (!app) return false;
-  const firstPanel = app.querySelector(':scope > .panel');
-  if (!firstPanel) return false;
+  const mount = q('#calendarSettingsMount');
+  if (!mount) return false;
 
   const panel = document.createElement('section');
   panel.id = 'calendarSettingsPanel';
-  panel.className = 'panel';
+  panel.className = 'reactus-calendar-settings-fold';
   panel.innerHTML = `
-    <div class="section-head">
-      <div>
-        <p class="eyebrow">カレンダー連携</p>
-        <h2>カレンダー連携設定</h2>
-      </div>
-    </div>
-    <p class="hint">普段の予定作成では触る必要のない接続設定です。投稿先や、予定を見分ける合図を追加・変更するときだけ使用します。</p>
     <details class="calendar-settings-details">
-      <summary>接続設定を開く</summary>
+      <summary>カレンダー連携設定</summary>
+      <p class="hint">普段は変更不要です。Googleカレンダーや投稿先を変更するときだけ開いてください。</p>
       <div class="calendar-settings-body">
         <div id="mainCalendarSettings" class="calendar-settings-block">
           <strong>メインカレンダー</strong>
@@ -233,7 +229,7 @@ function installPanel() {
       </div>
     </details>`;
 
-  firstPanel.after(panel);
+  mount.append(panel);
   return true;
 }
 

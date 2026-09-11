@@ -12,7 +12,8 @@ const monthPath = new URL('../public/common/admin-calendar-month-view.js', impor
 const entryPath = new URL('../public/admin-entry.js', import.meta.url);
 const enhancementModulesPath = new URL('../public/common/admin-enhancement-modules.js', import.meta.url);
 const shellPath = new URL('../public/common/admin-calendar-shell.js', import.meta.url);
-const foldPath = new URL('../public/common/admin-calendar-settings-fold.js', import.meta.url);
+const settingsPath = new URL('../public/common/admin-calendar-settings.js', import.meta.url);
+const retiredFoldPath = new URL('../public/common/admin-calendar-settings-fold.js', import.meta.url);
 const htmlPath = new URL('../public/admin.html', import.meta.url);
 const handlerPath = new URL('../src/web/adminHandler.js', import.meta.url);
 const calendarAdminPath = new URL('../src/lib/webCalendarAdmin.js', import.meta.url);
@@ -112,16 +113,19 @@ test('calendar shell and month-owned consumers are bootstrap-critical instead of
   assert.doesNotMatch(htmlSource, /予定履歴/);
 });
 
-test('calendar integration settings fold into the calendar instead of using a separate full panel', async () => {
-  const [enhancementModulesSource, foldSource] = await Promise.all([
+test('calendar settings owner renders the final folded UI directly into the calendar shell', async () => {
+  const [enhancementModulesSource, shellSource, settingsSource] = await Promise.all([
     readFile(enhancementModulesPath, 'utf8'),
-    readFile(foldPath, 'utf8'),
+    readFile(shellPath, 'utf8'),
+    readFile(settingsPath, 'utf8'),
   ]);
-  assert.match(enhancementModulesSource, /admin-calendar-settings-fold\.js/);
-  assert.match(foldSource, /#calendarOverview/);
-  assert.match(foldSource, /#calendarSettingsPanel/);
-  assert.match(foldSource, /カレンダー連携設定/);
-  assert.match(foldSource, /panel\.classList\.remove\('panel'\)/);
-  assert.match(foldSource, /mount\.append\(panel\)/);
-  assert.doesNotMatch(foldSource, /panel\.remove\(\)/);
+  assert.match(shellSource, /id="calendarSettingsMount"/);
+  assert.match(settingsSource, /const mount = q\('#calendarSettingsMount'\)/);
+  assert.match(settingsSource, /panel\.className = 'reactus-calendar-settings-fold'/);
+  assert.match(settingsSource, /<summary>カレンダー連携設定<\/summary>/);
+  assert.match(settingsSource, /普段は変更不要です。Googleカレンダーや投稿先を変更するときだけ開いてください。/);
+  assert.match(settingsSource, /mount\.append\(panel\)/);
+  assert.doesNotMatch(settingsSource, /firstPanel\.after\(panel\)/);
+  assert.doesNotMatch(enhancementModulesSource, /admin-calendar-settings-fold\.js/);
+  await assert.rejects(readFile(retiredFoldPath, 'utf8'), error => error?.code === 'ENOENT');
 });
