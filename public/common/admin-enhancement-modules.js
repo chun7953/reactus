@@ -6,6 +6,5 @@ import './admin-calendar-drag.js';
 import './admin-announcements.js';
 import './admin-beginner-guide.js';
 import './admin-dashboard-usability.js';
-import './admin-reaction-pagination.js';
 import './admin-navigation-polish.js';
 import './admin-mobile.js';
