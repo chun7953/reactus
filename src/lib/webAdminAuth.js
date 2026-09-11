@@ -5,6 +5,8 @@ const LOGIN_TTL_MINUTES = 10;
 const SESSION_TTL_DAYS = 30;
 const SESSION_CACHE_TTL_MS = 30 * 1000;
 const sessionCache = new Map();
+const guildRevocationStates = new Map();
+let authRevocationRevision = 0;
 
 function randomToken() {
     return crypto.randomBytes(32).toString('base64url');
@@ -12,6 +14,44 @@ function randomToken() {
 
 function hashToken(token) {
     return crypto.createHash('sha256').update(String(token || '')).digest('hex');
+}
+
+function scopedGuildId(guildId) {
+    return String(guildId || '').trim();
+}
+
+function guildRevocationState(guildId) {
+    const id = scopedGuildId(guildId);
+    if (!id) return { active: 0, revision: 0 };
+    return guildRevocationStates.get(id) || { active: 0, revision: 0 };
+}
+
+function guildAuthRevision(guildId) {
+    return guildRevocationState(guildId).revision;
+}
+
+function isGuildAuthRevoking(guildId) {
+    return guildRevocationState(guildId).active > 0;
+}
+
+function beginGuildAuthRevocation(guildId) {
+    const id = scopedGuildId(guildId);
+    const current = guildRevocationState(id);
+    guildRevocationStates.set(id, {
+        active: current.active + 1,
+        revision: current.revision + 1,
+    });
+    authRevocationRevision += 1;
+}
+
+function endGuildAuthRevocation(guildId) {
+    const id = scopedGuildId(guildId);
+    const current = guildRevocationState(id);
+    guildRevocationStates.set(id, {
+        active: Math.max(0, current.active - 1),
+        revision: current.revision + 1,
+    });
+    authRevocationRevision += 1;
 }
 
 function sessionExpiryMs(session) {
@@ -25,6 +65,7 @@ function rememberSession(sessionHash, session) {
     const now = Date.now();
     const expiresAt = sessionExpiryMs(session);
     if (!sessionHash || !session || expiresAt <= now) return;
+    if (isGuildAuthRevoking(session.guild_id)) return;
     sessionCache.set(sessionHash, {
         session,
         cacheUntil: Math.min(now + SESSION_CACHE_TTL_MS, expiresAt),
@@ -38,40 +79,64 @@ function readCachedSession(sessionHash) {
         sessionCache.delete(sessionHash);
         return null;
     }
+    if (isGuildAuthRevoking(cached.session?.guild_id)) return null;
     return cached.session;
 }
 
 function clearGuildSessionCache(guildId) {
-    const scopedGuildId = String(guildId || '').trim();
-    if (!scopedGuildId) return 0;
+    const id = scopedGuildId(guildId);
+    if (!id) return 0;
     let cleared = 0;
     for (const [sessionHash, cached] of sessionCache.entries()) {
-        if (String(cached?.session?.guild_id || '') !== scopedGuildId) continue;
+        if (String(cached?.session?.guild_id || '') !== id) continue;
         sessionCache.delete(sessionHash);
         cleared += 1;
     }
     return cleared;
 }
 
-export async function issueWebAdminLogin(guildId, userId) {
-    if (!guildId || !userId) throw new Error('guildId and userId are required');
+async function selectWebAdminSession(db, sessionHash) {
+    const result = await db.query(
+        `SELECT guild_id, user_id, expires_at
+           FROM web_admin_sessions
+          WHERE session_hash = $1 AND expires_at > NOW()`,
+        [sessionHash],
+    );
+    return result.rows[0] || null;
+}
+
+export async function issueWebAdminLogin(guildId, userId, { db: suppliedDb } = {}) {
+    const id = scopedGuildId(guildId);
+    if (!id || !userId) throw new Error('guildId and userId are required');
+    if (isGuildAuthRevoking(id)) throw new Error('Web admin auth is being revoked for this guild');
+
+    const observedRevision = guildAuthRevision(id);
     const token = randomToken();
-    const pool = await getDBPool();
-    await pool.query(
+    const tokenHash = hashToken(token);
+    const db = suppliedDb || await getDBPool();
+    await db.query(
         `INSERT INTO web_admin_login_tokens (token_hash, guild_id, user_id, expires_at)
          VALUES ($1, $2, $3, NOW() + ($4 || ' minutes')::interval)`,
-        [hashToken(token), guildId, userId, String(LOGIN_TTL_MINUTES)],
+        [tokenHash, id, userId, String(LOGIN_TTL_MINUTES)],
     );
-    await pool.query('DELETE FROM web_admin_login_tokens WHERE expires_at < NOW()');
-    await pool.query('DELETE FROM web_admin_sessions WHERE expires_at < NOW()');
+
+    if (observedRevision !== guildAuthRevision(id) || isGuildAuthRevoking(id)) {
+        await db.query('DELETE FROM web_admin_login_tokens WHERE token_hash = $1', [tokenHash]);
+        throw new Error('Web admin auth was revoked while issuing a login link');
+    }
+
+    await db.query('DELETE FROM web_admin_login_tokens WHERE expires_at < NOW()');
+    await db.query('DELETE FROM web_admin_sessions WHERE expires_at < NOW()');
     return token;
 }
 
-export async function consumeWebAdminLogin(token) {
+export async function consumeWebAdminLogin(token, { db: suppliedDb } = {}) {
     if (!token) return null;
-    const pool = await getDBPool();
+    const pool = suppliedDb || await getDBPool();
     const client = await pool.connect();
     let transactionOpen = false;
+    let sessionHash = null;
+    let guildId = null;
     try {
         await client.query('BEGIN');
         transactionOpen = true;
@@ -87,9 +152,18 @@ export async function consumeWebAdminLogin(token) {
             return null;
         }
 
+        const { guild_id: rawGuildId, user_id: userId } = login.rows[0];
+        guildId = scopedGuildId(rawGuildId);
+        const observedRevision = guildAuthRevision(guildId);
+
+        if (isGuildAuthRevoking(guildId)) {
+            await client.query('COMMIT');
+            transactionOpen = false;
+            return null;
+        }
+
         const sessionToken = randomToken();
-        const sessionHash = hashToken(sessionToken);
-        const { guild_id: guildId, user_id: userId } = login.rows[0];
+        sessionHash = hashToken(sessionToken);
         await client.query(
             `INSERT INTO web_admin_sessions (session_hash, guild_id, user_id, expires_at)
              VALUES ($1, $2, $3, NOW() + ($4 || ' days')::interval)`,
@@ -97,6 +171,13 @@ export async function consumeWebAdminLogin(token) {
         );
         await client.query('COMMIT');
         transactionOpen = false;
+
+        if (observedRevision !== guildAuthRevision(guildId) || isGuildAuthRevoking(guildId)) {
+            await pool.query('DELETE FROM web_admin_sessions WHERE session_hash = $1', [sessionHash]);
+            sessionCache.delete(sessionHash);
+            return null;
+        }
+
         rememberSession(sessionHash, {
             guild_id: guildId,
             user_id: userId,
@@ -105,26 +186,30 @@ export async function consumeWebAdminLogin(token) {
         return { sessionToken, guildId, userId, maxAgeSeconds: SESSION_TTL_DAYS * 24 * 60 * 60 };
     } catch (error) {
         if (transactionOpen) await client.query('ROLLBACK').catch(() => {});
+        if (sessionHash) sessionCache.delete(sessionHash);
         throw error;
     } finally {
         client.release();
     }
 }
 
-export async function getWebAdminSession(sessionToken) {
+export async function getWebAdminSession(sessionToken, { db: suppliedDb } = {}) {
     if (!sessionToken) return null;
     const sessionHash = hashToken(sessionToken);
     const cached = readCachedSession(sessionHash);
     if (cached) return cached;
 
-    const pool = await getDBPool();
-    const result = await pool.query(
-        `SELECT guild_id, user_id, expires_at
-           FROM web_admin_sessions
-          WHERE session_hash = $1 AND expires_at > NOW()`,
-        [sessionHash],
-    );
-    const session = result.rows[0] || null;
+    const db = suppliedDb || await getDBPool();
+    let observedRevision = authRevocationRevision;
+    let session = await selectWebAdminSession(db, sessionHash);
+
+    if (observedRevision !== authRevocationRevision) {
+        observedRevision = authRevocationRevision;
+        session = await selectWebAdminSession(db, sessionHash);
+        if (observedRevision !== authRevocationRevision) return null;
+    }
+
+    if (session && isGuildAuthRevoking(session.guild_id)) return null;
     if (session) rememberSession(sessionHash, session);
     return session;
 }
@@ -139,34 +224,37 @@ export async function revokeWebAdminSession(sessionToken) {
 }
 
 export async function revokeWebAdminAuthForGuild(guildId, { db: suppliedDb } = {}) {
-    const scopedGuildId = String(guildId || '').trim();
-    if (!scopedGuildId) throw new Error('guildId is required');
+    const id = scopedGuildId(guildId);
+    if (!id) throw new Error('guildId is required');
 
-    // Cached sessions are credentials too. Drop them before and after the DB
-    // revocation so requests overlapping this operation cannot keep a stale
-    // cached credential alive after the guild leaves.
-    clearGuildSessionCache(scopedGuildId);
-    const db = suppliedDb || await getDBPool();
-    const result = await db.query(
-        `WITH deleted_login_tokens AS (
-            DELETE FROM web_admin_login_tokens
-             WHERE guild_id = $1
-             RETURNING 1
-         ),
-         deleted_sessions AS (
-            DELETE FROM web_admin_sessions
-             WHERE guild_id = $1
-             RETURNING 1
-         )
-         SELECT
-            (SELECT COUNT(*)::INTEGER FROM deleted_login_tokens) AS login_tokens,
-            (SELECT COUNT(*)::INTEGER FROM deleted_sessions) AS sessions`,
-        [scopedGuildId],
-    );
-    clearGuildSessionCache(scopedGuildId);
+    beginGuildAuthRevocation(id);
+    clearGuildSessionCache(id);
 
-    return {
-        loginTokens: Number(result.rows?.[0]?.login_tokens || 0),
-        sessions: Number(result.rows?.[0]?.sessions || 0),
-    };
+    try {
+        const db = suppliedDb || await getDBPool();
+        const result = await db.query(
+            `WITH deleted_login_tokens AS (
+                DELETE FROM web_admin_login_tokens
+                 WHERE guild_id = $1
+                 RETURNING 1
+             ),
+             deleted_sessions AS (
+                DELETE FROM web_admin_sessions
+                 WHERE guild_id = $1
+                 RETURNING 1
+             )
+             SELECT
+                (SELECT COUNT(*)::INTEGER FROM deleted_login_tokens) AS login_tokens,
+                (SELECT COUNT(*)::INTEGER FROM deleted_sessions) AS sessions`,
+            [id],
+        );
+
+        return {
+            loginTokens: Number(result.rows?.[0]?.login_tokens || 0),
+            sessions: Number(result.rows?.[0]?.sessions || 0),
+        };
+    } finally {
+        clearGuildSessionCache(id);
+        endGuildAuthRevocation(id);
+    }
 }
