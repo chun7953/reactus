@@ -1,6 +1,6 @@
 # Reactus Discord distribution readiness
 
-Last reviewed: 2026-09-12
+Last reviewed: 2026-09-13
 
 This document is the repository-side checklist for moving the official hosted Reactus bot from controlled testing to wider Discord distribution. The Discord Developer Portal remains authoritative for account-specific eligibility and current checklist state.
 
@@ -126,13 +126,21 @@ Before opening a public install link, complete at least one production smoke tes
 
 Do not replace this with a legacy-trust fallback.
 
+## Limited external alpha
+
+After fresh-tenant production smoke and the intended Developer Portal installation settings have passed, use `docs/LIMITED_ALPHA_RUNBOOK.md` as the operator checklist for independent external-server acceptance.
+
+The alpha should remain intentionally small. Validate normal installation, Calendar ownership verification, Web Admin scheduling, Discord delivery, production health, API/rate-limit behavior, and the support path before widening distribution.
+
+Do not publish a broad install link merely because one alpha server succeeds. Resolve P0/P1 findings at the canonical owner and re-run the affected acceptance path before onboarding continues.
+
 ## Rollout gates
 
 Recommended order:
 
 1. **Current controlled testing** — support/development server and known testers only.
 2. **Fresh-tenant smoke** — complete the Calendar ownership smoke above on a new Discord server and Calendar.
-3. **Limited external alpha** — a small number of independent servers; monitor production errors, Google API volume, Discord rate limits, and support requests.
+3. **Limited external alpha** — follow `docs/LIMITED_ALPHA_RUNBOOK.md` on a small number of independent servers; monitor production errors, Google API volume, Discord rate limits, and support requests.
 4. **Public install link** — only after support flow, Privacy/Terms links, installation permissions, and rollback path are confirmed.
 5. **App Verification** — complete before the current verification limit is reached and before enabling Discovery.
 6. **Discovery / App Directory** — opt in only when Developer Portal requirements are fully green and the public profile accurately reflects the shipping feature set.
