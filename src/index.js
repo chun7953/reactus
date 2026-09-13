@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, Collection, Options, Events } from 'discord.js';
+import { Client, GatewayIntentBits, Collection, Options, Events, RESTEvents } from 'discord.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import config, { assertRuntimeConfig } from './config.js';
@@ -9,6 +9,7 @@ import { getMonitoringStatus, stopMonitoring } from './lib/taskMonitor.js';
 import { createGracefulShutdown } from './lib/gracefulShutdown.js';
 import { loadApplicationModules } from './lib/moduleLoader.js';
 import { createRuntimeStatus } from './lib/runtimeStatus.js';
+import { getProviderTelemetry, providerTelemetry } from './lib/providerTelemetry.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -36,11 +37,20 @@ const client = new Client({
 
 client.commands = new Collection();
 client.cooldowns = new Collection();
+client.rest.on(RESTEvents.RateLimited, (data) => {
+    providerTelemetry.recordDiscordRestRateLimit(data);
+    console.warn(
+        `[Discord REST] rate limit event: global=${Boolean(data?.global)} retryAfterMs=${Number(data?.retryAfter) || 0}`,
+    );
+});
 
 const runtimeStatus = createRuntimeStatus();
 const webServer = startServer({
     client,
-    getStatus: () => runtimeStatus.snapshot({ monitoring: getMonitoringStatus() }),
+    getStatus: () => runtimeStatus.snapshot({
+        monitoring: getMonitoringStatus(),
+        providers: getProviderTelemetry(),
+    }),
 });
 const shutdown = createGracefulShutdown({
     client,
