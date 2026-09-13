@@ -11,7 +11,7 @@ This is not a public-rollout guide. Keep the alpha intentionally small and invit
 Before inviting an external server, confirm all of the following remain true:
 
 - production `/readyz` reports `ready=true`
-- `/readyz.providers` exposes aggregate Google Calendar monitor and Discord REST telemetry without tenant identifiers
+- the `providers` object inside production `/readyz` exposes aggregate Google Calendar monitor and Discord REST telemetry without tenant identifiers
 - fresh-tenant Calendar ownership verification has passed in production
 - guild leave -> claim revocation -> rejoin -> reverify has passed in production
 - Web Admin -> intended Google Calendar -> intended Discord channel routing has passed in production
@@ -69,8 +69,8 @@ Keep screenshots only when they help reproduce a failure. Redact tokens, private
 Before the first onboarding and after each new server completes the flow:
 
 - check `/readyz` and confirm the service remains ready
-- compare `/readyz.providers.googleCalendarMonitor.listRequests` and `listFailures` with the pre-onboarding baseline; `listRequests` counts actual monitor `events.list` calls, not per-run cache hits or every interactive Calendar API call
-- inspect `/readyz.providers.discordRest.rateLimitEvents` and `globalRateLimitEvents`; these counters are aggregate since process start and intentionally contain no route, guild, channel, or Calendar identifiers
+- compare `providers.googleCalendarMonitor.listRequests` and `listFailures` in `/readyz` with the pre-onboarding baseline; `listRequests` counts actual monitor `events.list` calls, not per-run cache hits or every interactive Calendar API call
+- inspect `providers.discordRest.rateLimitEvents` and `globalRateLimitEvents` in `/readyz`; these counters are aggregate since process start and intentionally contain no route, guild, channel, or Calendar identifiers
 - review production logs for recurring monitor failures, Calendar access failures, duplicate-delivery errors, or unhandled exceptions
 - watch for repeated Google API `403`, `429`, quota, or retry-related errors
 - watch for Discord REST/API rate-limit or failed-delivery errors
