@@ -25,13 +25,14 @@ test('public homepage presents the current Reactus workflow and SEO metadata wit
   await expect(page).toHaveTitle(/Reactus \| Discord予約・定期投稿 × Google Calendar/);
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Discord運用を');
   await expect(page.getByText('日本語のWeb管理画面')).toBeVisible();
+  await expect(page.getByText('毎週の告知、予約投稿、抽選、自動リアクション。')).toBeVisible();
   await expect(page.getByRole('heading', { name: '予定を作るところから、Discordに届くところまで。' })).toBeVisible();
   await expect(page.getByRole('heading', { name: '普段の設定は、コマンドではなく画面から。' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: '導入済みなら、まず管理画面を開く。' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '導入したら、まず管理画面を開く。' })).toBeVisible();
   await expect(page.getByText('Discordで /reactus を実行')).toBeVisible();
   await expect(page.locator('body')).not.toContainText('`/reactus`');
 
-  const tryLink = page.getByRole('link', { name: 'Reactus開発室で試す' });
+  const tryLink = page.getByRole('link', { name: '使ってみたい方はこちら' });
   await expect(tryLink).toHaveAttribute('href', 'https://discord.gg/m6mFzzEQhr');
   await expect(page.getByRole('link', { name: 'プライバシーポリシー' })).toHaveAttribute('href', '/privacy.html');
   await expect(page.getByRole('link', { name: 'GitHubを見る' })).toHaveAttribute('href', 'https://github.com/chun7953/reactus');
