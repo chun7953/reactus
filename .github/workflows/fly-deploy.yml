@@ -36,7 +36,7 @@ jobs:
         run: npm run check
 
       - name: Audit production dependencies
-        run: npm audit --omit=dev --audit-level=high
+        run: npm audit --omit=dev --audit-level=moderate
 
       - name: Deploy to Fly.io
         # The official flyctl container avoids the api.fly.io CLI release
