@@ -27,16 +27,18 @@ function fakePool() {
             if (sql.includes('INSERT INTO calendar_giveaway_posts')) {
                 if (claims.has(key)) return { rows: [], rowCount: 0 };
                 const claimed_at = new Date(state.now);
-                claims.set(key, { status: 'CLAIMED', message_id: null, claimed_at });
-                return { rows: [{ claimed_at }], rowCount: 1 };
+                const claim_token = params[3];
+                claims.set(key, { status: 'CLAIMED', message_id: null, claimed_at, claim_token });
+                return { rows: [{ claim_token }], rowCount: 1 };
             }
             if (sql.includes('UPDATE calendar_giveaway_posts') && sql.includes('SET claimed_at')) {
                 const claim = claims.get(key);
-                if (!claim || claim.status !== 'CLAIMED' || state.now - claim.claimed_at.getTime() < 60_000) {
+                if (!claim || claim.status !== 'CLAIMED' || state.now - claim.claimed_at.getTime() < 300_000) {
                     return { rows: [], rowCount: 0 };
                 }
                 claim.claimed_at = new Date(state.now);
-                return { rows: [{ claimed_at: claim.claimed_at }], rowCount: 1 };
+                claim.claim_token = params[3];
+                return { rows: [{ claim_token: claim.claim_token }], rowCount: 1 };
             }
             if (sql.includes('SELECT status, message_id FROM calendar_giveaway_posts')) {
                 const claim = claims.get(key);
@@ -44,7 +46,7 @@ function fakePool() {
             }
             if (sql.includes("SET status = 'POSTED'")) {
                 const claim = claims.get(key);
-                if (!claim || claim.status !== 'CLAIMED' || claim.claimed_at.getTime() !== new Date(params[2]).getTime()) {
+                if (!claim || claim.status !== 'CLAIMED' || claim.claim_token !== params[2]) {
                     return { rows: [], rowCount: 0 };
                 }
                 claim.status = 'POSTED';
@@ -160,7 +162,7 @@ test('recovery after a crash following Discord send reuses the posted message', 
     assert.equal(pool.state.claims.size, 1);
 
     pool.state.failGiveawayInsert = false;
-    pool.state.now += 61_000;
+    pool.state.now += 301_000;
     const recovered = await deliverCalendarGiveawayItem(options(pool, channel));
     assert.equal(recovered.recovered, true);
     assert.equal(channel.sent.length, 1);
@@ -175,7 +177,7 @@ test('partial batch preserves its first posted prize on restart', async () => {
     pool.state.failGiveawayInsert = true;
     await assert.rejects(deliverCalendarGiveawayItem(options(pool, channel, 'prize:1')));
     pool.state.failGiveawayInsert = false;
-    pool.state.now += 61_000;
+    pool.state.now += 301_000;
 
     const first = await deliverCalendarGiveawayItem(options(pool, channel, 'prize:0'));
     const second = await deliverCalendarGiveawayItem(options(pool, channel, 'prize:1'));
@@ -189,7 +191,7 @@ test('recovery fails closed when Discord history is inaccessible', async () => {
     const channel = fakeChannel();
     pool.state.failGiveawayInsert = true;
     await assert.rejects(deliverCalendarGiveawayItem(options(pool, channel)));
-    pool.state.now += 61_000;
+    pool.state.now += 301_000;
     channel.state.failFetch = true;
 
     await assert.rejects(deliverCalendarGiveawayItem(options(pool, channel)), /history unavailable/);
@@ -224,4 +226,34 @@ test('history lookup does not mistake another prize for the claimed one', async 
     const channel = fakeChannel();
     await channel.send({ embeds: [{ footer: { text: calendarGiveawayMarker('other-delivery') } }] });
     assert.equal(await findExistingCalendarGiveawayMessage(channel, 'wanted-delivery', startTime), null);
+});
+
+test('stale claim token cannot finalize a delivery after another worker takes ownership', async () => {
+    const pool = fakePool();
+    const id = 'delivery-fence-test';
+    const firstToken = '11111111-1111-4111-8111-111111111111';
+    const secondToken = '22222222-2222-4222-8222-222222222222';
+
+    const first = await pool.query(
+        'INSERT INTO calendar_giveaway_posts', [id, 'guild-1', 'channel-1', firstToken],
+    );
+    assert.equal(first.rows[0].claim_token, firstToken);
+
+    pool.state.now += 301_000;
+    const second = await pool.query(
+        'UPDATE calendar_giveaway_posts SET claimed_at', [id, 'guild-1', 'channel-1', secondToken],
+    );
+    assert.equal(second.rows[0].claim_token, secondToken);
+
+    const stale = await pool.query(
+        "UPDATE calendar_giveaway_posts SET status = 'POSTED'",
+        [id, 'old-message', firstToken],
+    );
+    assert.equal(stale.rowCount, 0);
+
+    const fresh = await pool.query(
+        "UPDATE calendar_giveaway_posts SET status = 'POSTED'",
+        [id, 'new-message', secondToken],
+    );
+    assert.equal(fresh.rowCount, 1);
 });
