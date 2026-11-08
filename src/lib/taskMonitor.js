@@ -6,6 +6,7 @@ import { get, getDBPool } from './settingsCache.js';
 import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
 import { logSystemNotice } from './logger.js';
 import { deliverAndRecordNotification, recordNotification } from './notificationDelivery.js';
+import { deliverCalendarGiveawayItem } from './calendarGiveawayDelivery.js';
 import {
     claimFinishedGiveaway,
     completeClaimedGiveaway,
@@ -136,22 +137,50 @@ async function checkCalendarEvents(client) {
                             const imageFile = await eventImageFile(privateProperties, monitor.guild_id);
                             const giveawayChannel = await client.channels.fetch(monitor.channel_id).catch(() => null);
                             if (giveawayChannel) {
-                                for (const prizeInfo of prizesToCreate) {
-                                    const giveawayEmbed = new EmbedBuilder().setTitle(`🎉 景品: ${prizeInfo.prize}`).setDescription(`リアクションを押して参加しよう！\n**終了日時: <t:${Math.floor(endTime.getTime() / 1000)}:F>**`).addFields({ name: '当選者数', value: `${prizeInfo.winnerCount}名`, inline: true }).setColor(0x5865F2).setTimestamp(endTime);
-                                    const participateButton = new ButtonBuilder().setCustomId('giveaway_participate').setLabel('参加する').setStyle(ButtonStyle.Primary).setEmoji('🎉');
-                                    const row = new ActionRowBuilder().addComponents(participateButton);
-                                    const message = await giveawayChannel.send({ embeds: [giveawayEmbed], components: [row] });
-                                    giveawayEmbed.setFooter({ text: `メッセージID: ${message.id}` });
-                                    await message.edit({ embeds: [giveawayEmbed], components: [row] });
-                                    const sql = 'INSERT INTO giveaways (message_id, guild_id, channel_id, prize, winner_count, end_time) VALUES ($1, $2, $3, $4, $5, $6)';
-                                    await pool.query(sql, [message.id, monitor.guild_id, giveawayChannel.id, prizeInfo.prize, prizeInfo.winnerCount, endTime]);
-                                    console.log(`カレンダーから自動作成された抽選「${prizeInfo.prize}」がチャンネル ${giveawayChannel.id} で開始されました。`);
+                                for (const [index, prizeInfo] of prizesToCreate.entries()) {
+                                    const delivery = await deliverCalendarGiveawayItem({
+                                        pool,
+                                        channel: giveawayChannel,
+                                        notificationKey,
+                                        slot: `prize:${index}`,
+                                        startTime: event.start.dateTime || event.start.date,
+                                        buildPayload: marker => {
+                                            const giveawayEmbed = new EmbedBuilder()
+                                                .setTitle(`🎉 景品: ${prizeInfo.prize}`)
+                                                .setDescription(`リアクションを押して参加しよう！\\n**終了日時: <t:${Math.floor(endTime.getTime() / 1000)}:F>**`)
+                                                .addFields({ name: '当選者数', value: `${prizeInfo.winnerCount}名`, inline: true })
+                                                .setColor(0x5865F2).setTimestamp(endTime)
+                                                .setFooter({ text: marker });
+                                            const participateButton = new ButtonBuilder().setCustomId('giveaway_participate').setLabel('参加する').setStyle(ButtonStyle.Primary).setEmoji('🎉');
+                                            return { embeds: [giveawayEmbed], components: [new ActionRowBuilder().addComponents(participateButton)] };
+                                        },
+                                        onMessage: message => pool.query(
+                                            'INSERT INTO giveaways (message_id, guild_id, channel_id, prize, winner_count, end_time) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (message_id) DO NOTHING',
+                                            [message.id, monitor.guild_id, giveawayChannel.id, prizeInfo.prize, prizeInfo.winnerCount, endTime],
+                                        ),
+                                        onPosted: (message, marker) => {
+                                            const embed = EmbedBuilder.from(message.embeds[0])
+                                                .setFooter({ text: `メッセージID: ${message.id} | ${marker}` });
+                                            return message.edit({ embeds: [embed] });
+                                        },
+                                    });
+                                    if (!delivery.skipped) {
+                                        console.log(`カレンダーから自動作成された抽選「${prizeInfo.prize}」がチャンネル ${giveawayChannel.id} で開始されました。recovered=${delivery.recovered}`);
+                                    }
                                 }
                                 if (finalAdditionalMessageText || finalMentionsForSeparatePost || imageFile) {
-                                    const content = `${finalMentionsForSeparatePost}\n${finalAdditionalMessageText}`.trim();
-                                    await giveawayChannel.send({
-                                        ...(content ? { content } : {}),
-                                        ...(imageFile ? { files: [imageFile] } : {}),
+                                    const content = `${finalMentionsForSeparatePost}\\n${finalAdditionalMessageText}`.trim();
+                                    await deliverCalendarGiveawayItem({
+                                        pool,
+                                        channel: giveawayChannel,
+                                        notificationKey,
+                                        slot: 'supplement',
+                                        startTime: event.start.dateTime || event.start.date,
+                                        buildPayload: marker => ({
+                                            ...(content ? { content } : {}),
+                                            ...(imageFile ? { files: [imageFile] } : {}),
+                                            embeds: [new EmbedBuilder().setFooter({ text: marker })],
+                                        }),
                                     });
                                 }
                                 await recordNotification(pool, notificationKey);
@@ -261,14 +290,32 @@ async function checkScheduledGiveaways(client) {
             } else {
                 endTime = new Date(Date.now() + scheduled.duration_hours * 60 * 60 * 1000);
             }
-            const giveawayEmbed = new EmbedBuilder().setTitle(`🎉 景品: ${scheduled.prize}`).setDescription(`リアクションを押して参加しよう！\n**終了日時: <t:${Math.floor(endTime.getTime() / 1000)}:F>**`).addFields({ name: '当選者数', value: `${scheduled.winner_count}名`, inline: true }).setColor(0x5865F2).setTimestamp(endTime);
-            const participateButton = new ButtonBuilder().setCustomId('giveaway_participate').setLabel('参加する').setStyle(ButtonStyle.Primary).setEmoji('🎉');
-            const row = new ActionRowBuilder().addComponents(participateButton);
-            const message = await channel.send({ embeds: [giveawayEmbed], components: [row] });
-            giveawayEmbed.setFooter({ text: `メッセージID: ${message.id}` });
-            await message.edit({ embeds: [giveawayEmbed], components: [row] });
-            const sql = 'INSERT INTO giveaways (message_id, guild_id, channel_id, prize, winner_count, end_time) VALUES ($1, $2, $3, $4, $5, $6)';
-            await pool.query(sql, [message.id, scheduled.guild_id, channel.id, scheduled.prize, scheduled.winner_count, endTime]);
+            await deliverCalendarGiveawayItem({
+                pool,
+                channel,
+                notificationKey: `scheduled:${scheduled.guild_id}:${scheduled.id}`,
+                slot: 'prize:0',
+                startTime: scheduled.start_time,
+                buildPayload: marker => {
+                    const giveawayEmbed = new EmbedBuilder()
+                        .setTitle(`🎉 景品: ${scheduled.prize}`)
+                        .setDescription(`リアクションを押して参加しよう！\\n**終了日時: <t:${Math.floor(endTime.getTime() / 1000)}:F>**`)
+                        .addFields({ name: '当選者数', value: `${scheduled.winner_count}名`, inline: true })
+                        .setColor(0x5865F2).setTimestamp(endTime)
+                        .setFooter({ text: marker });
+                    const participateButton = new ButtonBuilder().setCustomId('giveaway_participate').setLabel('参加する').setStyle(ButtonStyle.Primary).setEmoji('🎉');
+                    return { embeds: [giveawayEmbed], components: [new ActionRowBuilder().addComponents(participateButton)] };
+                },
+                onMessage: message => pool.query(
+                    'INSERT INTO giveaways (message_id, guild_id, channel_id, prize, winner_count, end_time) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (message_id) DO NOTHING',
+                    [message.id, scheduled.guild_id, channel.id, scheduled.prize, scheduled.winner_count, endTime],
+                ),
+                onPosted: (message, marker) => {
+                    const embed = EmbedBuilder.from(message.embeds[0])
+                        .setFooter({ text: `メッセージID: ${message.id} | ${marker}` });
+                    return message.edit({ embeds: [embed] });
+                },
+            });
             await pool.query('DELETE FROM scheduled_giveaways WHERE id = $1', [scheduled.id]);
             console.log(`予約された抽選「${scheduled.prize}」がチャンネル ${channel.id} で開始されました。`);
         } catch (error) { console.error(`予約された抽選 ${scheduled.id} の処理中にエラー:`, error); }
