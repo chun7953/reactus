@@ -55,3 +55,6 @@ jobs:
 
       - name: Build production image
         run: docker build --tag reactus-ci .
+
+      - name: Verify pinned Fly CLI image
+        run: docker run --rm flyio/flyctl:v0.5.5 version

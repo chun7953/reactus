@@ -38,10 +38,14 @@ jobs:
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
 
-      - name: Set up flyctl
-        uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1
-
       - name: Deploy to Fly.io
-        run: flyctl deploy --remote-only
+        # The official flyctl container avoids the api.fly.io CLI release
+        # resolver that failed with repeated 504 responses.
+        run: |
+          docker run --rm \
+            --volume "$GITHUB_WORKSPACE:/workspace" \
+            --workdir /workspace \
+            --env FLY_API_TOKEN \
+            flyio/flyctl:v0.5.5 deploy --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
