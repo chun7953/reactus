@@ -147,7 +147,7 @@ async function checkCalendarEvents(client) {
                                         buildPayload: marker => {
                                             const giveawayEmbed = new EmbedBuilder()
                                                 .setTitle(`🎉 景品: ${prizeInfo.prize}`)
-                                                .setDescription(`リアクションを押して参加しよう！\\n**終了日時: <t:${Math.floor(endTime.getTime() / 1000)}:F>**`)
+                                                .setDescription(`リアクションを押して参加しよう！\n**終了日時: <t:${Math.floor(endTime.getTime() / 1000)}:F>**`)
                                                 .addFields({ name: '当選者数', value: `${prizeInfo.winnerCount}名`, inline: true })
                                                 .setColor(0x5865F2).setTimestamp(endTime)
                                                 .setFooter({ text: marker });
@@ -169,7 +169,7 @@ async function checkCalendarEvents(client) {
                                     }
                                 }
                                 if (finalAdditionalMessageText || finalMentionsForSeparatePost || imageFile) {
-                                    const content = `${finalMentionsForSeparatePost}\\n${finalAdditionalMessageText}`.trim();
+                                    const content = `${finalMentionsForSeparatePost}\n${finalAdditionalMessageText}`.trim();
                                     await deliverCalendarGiveawayItem({
                                         pool,
                                         channel: giveawayChannel,
@@ -299,7 +299,7 @@ async function checkScheduledGiveaways(client) {
                 buildPayload: marker => {
                     const giveawayEmbed = new EmbedBuilder()
                         .setTitle(`🎉 景品: ${scheduled.prize}`)
-                        .setDescription(`リアクションを押して参加しよう！\\n**終了日時: <t:${Math.floor(endTime.getTime() / 1000)}:F>**`)
+                        .setDescription(`リアクションを押して参加しよう！\n**終了日時: <t:${Math.floor(endTime.getTime() / 1000)}:F>**`)
                         .addFields({ name: '当選者数', value: `${scheduled.winner_count}名`, inline: true })
                         .setColor(0x5865F2).setTimestamp(endTime)
                         .setFooter({ text: marker });
