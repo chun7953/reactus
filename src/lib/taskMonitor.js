@@ -6,7 +6,7 @@ import { get, getDBPool } from './settingsCache.js';
 import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
 import { logSystemNotice } from './logger.js';
 import { deliverAndRecordNotification, recordNotification } from './notificationDelivery.js';
-import { deliverCalendarGiveawayItem } from './calendarGiveawayDelivery.js';
+import { calendarGiveawayDeliveryId, deliverCalendarGiveawayItem } from './calendarGiveawayDelivery.js';
 import {
     claimFinishedGiveaway,
     completeClaimedGiveaway,
@@ -106,6 +106,20 @@ async function checkCalendarEvents(client) {
                     );
                     const route = resolveCalendarRoute(event, [monitor], privateProperties);
                     if (!route) continue;
+
+                    // The wider scan window exists only to recover batches
+                    // already started before an interruption. New posts still
+                    // obey the original ten-minute delivery window.
+                    const eventStartTime = new Date(event.start.dateTime || event.start.date);
+                    if (eventStartTime.getTime() < now.getTime() - 10 * 60 * 1000) {
+                        if (route.type !== 'giveaway') continue;
+                        const firstItem = calendarGiveawayDeliveryId(notificationKey, 'prize:0');
+                        const existingAttempt = await pool.query(
+                            'SELECT 1 FROM calendar_giveaway_posts WHERE delivery_id = $1',
+                            [firstItem],
+                        );
+                        if (existingAttempt.rows.length === 0) continue;
+                    }
 
                     let eventDescription = event.description || '';
                     eventDescription = basicDecodeHtmlEntities(eventDescription);
