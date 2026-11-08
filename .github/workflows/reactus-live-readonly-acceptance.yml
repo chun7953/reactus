@@ -24,42 +24,6 @@ jobs:
           docker run --rm --env FLY_API_TOKEN \
             flyio/flyctl:v0.5.5 status --app reactus
 
-      - name: Summarize buffered app log evidence without exposing messages
-        run: |
-          set -euo pipefail
-          if timeout 65s docker run --rm --env FLY_API_TOKEN \
-            flyio/flyctl:v0.5.5 logs --app reactus --no-tail --json \
-            > "$RUNNER_TEMP/fly-buffered-log.jsonl" 2> "$RUNNER_TEMP/fly-buffered-log-error.txt"; then
-            python3 - <<'PY'
-          import json
-          import re
-          from pathlib import Path
-          from os import environ
-          path = Path(environ['RUNNER_TEMP']) / 'fly-buffered-log.jsonl'
-          lines = path.read_text(errors='replace').splitlines()
-          google_error = 0
-          google_success = 0
-          for line in lines:
-              try:
-                  entry = json.loads(line)
-              except (ValueError, TypeError):
-                  continue
-              body = str(entry.get('message', '')).lower()
-              if re.search(r'(google|calendar)', body) and re.search(r'(error|failed|403|401|429|timeout)', body):
-                  google_error += 1
-              if re.search(r'(google|calendar)', body) and re.search(r'(loaded|authenticated|successful|succeeded)', body):
-                  google_success += 1
-          print('FLY_BUFFERED_LOG_SUMMARY', json.dumps({
-              'returned_lines': len(lines),
-              'calendar_error_like_lines': google_error,
-              'calendar_success_like_lines': google_success,
-              'coverage': 'buffered-log-only; not a complete runtime log audit',
-          }))
-          PY
-          else
-            echo "FLY_BUFFERED_LOG_SUMMARY unavailable"
-          fi
-
       - name: Verify existing production Machine accepts read-only SSH
         run: |
           set -euo pipefail
@@ -68,12 +32,20 @@ jobs:
             --app reactus --machine 4d89440b166e18 \
             --command 'node --version'
 
+      - name: Test remote shell argument passing
+        run: |
+          set -euo pipefail
+          timeout 35s docker run --rm --env FLY_API_TOKEN \
+            flyio/flyctl:v0.5.5 ssh console \
+            --app reactus --machine 4d89440b166e18 \
+            --command 'node -p "6*7"'
+
       - name: Verify live Google Calendar reads with production service account
         run: |
           set -euo pipefail
           probe=$(base64 -w0 scripts/acceptance-calendar-readonly.cjs)
           # Only a code payload is transferred. Auth credentials stay on Fly.
-          timeout 180s docker run --rm --env FLY_API_TOKEN \
+          timeout 100s docker run --rm --env FLY_API_TOKEN \
             flyio/flyctl:v0.5.5 ssh console \
             --app reactus --machine 4d89440b166e18 \
             --command "node -e 'eval(Buffer.from(\"$probe\",\"base64\").toString(\"utf8\"))'"

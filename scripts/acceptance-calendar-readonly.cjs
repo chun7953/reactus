@@ -1,4 +1,5 @@
 'use strict';
+console.log('READONLY_PROBE_STAGE: start');
 
 // Ephemeral production read-only acceptance probe. Never prints secrets,
 // calendar IDs, event titles, or event bodies, and never writes to providers.
@@ -18,13 +19,18 @@ async function main() {
         throw new Error('Invalid Google service account configuration');
     }
 
+    console.log('READONLY_PROBE_STAGE: configured');
     const db = new Client({
         connectionString: process.env.DATABASE_URL,
         application_name: 'reactus-readonly-acceptance',
+        connectionTimeoutMillis: 7000,
+        query_timeout: 10000,
     });
     let ids;
     try {
+        console.log('READONLY_PROBE_STAGE: db-connect-attempt');
         await db.connect();
+        console.log('READONLY_PROBE_STAGE: db-connected');
         await db.query('BEGIN TRANSACTION READ ONLY');
         const result = await db.query(
             'SELECT DISTINCT calendar_id FROM public.calendar_monitors WHERE calendar_id IS NOT NULL ORDER BY calendar_id',
@@ -35,6 +41,7 @@ async function main() {
         await db.end().catch(() => {});
     }
 
+    console.log('READONLY_PROBE_STAGE: db-read-ok calendars=' + ids.length);
     const auth = new google.auth.GoogleAuth({
         credentials: {
             client_email: parsed.client_email,
@@ -46,13 +53,16 @@ async function main() {
             'https://www.googleapis.com/auth/calendar.events',
         ],
     });
+    console.log('READONLY_PROBE_STAGE: token-attempt');
     const calendar = google.calendar({ version: 'v3', auth: await auth.getClient() });
+    console.log('READONLY_PROBE_STAGE: token-client-ready');
     const now = Date.now();
     const timeMin = new Date(now - 24 * 60 * 60 * 1000).toISOString();
     const timeMax = new Date(now + 48 * 60 * 60 * 1000).toISOString();
     const results = [];
 
-    for (const calendarId of ids) {
+    for (const [index,calendarId] of ids.entries()) {
+        console.log('READONLY_PROBE_STAGE: calendar-request ' + (index + 1));
         try {
             const response = await calendar.events.list({
                 calendarId,
