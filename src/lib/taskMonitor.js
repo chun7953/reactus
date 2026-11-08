@@ -65,7 +65,9 @@ async function checkCalendarEvents(client) {
         const pool = await getDBPool();
         await pool.query("DELETE FROM notified_events WHERE notified_at < NOW() - INTERVAL '14 days'");
         const now = new Date();
-        const timeMin = new Date(now.getTime() - 10 * 60 * 1000).toISOString();
+        // Keep recently started events in scope long enough to reconcile an interrupted
+        // prize batch after a restart and a temporarily active delivery claim.
+        const timeMin = new Date(now.getTime() - 30 * 60 * 1000).toISOString();
         const timeMax = new Date(now.getTime() + 10 * 60 * 1000).toISOString();
         const masterMetadataCache = new Map();
         const listCalendarEvents = createCalendarEventsRunLoader(calendar, {
