@@ -1,7 +1,7 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 const DISCORD_EPOCH_MS = 1420070400000;
-const CLAIM_TIMEOUT = "1 minute";
+const CLAIM_TIMEOUT = '5 minutes';
 const HISTORY_PAGE_LIMIT = 100;
 const HISTORY_LOOKBACK_MS = 20 * 60 * 1000;
 
@@ -22,30 +22,31 @@ export function calendarGiveawayMarker(deliveryId) {
 }
 
 async function claimDelivery(pool, deliveryId, channel) {
+    const claimToken = randomUUID();
     const inserted = await pool.query(
-        `INSERT INTO calendar_giveaway_posts (delivery_id, guild_id, channel_id)
-         VALUES ($1, $2, $3)
+        `INSERT INTO calendar_giveaway_posts (delivery_id, guild_id, channel_id, claim_token)
+         VALUES ($1, $2, $3, $4)
          ON CONFLICT (delivery_id) DO NOTHING
-         RETURNING claimed_at`,
-        [deliveryId, channel.guildId, channel.id],
+         RETURNING claim_token`,
+        [deliveryId, channel.guildId, channel.id, claimToken],
     );
     if (inserted.rows.length > 0) {
-        return { state: 'new', claimedAt: inserted.rows[0].claimed_at };
+        return { state: 'new', claimToken: inserted.rows[0].claim_token };
     }
 
     // The claim is durable across processes. Do not treat a not-yet-expired
     // claim as a failure and send again from another worker.
     const recovered = await pool.query(
         `UPDATE calendar_giveaway_posts
-         SET claimed_at = NOW()
+         SET claimed_at = NOW(), claim_token = $4
          WHERE delivery_id = $1 AND guild_id = $2 AND channel_id = $3
            AND status = 'CLAIMED'
            AND claimed_at < NOW() - INTERVAL '${CLAIM_TIMEOUT}'
-         RETURNING claimed_at`,
-        [deliveryId, channel.guildId, channel.id],
+         RETURNING claim_token`,
+        [deliveryId, channel.guildId, channel.id, claimToken],
     );
     if (recovered.rows.length > 0) {
-        return { state: 'recover', claimedAt: recovered.rows[0].claimed_at };
+        return { state: 'recover', claimToken: recovered.rows[0].claim_token };
     }
 
     const existing = await pool.query(
@@ -119,9 +120,9 @@ export async function deliverCalendarGiveawayItem({
     const result = await pool.query(
         `UPDATE calendar_giveaway_posts
          SET status = 'POSTED', message_id = $2
-         WHERE delivery_id = $1 AND status = 'CLAIMED' AND claimed_at = $3
+         WHERE delivery_id = $1 AND status = 'CLAIMED' AND claim_token = $3
          RETURNING message_id`,
-        [deliveryId, message.id, claim.claimedAt],
+        [deliveryId, message.id, claim.claimToken],
     );
     if (result.rowCount !== 1) {
         throw new Error(`Giveaway delivery claim was lost before recording message ${message.id}`);
