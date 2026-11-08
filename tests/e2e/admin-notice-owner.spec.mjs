@@ -1,6 +1,9 @@
 import { expect, test } from '@playwright/test';
 
 test('a newer admin notice is not hidden by an older notice timer', async ({ page }) => {
+  // The fixture contains September 2026 events; freeze the browser clock so
+  // this test does not begin navigating in the real current month.
+  await page.clock.setFixedTime(new Date('2026-09-09T10:00:00+09:00'));
   await page.goto('/admin');
   await expect(page.locator('#app')).toBeVisible();
 
