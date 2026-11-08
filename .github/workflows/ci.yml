@@ -31,6 +31,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Temporary diagnostics on this PR: generate a lockfile candidate using
+      # npm's resolver on the CI runner, without changing the repository.
+      - name: Export npm audit remediation candidate
+        run: |
+          npm audit fix --package-lock-only --omit=dev || true
+          echo '__REACTUS_LOCKFILE_START__'
+          base64 -w 400 package-lock.json
+          echo
+          echo '__REACTUS_LOCKFILE_END__'
       - name: Run checks
         run: npm run check
 
