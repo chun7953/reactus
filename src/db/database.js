@@ -115,6 +115,17 @@ async function createTables(db) {
     await db.query(`CREATE TABLE IF NOT EXISTS guild_configs ( guild_id TEXT PRIMARY KEY, main_calendar_id TEXT, giveaway_manager_roles TEXT[] );`);
     await db.query(`CREATE TABLE IF NOT EXISTS calendar_claims ( guild_id TEXT NOT NULL, calendar_id TEXT NOT NULL, verified_at TIMESTAMP WITH TIME ZONE, verification_method TEXT, challenge_token TEXT, challenge_expires_at TIMESTAMP WITH TIME ZONE, PRIMARY KEY (guild_id, calendar_id) );`);
     await db.query(`CREATE TABLE IF NOT EXISTS schema_migrations ( name TEXT PRIMARY KEY, applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL );`);
+    // Persistent calendar snapshots are database schema, not a second lazy DDL
+    // owner in the web calendar cache implementation.
+    await db.query(`CREATE TABLE IF NOT EXISTS web_calendar_snapshots (
+        guild_id TEXT NOT NULL,
+        forward_days INTEGER NOT NULL,
+        past_days INTEGER NOT NULL,
+        events JSONB NOT NULL,
+        loaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (guild_id, forward_days, past_days)
+    );`);
+
     await db.query(`CREATE TABLE IF NOT EXISTS notified_events ( event_id TEXT PRIMARY KEY, notified_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL );`);
     await db.query(`CREATE TABLE IF NOT EXISTS giveaways ( message_id TEXT PRIMARY KEY, guild_id TEXT NOT NULL, channel_id TEXT NOT NULL, prize TEXT NOT NULL, winner_count INTEGER NOT NULL DEFAULT 1, end_time TIMESTAMP WITH TIME ZONE NOT NULL, status TEXT NOT NULL DEFAULT 'RUNNING', winners TEXT[], participants TEXT[] DEFAULT '{}'::TEXT[], validation_fails INTEGER DEFAULT 0 );`);
     // A calendar event may create several Discord messages. Persist each
@@ -144,6 +155,13 @@ async function createTables(db) {
     await db.query(`CREATE INDEX IF NOT EXISTS web_admin_sessions_expires_at_idx ON web_admin_sessions (expires_at);`);
     await db.query(`ALTER TABLE web_admin_login_tokens ENABLE ROW LEVEL SECURITY;`);
     await db.query(`ALTER TABLE web_admin_sessions ENABLE ROW LEVEL SECURITY;`);
+    // These tables are internal to Reactus. No anon/authenticated API
+    // policies: the bot connects as postgres (RLS-bypass), while Supabase's
+    // Data API roles must not be able to inspect or modify internal state.
+    await db.query(`ALTER TABLE web_calendar_snapshots ENABLE ROW LEVEL SECURITY;`);
+    await db.query(`ALTER TABLE calendar_claims ENABLE ROW LEVEL SECURITY;`);
+    await db.query(`ALTER TABLE schema_migrations ENABLE ROW LEVEL SECURITY;`);
+
     await db.query(`ALTER TABLE giveaways ADD COLUMN IF NOT EXISTS validation_fails INTEGER DEFAULT 0;`);
     console.log('✅ Tables checked/created successfully.');
 }

@@ -9,6 +9,7 @@ import {
 
 const adminPath = new URL('../src/lib/webCalendarAdmin.js', import.meta.url);
 const snapshotPath = new URL('../src/lib/calendarAdminSnapshotStore.js', import.meta.url);
+const databasePath = new URL('../src/db/database.js', import.meta.url);
 const readyPath = new URL('../src/events/ready.js', import.meta.url);
 const handlerPath = new URL('../src/web/adminHandler.js', import.meta.url);
 const mentionPath = new URL('../src/lib/webCalendarMentionService.js', import.meta.url);
@@ -32,10 +33,11 @@ test('admin calendar list cache shares the common dashboard window and persists 
 });
 
 test('calendar cache uses stale-while-revalidate and survives Fly deploys through PostgreSQL', async () => {
-  const [source, snapshot, ready] = await Promise.all([
+  const [source, snapshot, ready, database] = await Promise.all([
     readFile(adminPath, 'utf8'),
     readFile(snapshotPath, 'utf8'),
     readFile(readyPath, 'utf8'),
+    readFile(databasePath, 'utf8'),
   ]);
   assert.match(source, /calendarListInflight = new Map\(\)/);
   assert.match(source, /calendarListGeneration = new Map\(\)/);
@@ -49,8 +51,9 @@ test('calendar cache uses stale-while-revalidate and survives Fly deploys throug
   assert.match(source, /using persisted cache/);
   assert.match(source, /writeCalendarAdminSnapshot/);
   assert.match(source, /warmAllWebScheduleCaches/);
-  assert.match(snapshot, /CREATE TABLE IF NOT EXISTS web_calendar_snapshots/);
-  assert.match(snapshot, /events JSONB NOT NULL/);
+  assert.match(database, /CREATE TABLE IF NOT EXISTS web_calendar_snapshots/);
+  assert.match(database, /events JSONB NOT NULL/);
+  assert.doesNotMatch(snapshot, /CREATE TABLE IF NOT EXISTS web_calendar_snapshots/);
   assert.match(snapshot, /ON CONFLICT \(guild_id, forward_days, past_days\)/);
   assert.match(ready, /warmAllWebScheduleCaches\(\)/);
 });
