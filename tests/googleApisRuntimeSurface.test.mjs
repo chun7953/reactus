@@ -28,3 +28,26 @@ test('upgraded Google APIs preserves Reactus calendar and sheets entrypoints', (
     });
     assert.equal(typeof auth.getClient, 'function');
 });
+
+test('Google Calendar list request is generated without a live provider call', async () => {
+    const calls = [];
+    const auth = {
+        async request(options) {
+            calls.push(options);
+            return { data: { items: [] }, status: 200 };
+        },
+    };
+    const calendar = google.calendar({ version: 'v3', auth });
+    const result = await calendar.events.list({
+        calendarId: 'ci@example.test',
+        timeMin: '2026-11-08T00:00:00Z',
+        singleEvents: true,
+        maxResults: 10,
+    });
+
+    assert.deepEqual(result.data.items, []);
+    assert.equal(calls.length, 1);
+    assert.match(String(calls[0].url), /calendar\/v3\/calendars\/ci%40example\.test\/events/);
+    assert.equal(calls[0].method, 'GET');
+    assert.equal(calls[0].params.singleEvents, true);
+});
