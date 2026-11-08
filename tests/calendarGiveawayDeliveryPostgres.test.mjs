@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { Client } from 'pg';
+import pg from 'pg';
+
+const { Client } = pg;
 
 import { deliverCalendarGiveawayItem } from '../src/lib/calendarGiveawayDelivery.js';
 
