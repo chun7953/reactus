@@ -3,93 +3,34 @@ on:
   push:
     branches:
       - validation/fly-readonly-calendar-20261108
-
 permissions:
   contents: read
-
 jobs:
   inspect:
-    name: Fly diagnostics without deploy or writes
+    name: Read-only Fly health and HTTP status
     runs-on: ubuntu-latest
-    timeout-minutes: 9
+    timeout-minutes: 5
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
     steps:
-      - name: Checkout source containing the read-only probe
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-
-      - name: Inspect current Fly app status
+      - name: Check public readiness endpoint from GitHub runner
         run: |
           set -euo pipefail
-          docker run --rm --env FLY_API_TOKEN \
-            flyio/flyctl:v0.5.5 status --app reactus
-
-      - name: Verify existing production Machine accepts read-only SSH
-        run: |
-          set -euo pipefail
-          timeout 100s docker run --rm --env FLY_API_TOKEN \
-            flyio/flyctl:v0.5.5 ssh console \
-            --app reactus --machine 4d89440b166e18 \
-            --command 'node --version'
-
-      - name: Test remote shell argument passing
-        run: |
-          set -euo pipefail
-          timeout 35s docker run --rm --env FLY_API_TOKEN \
-            flyio/flyctl:v0.5.5 ssh console \
-            --app reactus --machine 4d89440b166e18 \
-            --command 'node -p "6*7"'
-
-      - name: Inspect running process names after probe timeout
-        run: |
-          set -euo pipefail
-          timeout 35s docker run --rm --env FLY_API_TOKEN \
-            flyio/flyctl:v0.5.5 ssh console \
-            --app reactus --machine 4d89440b166e18 \
-            --command 'ps -eo pid,comm'
-
-      - name: Confirm runtime credential presence without disclosing values
-        run: |
-          set -euo pipefail
-          timeout 35s docker run --rm --env FLY_API_TOKEN \
-            flyio/flyctl:v0.5.5 ssh console \
-            --app reactus --machine 4d89440b166e18 \
-            --command 'node -p "JSON.stringify({googleConfigured: Boolean(process.env.GOOGLE_SHEETS_CREDENTIALS), databaseConfigured: Boolean(process.env.DATABASE_URL)})"'
-
-      - name: Summarize buffered Fly runtime warnings without exposing event contents
-        run: |
-          set -euo pipefail
-          if timeout 45s docker run --rm --env FLY_API_TOKEN \
-            flyio/flyctl:v0.5.5 logs --app reactus --no-tail --json \
-            > "$RUNNER_TEMP/fly-log.jsonl" 2> "$RUNNER_TEMP/fly-log-error.txt"; then
-            python3 - <<'PY'
-          import json
-          import re
-          from pathlib import Path
-          from os import environ
-          lines = (Path(environ['RUNNER_TEMP']) / 'fly-log.jsonl').read_text(errors='replace').splitlines()
-          patterns = {
-              'readiness_mentions': r'Reactus initialization completed',
-              'calendar_load_mentions': r'WebAdminCalendar.*loaded guild=',
-              'google_auth_mentions': r'Google Service Account authenticated successfully',
-              'memory_error_mentions': r'(?i)(out of memory|oom|memory limit exceeded)',
-              'calendar_error_mentions': r'(?i)(Google.*error|Calendar.*failed|Calendar.*timeout)',
+          http_code=$(curl --silent --show-error --max-time 15 --output "$RUNNER_TEMP/reactus-ready-body" --write-out '%{http_code}' 'https://reactus.fly.dev/readyz') || {
+            echo 'PUBLIC_READYZ http request failed'
+            exit 2
           }
-          counts = {name: 0 for name in patterns}
-          for line in lines:
-              try:
-                  item = json.loads(line)
-              except (ValueError, TypeError):
-                  continue
-              value = str(item.get('message', ''))
-              for name, pattern in patterns.items():
-                  if re.search(pattern, value):
-                      counts[name] += 1
-          print('FLY_BUFFERED_RUNTIME_COUNTS', json.dumps({
-              'lines_returned': len(lines), **counts,
-              'caveat': 'buffered log is not a complete archive',
-          }))
-          PY
-          else
-            echo 'FLY_BUFFERED_RUNTIME_COUNTS unavailable'
-          fi
+          echo "PUBLIC_READYZ status=$http_code"
+          test "$http_code" = 200
+      - name: Read current Fly app state
+        run: |
+          set -euo pipefail
+          timeout 35s docker run --rm --env FLY_API_TOKEN flyio/flyctl:v0.5.5 status --app reactus
+      - name: Read live Fly health checks
+        run: |
+          set -euo pipefail
+          timeout 35s docker run --rm --env FLY_API_TOKEN flyio/flyctl:v0.5.5 checks list --app reactus
+      - name: Read current Machine state and recent events
+        run: |
+          set -euo pipefail
+          timeout 35s docker run --rm --env FLY_API_TOKEN flyio/flyctl:v0.5.5 machine status 4d89440b166e18 --app reactus
