@@ -125,6 +125,7 @@ async function createTables(db) {
         channel_id TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'CLAIMED' CHECK (status IN ('CLAIMED', 'POSTED')),
         claimed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        claim_token UUID NOT NULL,
         message_id TEXT
     );`);
     await db.query(`ALTER TABLE calendar_giveaway_posts ENABLE ROW LEVEL SECURITY;`);
